@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1e40af;
+  --color-accent: #3b82f6;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-escalated: #8b5cf6;
+  --color-neutral-bg: #f8fafc;
+  --color-card-bg: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+
+  /* Status badge backgrounds */
+  --color-status-pending-l1-bg: #fef3c7;
+  --color-status-pending-l1-text: #92400e;
+  --color-status-pending-l2-bg: #dbeafe;
+  --color-status-pending-l2-text: #1e40af;
+  --color-status-approved-bg: #d1fae5;
+  --color-status-approved-text: #065f46;
+  --color-status-declined-bg: #fee2e2;
+  --color-status-declined-text: #991b1b;
+  --color-status-escalated-bg: #ede9fe;
+  --color-status-escalated-text: #5b21b6;
+  --color-status-cancelled-bg: #f1f5f9;
+  --color-status-cancelled-text: #475569;
+
+  --font-sans: var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background-color: var(--color-neutral-bg);
+}

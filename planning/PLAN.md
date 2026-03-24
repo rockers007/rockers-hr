@@ -233,8 +233,55 @@ Admins are a strict superset of employees. Every employee action is also availab
 > See `NOTIFICATIONS.md` for the full event catalogue, token reference, and SLA engine design.
 
 ---
+## 12. LLM Integration
 
-## 12. Reports
+When writing code to make calls to LLMs, use cerebras-inference skill to use LiteLLM via OpenRouter to the `openrouter/openai/gpt-oss-120b` model with Cerebras as the inference provider. Structured Outputs should be used to interpret the results.
+
+There is an OPENROUTER_API_KEY in the .env file in the project root.
+
+### How It Works
+
+When the user sends a chat message, the backend:
+
+1. User can ask question related platfrom.
+2. Constructs a prompt with a system message, portfolio context, conversation history, and the user's new message
+3. Calls the LLM via LiteLLM → OpenRouter, requesting structured output, using the cerebras-inference skill
+4. Parses the complete structured JSON response
+5. Stores the message and executed actions in `chat_messages`
+6. Returns the complete JSON response to the frontend (no token-by-token streaming — Cerebras inference is fast enough that a loading indicator is sufficient)
+
+### Structured Output Schema
+
+The LLM is instructed to respond with JSON matching this schema:
+
+```json
+{
+  "message": "Your conversational response to the user"
+}
+```
+
+- `message` (required): The conversational text shown to the user
+
+### Auto-Execution
+
+the error is included in the chat response so the LLM can inform the user.
+
+### System Prompt Guidance
+
+The LLM should be prompted as "Rockers - HR, an AI  assistant" with instructions to:
+- Ask question related platform.
+- Be concise and data-driven in responses
+- Always respond with valid structured JSON
+
+### LLM Mock Mode
+
+When `LLM_MOCK=true`, the backend returns deterministic mock responses instead of calling OpenRouter. This enables:
+- Fast, free, reproducible E2E tests
+- Development without an API key
+- CI/CD pipelines
+
+---
+## 13. Reports
 
 | Report | Scope | Export |
 |--------|-------|--------|
@@ -244,7 +291,7 @@ Admins are a strict superset of employees. Every employee action is also availab
 
 ---
 
-## 13. MVP Scope
+## 14. MVP Scope
 
 ### ✅ Phase 1 — In Scope
 
@@ -277,7 +324,7 @@ Admins are a strict superset of employees. Every employee action is also availab
 
 ---
 
-## 14. Resolved Decisions (v1.6 → v1.7)
+## 15. Resolved Decisions (v1.6 → v1.7)
 
 All open questions confirmed by HRBhrugisha V. Propagated into domain docs.
 
@@ -292,7 +339,7 @@ All open questions confirmed by HRBhrugisha V. Propagated into domain docs.
 
 ---
 
-## 15. Action Items
+## 16. Action Items
 
 | Owner | Action | Status |
 |-------|--------|--------|

@@ -1,0 +1,18 @@
+{
+  "name": "rockers-hr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rockers HR — Leave Management System",
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:db": "docker compose up postgres -d",
+    "db:migrate": "cd backend && npx typeorm migration:run -d dist/config/typeorm.config.js",
+    "db:seed": "cd backend && npx ts-node src/database/seeds/run-seed.ts",
+    "test": "cd backend && npm test",
+    "test:e2e": "cd backend && npm run test:e2e",
+    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
+    "clean": "docker compose down -v"
+  }
+}

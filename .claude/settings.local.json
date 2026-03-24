@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npx @nestjs/cli new backend --package-manager npm --skip-git --skip-install --language TypeScript)",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --eslint --app --src-dir --no-import-alias --use-npm)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --eslint --app --src-dir --use-npm --no-turbopack)",
+      "Bash(rm -rf frontend)",
+      "Bash(printf \"N\\\\nN\\\\n\")",
+      "Bash(mkdir -p frontend/src/app frontend/src/components frontend/public)",
+      "Bash(npm -v)",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx jest:*)",
+      "Bash(where flutter:*)"
     ]
   }
 }
