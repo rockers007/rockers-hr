@@ -2,7 +2,7 @@
   "name": "rockers-hr",
   "version": "1.0.0",
   "private": true,
-  "description": "Rockers HR — Leave Management System",
+  "description": "Rockers HR — HR Management System",
   "scripts": {
     "dev": "docker compose up --build",
     "dev:backend": "cd backend && npm run start:dev",
@@ -14,5 +14,8 @@
     "test:e2e": "cd backend && npm run test:e2e",
     "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
     "clean": "docker compose down -v"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
   }
 }

@@ -35,6 +35,13 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   CalculateResult? _calcResult;
   bool _isCalculating = false;
 
+  // Early leave fields
+  DateTime? _earlyLeaveDate;
+  TimeOfDay? _earlyLeaveStartTime;
+  TimeOfDay? _earlyLeaveEndTime;
+
+  bool get _isEarlyLeave => _selectedType?.label.toLowerCase().contains('early') == true;
+
   // Step 2 state
   final _reasonController = TextEditingController();
   bool _sandwichAcknowledged = false;
@@ -208,13 +215,26 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await LeaveService.submitRequest({
+      final body = <String, dynamic>{
         'leave_type_id': _selectedType!.id,
         'duration_type_id': _selectedDuration!.id,
-        'start_date': DateFormat('yyyy-MM-dd').format(_startDate!),
-        'end_date': DateFormat('yyyy-MM-dd').format(_endDate!),
+        'start_date': _isEarlyLeave
+            ? DateFormat('yyyy-MM-dd').format(_earlyLeaveDate!)
+            : DateFormat('yyyy-MM-dd').format(_startDate!),
+        'end_date': _isEarlyLeave
+            ? DateFormat('yyyy-MM-dd').format(_earlyLeaveDate!)
+            : DateFormat('yyyy-MM-dd').format(_endDate!),
         'reason': _reasonController.text.trim(),
-      });
+      };
+      if (_isEarlyLeave && _earlyLeaveDate != null &&
+          _earlyLeaveStartTime != null && _earlyLeaveEndTime != null) {
+        body['early_leave_date'] = DateFormat('yyyy-MM-dd').format(_earlyLeaveDate!);
+        body['early_leave_start_time'] =
+            '${_earlyLeaveStartTime!.hour.toString().padLeft(2, '0')}:${_earlyLeaveStartTime!.minute.toString().padLeft(2, '0')}';
+        body['early_leave_end_time'] =
+            '${_earlyLeaveEndTime!.hour.toString().padLeft(2, '0')}:${_earlyLeaveEndTime!.minute.toString().padLeft(2, '0')}';
+      }
+      await LeaveService.submitRequest(body);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +272,73 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   }
 
   @override
+  bool get _isEmploymentEnded {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return false;
+    if (user.employmentStatus != 'active') return true;
+    if (user.lastWorkingDay != null) {
+      final lwd = DateTime.tryParse(user.lastWorkingDay!);
+      if (lwd != null) {
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final lwdDate = DateTime(lwd.year, lwd.month, lwd.day);
+        return todayDate.isAfter(lwdDate);
+      }
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isEmploymentEnded) {
+      final user = context.read<AuthService>().currentUser;
+      return Scaffold(
+        backgroundColor: AppColors.neutralBg,
+        appBar: AppBar(
+          title: const Text('Apply for Leave'),
+          leading: widget.showBackButton
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
+          automaticallyImplyLeading: widget.showBackButton,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.block, size: 64, color: AppColors.danger),
+                const SizedBox(height: 16),
+                const Text(
+                  'Leave Application Disabled',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  user?.lastWorkingDay != null
+                      ? 'Your last working day was ${DateFormat('dd MMM yyyy').format(DateTime.parse(user!.lastWorkingDay!))}. You can no longer apply for leave.'
+                      : 'Your employment status is "${user?.employmentStatus ?? 'inactive'}". You cannot apply for leave.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       appBar: AppBar(

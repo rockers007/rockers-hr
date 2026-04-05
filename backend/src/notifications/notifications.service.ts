@@ -36,10 +36,11 @@ export class NotificationsService {
       return;
     }
 
+    const portNum = port ? parseInt(port, 10) : 587;
     this.transporter = nodemailer.createTransport({
       host,
-      port: port ? parseInt(port, 10) : 465,
-      secure: true,
+      port: portNum,
+      secure: portNum === 465, // true for 465 (implicit SSL), false for 587 (STARTTLS)
       auth: { user, pass },
     });
   }

@@ -13,8 +13,8 @@ export class ApiHelper {
 
   /** Log in as an admin and return the JWT token */
   async adminLogin(
-    email = 'superadmin@rockershr.com',
-    password = process.env.TEST_ADMIN_PASSWORD || 'Admin@1234',
+    email = 'admin@rockers.com',
+    password = process.env.TEST_ADMIN_PASSWORD || 'admin123',
   ): Promise<string> {
     const res = await this.request.post(`${API_BASE}/admin/auth/login`, {
       data: { email, password },

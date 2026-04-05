@@ -72,6 +72,19 @@ export class LeaveRequest {
   @Column({ type: 'text', nullable: true })
   admin_notes: string | null;
 
+  // Early leave time tracking (unit=hours)
+  @Column({ type: 'date', nullable: true })
+  early_leave_date: string | null;
+
+  @Column({ type: 'time', nullable: true })
+  early_leave_start_time: string | null;
+
+  @Column({ type: 'time', nullable: true })
+  early_leave_end_time: string | null;
+
+  @Column({ type: 'decimal', precision: 4, scale: 2, nullable: true })
+  early_leave_hours: number | null;
+
   @Column({ type: 'text', nullable: true })
   calendar_event_id: string | null;
 

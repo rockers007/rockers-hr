@@ -9,8 +9,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Rockers HR',
-  description: 'Leave Management System',
+  title: 'Rockers HR — HR Management System',
+  description: 'Rockers Technologies — HR Management System',
+  icons: {
+    icon: [
+      { url: '/favicon.png', type: 'image/png' },
+      { url: '/images/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/images/favicon-16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: '/images/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({

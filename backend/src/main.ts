@@ -39,7 +39,7 @@ async function bootstrap() {
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Rockers HR API')
-      .setDescription('Leave Management System API')
+      .setDescription('HR Management System API')
       .setVersion('1.0')
       .addBearerAuth()
       .build();

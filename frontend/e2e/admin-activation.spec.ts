@@ -15,7 +15,7 @@ test.describe('Admin — Registration Activation', () => {
   test('should show pending registrations page', async ({ page }) => {
     await page.goto('/admin/registrations');
 
-    await expect(page.getByText(/pending.*registration|registration.*pending/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /pending registrations/i })).toBeVisible();
   });
 
   test('should list pending registrations', async ({ page }) => {
@@ -139,7 +139,7 @@ test.describe('Admin — Registration Activation', () => {
     await reasonField.fill('Duplicate registration.');
 
     // Confirm rejection
-    await page.getByRole('button', { name: /reject|confirm/i }).click();
+    await page.getByRole('button', { name: 'Reject', exact: true }).click();
 
     // Should show success
     await expect(page.getByText(/rejected|success/i)).toBeVisible();

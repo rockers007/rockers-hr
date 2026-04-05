@@ -13,6 +13,7 @@ import { MasterPublicHoliday } from '../master/entities/master-public-holiday.en
 import { MasterSlaConfig } from '../master/entities/master-sla-config.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       User,
     ]),
     NotificationsModule,
+    CalendarModule,
   ],
   controllers: [
     LeaveController,

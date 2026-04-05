@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
 import { formatDateRange, getInitials } from '@/lib/utils';
-import type { LeaveBalance, LeaveRequest, LeaveStatus } from '@/lib/types';
+import type { LeaveBalance, LeaveRequest, LeaveStatus, LeaveType } from '@/lib/types';
 
 interface TeamMember {
   name: string;
@@ -30,11 +30,19 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [bal, requests] = await Promise.all([
+        const [bal, requests, eligibleTypes] = await Promise.all([
           api.get<LeaveBalance[]>('/leave/balance'),
           api.get<LeaveRequest[]>('/leave/requests?status=PENDING_L1,PENDING_L2&limit=5'),
+          api.get<LeaveType[]>('/leave/types/eligible').catch(() => null),
         ]);
-        setBalances(bal);
+
+        // If eligible types loaded, filter balances to only show eligible ones
+        // (this hides CL/SL/PL on dashboard during probation, showing only LWP)
+        const filteredBalances = eligibleTypes
+          ? bal.filter((b) => eligibleTypes.some((et) => et.id === b.leave_type.id))
+          : bal;
+
+        setBalances(filteredBalances);
         setActiveRequests(requests);
 
         // Team on leave is optional — may not be implemented yet
@@ -66,6 +74,24 @@ export default function DashboardPage() {
           <Button size="lg">+ Apply for Leave</Button>
         </Link>
       </div>
+
+      {/* Probation Notice */}
+      {user?.is_in_probation && (
+        <div className="rounded-lg bg-[#fef3c7] border border-[#fcd34d] px-4 py-3 flex items-start gap-3">
+          <svg className="mt-0.5 h-5 w-5 text-[#d97706] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-[#92400e]">You are currently in the probation period</p>
+            <p className="text-xs text-[#a16207] mt-0.5">
+              Only Leave Without Pay (LWP) is available during probation.
+              {user.confirmation_date
+                ? ` Probation ends on ${new Date(user.confirmation_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+                : ''}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Leave Balance Cards */}
       <section>

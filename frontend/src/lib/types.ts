@@ -11,6 +11,10 @@ export interface User {
   join_date: string;
   confirmation_date: string | null;
   is_in_probation: boolean;
+  is_manager: boolean;
+  resignation_date: string | null;
+  last_working_day: string | null;
+  employment_status: string;
 }
 
 export interface AdminUser {
@@ -37,6 +41,13 @@ export interface LeaveType extends MasterRecord {
   doc_threshold_days: number | null;
   carry_over: number;
   color: string;
+  system_key?: string;
+  unit?: string; // 'days' | 'hours'
+  accrual_type?: string;
+  min_tenure_months?: number;
+  max_days_per_request?: number;
+  min_advance_days?: number;
+  requires_doc_for_future?: boolean;
 }
 
 export interface SlaConfigRecord {

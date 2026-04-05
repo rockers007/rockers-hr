@@ -7,6 +7,7 @@ import 'home_screen.dart';
 import 'apply_leave_screen.dart';
 import 'approvals_screen.dart';
 import 'history_screen.dart';
+import 'overtime_screen.dart';
 import 'profile_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -31,6 +32,7 @@ class _MainShellState extends State<MainShell> {
       const ApplyLeaveScreen(),
       if (isManager) const ApprovalsScreen(),
       const HistoryScreen(),
+      const OvertimeScreen(),
       const ProfileScreen(),
     ];
 
@@ -55,6 +57,11 @@ class _MainShellState extends State<MainShell> {
         icon: Icon(Icons.history),
         activeIcon: Icon(Icons.history),
         label: 'History',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.access_time),
+        activeIcon: Icon(Icons.access_time_filled),
+        label: 'Overtime',
       ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.person_outline),

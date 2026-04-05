@@ -66,4 +66,17 @@ export class AdminApprovalController {
     );
     return { data };
   }
+
+  /**
+   * Admin-triggered year-end balance reset.
+   * Creates fresh leave balances for the target year with pro-rata accrual.
+   */
+  @Post('leave/reset-balances')
+  async resetBalances(
+    @Body() body: { year?: number },
+  ) {
+    const targetYear = body.year || new Date().getFullYear();
+    const result = await this.leaveService.adminResetBalances(targetYear);
+    return { data: result };
+  }
 }

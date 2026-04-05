@@ -5,10 +5,14 @@ export function formatDate(dateStr: string | null | undefined): string {
   return format(parseISO(dateStr), 'MMM d, yyyy');
 }
 
-export function formatDateRange(start: string, end: string): string {
-  const s = parseISO(start);
-  const e = parseISO(end);
-  if (start === end) return format(s, 'MMM d, yyyy');
+export function formatDateRange(start: string | null | undefined, end: string | null | undefined): string {
+  if (!start || !end) return '-';
+  const startStr = typeof start === 'string' ? start : String(start);
+  const endStr = typeof end === 'string' ? end : String(end);
+  const s = parseISO(startStr);
+  const e = parseISO(endStr);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '-';
+  if (startStr === endStr) return format(s, 'MMM d, yyyy');
   if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
     return `${format(s, 'MMM d')}–${format(e, 'd, yyyy')}`;
   }

@@ -13,10 +13,12 @@ import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MasterModule } from './master/master.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { BackupModule } from './backup/backup.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { LeaveModule } from './leave/leave.module';
+import { OvertimeModule } from './overtime/overtime.module';
 
 @Module({
   imports: [
@@ -60,7 +62,9 @@ import { LeaveModule } from './leave/leave.module';
     NotificationsModule,
     UsersModule,
     LeaveModule,
+    OvertimeModule,
     CalendarModule,
+    BackupModule,
     ReportsModule,
   ],
   controllers: [AppController],

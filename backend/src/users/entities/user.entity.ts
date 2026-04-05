@@ -89,8 +89,26 @@ export class User {
   @Column({ type: 'text', default: 'self' })
   registration_method: string;
 
+  @Column({ type: 'date', nullable: true })
+  resignation_date: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  last_working_day: string | null;
+
+  @Column({
+    type: 'text',
+    default: 'active',
+  })
+  employment_status: string; // 'active' | 'resigned' | 'terminated' | 'absconded'
+
   @Column({ type: 'text', nullable: true })
   fcm_token: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  google_access_token: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  google_refresh_token: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;

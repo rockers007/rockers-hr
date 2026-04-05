@@ -26,11 +26,11 @@ interface DurationType {
   label: string;
 }
 
-interface LeaveRequest {
+interface ApprovalLeaveRequest {
   id: string;
   user: ApprovalUser;
-  leaveType: LeaveType;
-  durationType: DurationType;
+  leave_type: LeaveType;
+  duration_type: DurationType;
   start_date: string;
   end_date: string;
   working_days: number;
@@ -41,7 +41,8 @@ interface LeaveRequest {
 
 interface Approval {
   id: string;
-  leaveRequest: LeaveRequest;
+  level: number;
+  leave_request: ApprovalLeaveRequest;
   sla_deadline: string;
   created_at: string;
 }
@@ -171,8 +172,11 @@ export default function ApprovalsPage() {
       ) : (
         <div className="space-y-4">
           {approvals.map((approval) => {
-            const { leaveRequest } = approval;
-            const { user, leaveType, durationType } = leaveRequest;
+            const leaveRequest = approval.leave_request;
+            if (!leaveRequest) return null;
+            const user = leaveRequest.user;
+            const leaveType = leaveRequest.leave_type;
+            const durationType = leaveRequest.duration_type;
             const sla = getTimeRemaining(approval.sla_deadline);
             const isDeclining = decliningId === approval.id;
             const isActioning = actionLoadingId === approval.id;
@@ -184,8 +188,8 @@ export default function ApprovalsPage() {
                   <div className="min-w-0 flex-1 space-y-3">
                     {/* Employee info */}
                     <div>
-                      <p className="text-base font-semibold text-text-primary">{user.name}</p>
-                      <p className="text-sm text-text-secondary">{user.gmail}</p>
+                      <p className="text-base font-semibold text-text-primary">{user?.name ?? 'Unknown'}</p>
+                      <p className="text-sm text-text-secondary">{user?.gmail ?? ''}</p>
                     </div>
 
                     {/* Leave info row */}
@@ -193,9 +197,9 @@ export default function ApprovalsPage() {
                       <span className="inline-flex items-center gap-1.5">
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: leaveType.color }}
+                          style={{ backgroundColor: leaveType?.color || '#6b7280' }}
                         />
-                        <span className="font-medium text-text-primary">{leaveType.label}</span>
+                        <span className="font-medium text-text-primary">{leaveType?.label ?? 'Leave'}</span>
                       </span>
                       <span className="text-text-secondary">
                         {formatDateRange(leaveRequest.start_date, leaveRequest.end_date)}
@@ -203,8 +207,14 @@ export default function ApprovalsPage() {
                       <span className="text-text-secondary">
                         {leaveRequest.working_days} working day{leaveRequest.working_days !== 1 ? 's' : ''}
                       </span>
-                      <span className="text-text-secondary">({durationType.label})</span>
-                      <StatusBadge status={leaveRequest.status as any} />
+                      <span className="text-text-secondary">({durationType?.label ?? 'Full Day'})</span>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        approval.level === 1
+                          ? 'bg-[#fef3c7] text-[#92400e]'
+                          : 'bg-[#dbeafe] text-[#1e40af]'
+                      }`}>
+                        {approval.level === 1 ? 'Pending Manager (L1)' : 'Pending HR (L2)'}
+                      </span>
                     </div>
 
                     {/* Reason */}
@@ -243,7 +253,7 @@ export default function ApprovalsPage() {
                         size="sm"
                         isLoading={isActioning}
                         disabled={isActioning}
-                        onClick={() => handleApprove(approval.id, user.name)}
+                        onClick={() => handleApprove(approval.id, user?.name ?? 'Employee')}
                       >
                         Approve
                       </Button>
@@ -278,7 +288,7 @@ export default function ApprovalsPage() {
                         size="sm"
                         isLoading={isActioning}
                         disabled={isActioning || !declineReason.trim()}
-                        onClick={() => handleDeclineSubmit(approval.id, user.name)}
+                        onClick={() => handleDeclineSubmit(approval.id, user?.name ?? 'Employee')}
                       >
                         Confirm Decline
                       </Button>

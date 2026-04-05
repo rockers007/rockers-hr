@@ -92,6 +92,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       localStorage.removeItem('token');
       set({ user: null, adminUser: null, isAuthenticated: false, isAdmin: false });
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
   },
 

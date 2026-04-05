@@ -42,11 +42,19 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req: Request, @Res() res: Response) {
-    const profile = req.user as { email: string; name: string; photo?: string };
+    const profile = req.user as {
+      email: string;
+      name: string;
+      photo?: string;
+      accessToken?: string;
+      refreshToken?: string;
+    };
     const result = await this.authService.handleGoogleLogin({
       email: profile.email,
       name: profile.name,
       picture: profile.photo,
+      accessToken: profile.accessToken,
+      refreshToken: profile.refreshToken,
     });
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');

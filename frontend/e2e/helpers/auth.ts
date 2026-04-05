@@ -23,19 +23,19 @@ export class AuthHelper {
    * Mock admin login by posting credentials and setting the session cookie.
    */
   async loginAsAdmin(
-    email = 'superadmin@rockershr.com',
-    password = process.env.TEST_ADMIN_PASSWORD || 'Admin@1234',
+    email = 'admin@rockers.com',
+    password = process.env.TEST_ADMIN_PASSWORD || 'admin123',
   ) {
     // Navigate to admin login page
     await this.page.goto('/admin/login');
 
     // Fill in credentials
-    await this.page.getByLabel(/email/i).fill(email);
-    await this.page.getByLabel(/password/i).fill(password);
-    await this.page.getByRole('button', { name: /login|sign in/i }).click();
+    await this.page.getByPlaceholder(/admin@/i).fill(email);
+    await this.page.getByPlaceholder(/enter your password/i).fill(password);
+    await this.page.getByRole('button', { name: /sign in/i }).click();
 
     // Wait for redirect to admin dashboard
-    await this.page.waitForURL('**/admin/**', { timeout: 10_000 });
+    await this.page.waitForURL('**/admin/**', { timeout: 15_000 });
   }
 
   /**

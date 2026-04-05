@@ -44,11 +44,14 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-neutral-bg">
       <div className="w-full max-w-md rounded-xl border border-border bg-card-bg p-8 shadow-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white text-2xl font-bold">
-            R
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary">Admin Login</h1>
-          <p className="mt-2 text-sm text-text-secondary">Rockers HR Administration</p>
+          <img
+            src="/images/logo-2x.png"
+            alt="Rockers Technologies"
+            className="mx-auto mb-6"
+            style={{ width: '240px', height: 'auto' }}
+          />
+          <h1 className="text-xl font-bold text-text-primary">Admin Login</h1>
+          <p className="mt-1 text-sm text-text-secondary">Rockers HR Administration</p>
         </div>
 
         {error && (

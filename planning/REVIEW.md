@@ -1,4 +1,4 @@
-# Documentation Review — Rockers HR Leave Management System
+# Documentation Review — Rockers HR HR Management System
 
 **Reviewer:** Claude (AI Agent)
 **Date:** 2026-03-23

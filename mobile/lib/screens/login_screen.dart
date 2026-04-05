@@ -60,21 +60,17 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const Spacer(flex: 3),
 
-                // App logo text
-                Text(
-                  'Rockers HR',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
+                // App logo
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 120,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
 
                 // Tagline
                 const Text(
-                  'Leave Management System',
+                  'HR Management System',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 16,

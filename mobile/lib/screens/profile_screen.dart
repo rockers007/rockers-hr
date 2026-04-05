@@ -185,12 +185,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     value: user.manager?.name ?? '-',
                   ),
                   const Divider(height: 20, color: AppColors.border),
+                  if (user.gender != null) ...[
+                    _InfoTile(
+                      icon: Icons.person_outline,
+                      label: 'Gender',
+                      value: user.gender!.label,
+                    ),
+                    const Divider(height: 20, color: AppColors.border),
+                  ],
+                  if (user.qualification != null) ...[
+                    _InfoTile(
+                      icon: Icons.school_outlined,
+                      label: 'Qualification',
+                      value: user.qualification!.label,
+                    ),
+                    const Divider(height: 20, color: AppColors.border),
+                  ],
                   _InfoTile(
                     icon: Icons.event_outlined,
                     label: 'Join Date',
                     value: _formatDate(user.joinDate),
                   ),
                   const Divider(height: 20, color: AppColors.border),
+                  if (user.confirmationDate != null) ...[
+                    _InfoTile(
+                      icon: Icons.event_available_outlined,
+                      label: 'Confirmation Date',
+                      value: _formatDate(user.confirmationDate),
+                    ),
+                    const Divider(height: 20, color: AppColors.border),
+                  ],
                   _InfoTile(
                     icon: Icons.verified_user_outlined,
                     label: 'Probation',
@@ -215,6 +239,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                  // Separation details (only show if not active)
+                  if (user.employmentStatus != 'active') ...[
+                    const Divider(height: 20, color: AppColors.border),
+                    _InfoTile(
+                      icon: Icons.work_off_outlined,
+                      label: 'Status',
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          user.employmentStatus[0].toUpperCase() +
+                              user.employmentStatus.substring(1),
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (user.resignationDate != null) ...[
+                      const Divider(height: 20, color: AppColors.border),
+                      _InfoTile(
+                        icon: Icons.exit_to_app_outlined,
+                        label: 'Resignation Date',
+                        value: _formatDate(user.resignationDate),
+                      ),
+                    ],
+                    if (user.lastWorkingDay != null) ...[
+                      const Divider(height: 20, color: AppColors.border),
+                      _InfoTile(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Last Working Day',
+                        value: _formatDate(user.lastWorkingDay),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),

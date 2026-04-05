@@ -6,6 +6,8 @@ import {
   MinLength,
   IsOptional,
   IsBoolean,
+  IsNumber,
+  Matches,
 } from 'class-validator';
 
 export class CreateLeaveRequestDto {
@@ -37,6 +39,22 @@ export class CreateLeaveRequestDto {
   @IsOptional()
   @IsBoolean()
   sandwich_confirmed?: boolean;
+
+  // Early leave fields (required when leave type unit = 'hours')
+  @IsOptional()
+  @IsString()
+  @IsDateString()
+  early_leave_date?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}:\d{2}$/, { message: 'early_leave_start_time must be HH:mm format' })
+  early_leave_start_time?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}:\d{2}$/, { message: 'early_leave_end_time must be HH:mm format' })
+  early_leave_end_time?: string;
 }
 
 export class AdminCreateLeaveRequestDto extends CreateLeaveRequestDto {

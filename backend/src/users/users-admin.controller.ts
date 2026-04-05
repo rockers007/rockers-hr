@@ -90,6 +90,8 @@ export class UsersAdminController {
     const allowedFields = [
       'name', 'phone', 'department_id', 'manager_id',
       'is_manager', 'qualification_id', 'gender_id',
+      'join_date', 'confirmation_date',
+      'resignation_date', 'last_working_day', 'employment_status',
     ];
     const filtered: Record<string, any> = {};
     for (const key of allowedFields) {

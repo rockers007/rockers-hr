@@ -26,7 +26,10 @@ export class UsersController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: RegisterUserDto,
   ) {
-    const created = await this.usersService.register(user.email, dto);
+    const created = await this.usersService.register(user.email, dto, {
+      google_access_token: (user as any).google_access_token,
+      google_refresh_token: (user as any).google_refresh_token,
+    });
     return {
       data: {
         status: 'pending_activation',

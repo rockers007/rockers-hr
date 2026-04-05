@@ -16,6 +16,8 @@ function CallbackHandler() {
     const token = searchParams.get('token');
     const errorMsg = searchParams.get('error');
 
+    console.log('[auth/callback] status:', status, 'token:', token ? 'present' : 'missing', 'error:', errorMsg);
+
     if (errorMsg) {
       setError(errorMsg);
       return;
@@ -41,9 +43,12 @@ function CallbackHandler() {
       return;
     }
 
+    console.log('[auth/callback] Fetching user...');
     fetchUser().then(() => {
+      console.log('[auth/callback] User fetched, redirecting to dashboard');
       router.replace('/dashboard');
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('[auth/callback] fetchUser failed:', err);
       setError('Authentication failed. Please try again.');
     });
   }, [searchParams, router, fetchUser]);

@@ -28,6 +28,9 @@ interface EmployeeProfile {
   qualification: { id: string; label: string } | null;
   gender: { id: string; label: string } | null;
   leave_balances: LeaveBalance[];
+  resignation_date: string | null;
+  last_working_day: string | null;
+  employment_status: string;
 }
 
 export default function EmployeeDetailPage() {
@@ -116,6 +119,11 @@ export default function EmployeeDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link href={`/admin/employees/${id}/edit`}>
+              <Button variant="secondary" size="sm">
+                Edit Profile
+              </Button>
+            </Link>
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 employee.is_active
@@ -150,6 +158,15 @@ export default function EmployeeDetailPage() {
           )}
           {employee.gender && (
             <InfoItem label="Gender" value={employee.gender.label} />
+          )}
+          {employee.employment_status && employee.employment_status !== 'active' && (
+            <InfoItem label="Status" value={employee.employment_status} />
+          )}
+          {employee.resignation_date && (
+            <InfoItem label="Resignation Date" value={formatDate(employee.resignation_date)} />
+          )}
+          {employee.last_working_day && (
+            <InfoItem label="Last Working Day" value={formatDate(employee.last_working_day)} />
           )}
         </div>
       </Card>

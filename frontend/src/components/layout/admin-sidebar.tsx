@@ -22,6 +22,7 @@ const navSections = [
     title: 'Leave',
     items: [
       { href: '/admin/approvals', label: 'Approvals', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+      { href: '/admin/overtime', label: 'Overtime', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
       { href: '/admin/calendar', label: 'Calendar', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
     ],
   },
@@ -51,14 +52,13 @@ export function AdminSidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col border-r border-border bg-card-bg">
-      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white text-sm font-bold">
-          R
-        </div>
-        <div className="flex flex-col">
-          <span className="text-lg font-bold text-primary leading-tight">Rockers HR</span>
-          <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Admin</span>
-        </div>
+      <div className="flex h-16 items-center gap-3 border-b border-border px-4">
+        <img
+          src="/images/logo.png"
+          alt="Rockers Technologies"
+          style={{height: '50px', width: 'auto', margin: 0}}
+        />
+        <span className="text-[10px] font-semibold text-accent uppercase tracking-wider bg-accent/10 px-2 py-0.5 rounded">Admin</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">

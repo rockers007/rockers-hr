@@ -13,6 +13,31 @@ import type { LeaveRequest } from '@/lib/types';
 
 interface AdminLeaveRequest extends LeaveRequest {
   employee?: { id: string; name: string; email: string };
+  user?: { id: string; name: string; gmail: string };
+}
+
+interface PendingApproval {
+  id: string;
+  leave_request_id: string;
+  level: number;
+  action: string | null;
+  leave_request: AdminLeaveRequest;
+}
+
+/** Normalize approval objects into flat leave request shape for display */
+function normalizePending(items: any[]): AdminLeaveRequest[] {
+  return items.map((item) => {
+    // If it's an approval wrapper, unwrap the leave_request
+    if (item.leave_request) {
+      const lr = item.leave_request;
+      return {
+        ...lr,
+        approval_id: item.id,
+        employee: lr.user ? { id: lr.user.id, name: lr.user.name, email: lr.user.gmail } : lr.employee,
+      } as AdminLeaveRequest;
+    }
+    return item as AdminLeaveRequest;
+  });
 }
 
 interface Stats {
@@ -45,7 +70,8 @@ export default function AdminOverviewPage() {
         // Pending approvals
         if (results[0].status === 'fulfilled') {
           const pending = results[0].value;
-          const list = Array.isArray(pending) ? pending : [];
+          const rawList = Array.isArray(pending) ? pending : [];
+          const list = normalizePending(rawList);
           setPendingApprovals(list.slice(0, 5));
           setStats((s) => ({ ...s, pendingCount: list.length }));
         }
@@ -54,7 +80,12 @@ export default function AdminOverviewPage() {
         if (results[1].status === 'fulfilled') {
           const raw = results[1].value;
           // Handle both paginated { data, meta } and plain array responses
-          const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+          const rawList = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+          // Normalize user → employee field
+          const list = rawList.map((r: any) => ({
+            ...r,
+            employee: r.employee ?? (r.user ? { id: r.user.id, name: r.user.name, email: r.user.gmail } : undefined),
+          }));
           setRecentRequests(list);
         }
 
@@ -183,7 +214,7 @@ export default function AdminOverviewPage() {
                     {req.employee?.name ?? 'Unknown Employee'}
                   </p>
                   <p className="mt-0.5 text-sm text-text-secondary">
-                    {req.leave_type.label} &middot; {formatDateRange(req.start_date, req.end_date)}
+                    {req.leave_type?.label ?? 'Leave'} &middot; {formatDateRange(req.start_date, req.end_date)}
                     {req.working_days > 0 && (
                       <span className="ml-1">
                         ({req.working_days} day{req.working_days !== 1 ? 's' : ''})
@@ -241,9 +272,9 @@ export default function AdminOverviewPage() {
                       >
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: req.leave_type.color || '#6b7280' }}
+                          style={{ backgroundColor: req.leave_type?.color || '#6b7280' }}
                         />
-                        {req.leave_type.label}
+                        {req.leave_type?.label ?? 'Leave'}
                       </span>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap">

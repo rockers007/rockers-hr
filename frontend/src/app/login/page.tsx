@@ -21,11 +21,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-bg">
       <div className="w-full max-w-md rounded-xl border border-border bg-card-bg p-8 shadow-sm text-center">
-        <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white text-2xl font-bold">
-          R
-        </div>
-        <h1 className="text-2xl font-bold text-text-primary">Rockers HR</h1>
-        <p className="mt-2 text-sm text-text-secondary">Leave Management System</p>
+        <img
+          src="/images/logo-2x.png"
+          alt="Rockers Technologies"
+          className="mx-auto mb-6"
+          style={{ width: '240px', height: 'auto' }}
+        />
+        <h1 className="text-xl font-bold text-text-primary">HR Management System</h1>
+        <p className="mt-1 text-sm text-text-secondary">Sign in with your Google account</p>
 
         <a
           href="/api/v1/auth/google"
@@ -40,14 +43,14 @@ export default function LoginPage() {
           Continue with Google
         </a>
 
-        <div className="mt-6 pt-6 border-t border-border">
+        {/* <div className="mt-6 pt-6 border-t border-border">
           <a
             href="/admin/login"
             className="text-sm text-text-secondary hover:text-accent transition-colors"
           >
             Admin Login
           </a>
-        </div>
+        </div> */}
 
         <p className="mt-6 text-xs text-text-secondary">
           By continuing, you agree to the terms of service.

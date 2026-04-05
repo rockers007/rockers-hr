@@ -1,4 +1,4 @@
-# Rockers HR — Leave Management System
+# Rockers HR — HR Management System
 
 ## Project Specification
 
@@ -6,7 +6,7 @@
 
 ## 1. Vision
 
-Rockers HR Leave Management System is a full-stack HR platform for managing employee leave end-to-end — from Gmail OAuth registration through two-level approval, SLA enforcement, Google Calendar sync, and admin analytics. It is built on a **100% dynamic, zero-hardcoded architecture**: every dropdown, every policy value, and every notification template lives in a PostgreSQL master table managed by HR admins. No leave type, no department, no gender option is ever baked into source code.
+Rockers HR HR Management System is a full-stack HR platform for managing employee leave end-to-end — from Gmail OAuth registration through two-level approval, SLA enforcement, Google Calendar sync, and admin analytics. It is built on a **100% dynamic, zero-hardcoded architecture**: every dropdown, every policy value, and every notification template lives in a PostgreSQL master table managed by HR admins. No leave type, no department, no gender option is ever baked into source code.
 
 The system runs on three surfaces: a Next.js web app (employee portal + HR admin panel), a Flutter mobile app (iOS & Android), and a shared NestJS REST API.
 
@@ -356,4 +356,4 @@ All open questions confirmed by HRBhrugisha V. Propagated into domain docs.
 
 ---
 
-*Rockers HR — Leave Management System v1.7 | Updated from v1.6 BRD + confirmed decisions | Rakesh Patel & HRBhrugisha V*
+*Rockers HR — HR Management System v1.7 | Updated from v1.6 BRD + confirmed decisions | Rakesh Patel & HRBhrugisha V*

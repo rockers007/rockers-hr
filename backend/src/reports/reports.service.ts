@@ -144,6 +144,31 @@ export class ReportsService {
       });
     }
 
+    const approvedDays = approved.reduce((sum, r) => sum + Number(r.working_days), 0);
+    const declinedDays = declined.reduce((sum, r) => sum + Number(r.working_days), 0);
+
+    // SLA compliance for the year
+    const slaApprovals = await this.leaveApprovalRepo
+      .createQueryBuilder('la')
+      .leftJoin('la.leaveRequest', 'lr')
+      .leftJoin('lr.user', 'u')
+      .where(`EXTRACT(YEAR FROM la.created_at) = :year`, { year })
+      .andWhere('la.level = 1')
+      .andWhere(departmentId ? 'u.department_id = :departmentId' : '1=1', { departmentId })
+      .getMany();
+
+    const withinSla = slaApprovals.filter((a) => !a.escalated).length;
+    const slaCompliancePct = slaApprovals.length > 0 ? Math.round((withinSla / slaApprovals.length) * 100) : 100;
+
+    // By type
+    const byTypeMap = new Map<string, { leave_type: string; color: string; days: number }>();
+    for (const r of requests) {
+      const key = r.leaveType?.label || 'Unknown';
+      const existing = byTypeMap.get(key) || { leave_type: key, color: r.leaveType?.color || '#6b7280', days: 0 };
+      existing.days += Number(r.working_days);
+      byTypeMap.set(key, existing);
+    }
+
     // Per employee summary
     const byEmployeeMap = new Map<string, {
       employee_name: string;
@@ -166,12 +191,16 @@ export class ReportsService {
     }
 
     return {
-      year,
+      period: String(year),
       summary: {
         total_days: totalDays,
+        approved: approvedDays,
+        declined: declinedDays,
         total_requests: requests.length,
         approval_rate_pct: approvalRatePct,
+        sla_compliance_pct: slaCompliancePct,
       },
+      by_type: Array.from(byTypeMap.values()),
       monthly_trend: monthlyTrend,
       by_employee: Array.from(byEmployeeMap.values()),
     };
@@ -322,11 +351,11 @@ export class ReportsService {
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-      doc.fontSize(18).text(`Yearly Leave Report — ${report.year}`, { align: 'center' });
+      doc.fontSize(18).text(`Yearly Leave Report — ${report.period}`, { align: 'center' });
       doc.moveDown();
 
       doc.fontSize(12);
-      doc.text(`Total Requests: ${report.summary.total_requests}`);
+      doc.text(`Total Requests: ${report.summary.total_requests ?? 0}`);
       doc.text(`Total Days: ${report.summary.total_days}`);
       doc.text(`Approval Rate: ${report.summary.approval_rate_pct}%`);
       doc.moveDown();

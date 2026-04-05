@@ -29,7 +29,11 @@ export class UsersService {
     private readonly slaConfigRepo: Repository<MasterSlaConfig>,
   ) {}
 
-  async register(gmail: string, dto: RegisterUserDto): Promise<User> {
+  async register(
+    gmail: string,
+    dto: RegisterUserDto,
+    googleTokens?: { google_access_token?: string; google_refresh_token?: string },
+  ): Promise<User> {
     const existing = await this.userRepo.findOne({ where: { gmail } });
     if (existing) {
       throw new ConflictException('User with this email already exists');
@@ -57,6 +61,8 @@ export class UsersService {
       resume_s3_key: dto.resume_s3_key || null,
       is_active: false,
       registration_method: 'self',
+      google_access_token: googleTokens?.google_access_token || null,
+      google_refresh_token: googleTokens?.google_refresh_token || null,
     });
 
     return this.userRepo.save(user);
@@ -118,6 +124,9 @@ export class UsersService {
       is_in_probation: isInProbation,
       is_manager: user.is_manager,
       extra_info: user.extra_info,
+      resignation_date: user.resignation_date,
+      last_working_day: user.last_working_day,
+      employment_status: user.employment_status || 'active',
     };
   }
 
@@ -147,19 +156,11 @@ export class UsersService {
       throw new ConflictException('User is already active');
     }
 
-    // Get probation duration
-    const probationConfig = await this.slaConfigRepo.findOne({
-      where: { config_key: 'probation.duration_months' },
-    });
-    const probationMonths = probationConfig ? parseInt(probationConfig.config_value, 10) : 3;
-
     const joinDate = new Date(dto.join_date);
-    const confirmationDate = new Date(joinDate);
-    confirmationDate.setMonth(confirmationDate.getMonth() + probationMonths);
 
     user.is_active = true;
     user.join_date = dto.join_date;
-    user.confirmation_date = confirmationDate.toISOString().split('T')[0];
+    // confirmation_date is NOT auto-calculated — admin sets it manually
     user.manager_id = dto.manager_id || null;
     user.is_manager = dto.is_manager || false;
 
@@ -186,15 +187,7 @@ export class UsersService {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Get probation duration
-    const probationConfig = await this.slaConfigRepo.findOne({
-      where: { config_key: 'probation.duration_months' },
-    });
-    const probationMonths = probationConfig ? parseInt(probationConfig.config_value, 10) : 3;
-
     const joinDate = new Date(dto.join_date);
-    const confirmationDate = new Date(joinDate);
-    confirmationDate.setMonth(confirmationDate.getMonth() + probationMonths);
 
     const user = this.userRepo.create({
       gmail: dto.gmail,
@@ -208,7 +201,7 @@ export class UsersService {
       manager_id: dto.manager_id || null,
       is_manager: dto.is_manager || false,
       join_date: dto.join_date,
-      confirmation_date: confirmationDate.toISOString().split('T')[0],
+      // confirmation_date is NOT auto-calculated — admin sets it manually
       is_active: dto.account_status === 'active',
       registration_method: 'admin_direct',
     });
@@ -282,28 +275,111 @@ export class UsersService {
 
   // ---- Helpers ----
 
+  /**
+   * Create leave balances with pro-rata accrual logic:
+   *
+   * CL & SL (accrual_type='monthly'):
+   *   - Only granted AFTER probation confirmation
+   *   - Accrual: 0.5/month from confirmation month
+   *   - If confirmed before 15th → that month counts
+   *   - If confirmed on/after 15th → starts next month
+   *   - Rounding: floor to nearest 0.5
+   *
+   * PL (min_tenure_months=12):
+   *   - Only after 1 year of service → 0 balance initially
+   *
+   * LWP, Early Leave (fixed, probation_allowed=true):
+   *   - Full allocation immediately
+   */
   private async createLeaveBalances(userId: string, joinDate: Date): Promise<void> {
     const currentYear = new Date().getFullYear();
     const leaveTypes = await this.leaveTypeRepo.find({ where: { is_active: true } });
 
-    const joinMonth = joinDate.getMonth(); // 0-based
-    const monthsRemaining = 12 - joinMonth;
+    // Get probation duration to calculate confirmation date
+    const probationConfig = await this.slaConfigRepo.findOne({
+      where: { config_key: 'probation.duration_months' },
+    });
+    const probationMonths = probationConfig ? parseInt(probationConfig.config_value, 10) : 3;
+    const confirmationDate = new Date(joinDate);
+    confirmationDate.setMonth(confirmationDate.getMonth() + probationMonths);
 
     const balances = leaveTypes.map((lt) => {
-      const prorated = joinDate.getFullYear() === currentYear
-        ? Math.round((lt.annual_days * monthsRemaining / 12) * 2) / 2 // round to 0.5
-        : lt.annual_days;
+      let totalDays: number;
+
+      if (lt.accrual_type === 'monthly' && lt.accrual_rate_per_month) {
+        // CL/SL: pro-rata from confirmation date
+        totalDays = this.calculateMonthlyAccrual(
+          confirmationDate,
+          Number(lt.accrual_rate_per_month),
+          currentYear,
+        );
+      } else if (lt.min_tenure_months > 0) {
+        // PL: Check if employee already has required tenure
+        const now = new Date();
+        const monthsWorked =
+          (now.getFullYear() - joinDate.getFullYear()) * 12 +
+          (now.getMonth() - joinDate.getMonth());
+        totalDays = monthsWorked >= lt.min_tenure_months ? lt.annual_days : 0;
+      } else {
+        // LWP, Early Leave, etc: full allocation
+        totalDays = lt.annual_days;
+      }
 
       return this.leaveBalanceRepo.create({
         user_id: userId,
         leave_type_id: lt.id,
         year: currentYear,
-        total_days: prorated,
+        total_days: totalDays,
         used_days: 0,
         pending_days: 0,
       });
     });
 
     await this.leaveBalanceRepo.save(balances);
+  }
+
+  /**
+   * Calculate monthly accrual for CL/SL based on confirmation date.
+   *
+   * Rules:
+   * - If confirmation falls in the target year:
+   *   - If day < 15 → that month is the first accrual month
+   *   - If day >= 15 → next month is first accrual month
+   *   - Remaining months (including first) × rate
+   * - If confirmation is before target year: full annual_days
+   * - If confirmation is after target year: 0
+   *
+   * Result is floored to nearest 0.5
+   */
+  private calculateMonthlyAccrual(
+    confirmationDate: Date,
+    ratePerMonth: number,
+    targetYear: number,
+  ): number {
+    const confYear = confirmationDate.getFullYear();
+    const confMonth = confirmationDate.getMonth(); // 0-based
+    const confDay = confirmationDate.getDate();
+
+    // Already confirmed before this year → full year accrual (12 months)
+    if (confYear < targetYear) {
+      return Math.floor(12 * ratePerMonth * 2) / 2;
+    }
+
+    // Won't be confirmed until after this year → 0
+    if (confYear > targetYear) {
+      return 0;
+    }
+
+    // Confirmation is this year — calculate remaining months
+    // If confirmed before 15th → that month counts
+    // If confirmed on/after 15th → starts next month
+    const firstAccrualMonth = confDay < 15 ? confMonth : confMonth + 1;
+
+    // Remaining months: firstAccrualMonth through December (month 11)
+    const remainingMonths = Math.max(0, 12 - firstAccrualMonth);
+
+    // Floor to nearest 0.5
+    const raw = remainingMonths * ratePerMonth;
+    return Math.floor(raw * 2) / 2;
   }
 }

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { google, calendar_v3 } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { LeaveRequest } from '../leave/entities/leave-request.entity';
 
 export interface CreateCalendarEventParams {
@@ -15,11 +16,18 @@ export interface CreateCalendarEventParams {
   workingDays: number;
 }
 
+export interface UserCalendarTokens {
+  access_token: string;
+  refresh_token?: string | null;
+}
+
 @Injectable()
 export class CalendarService implements OnModuleInit {
   private readonly logger = new Logger(CalendarService.name);
   private calendar: calendar_v3.Calendar | null = null;
-  private oauth2Client: any = null;
+  private oauth2Client: OAuth2Client | null = null;
+  private clientId: string | undefined;
+  private clientSecret: string | undefined;
 
   constructor(
     private readonly configService: ConfigService,
@@ -28,21 +36,17 @@ export class CalendarService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    const clientId = this.configService.get<string>(
-      'GOOGLE_CALENDAR_CLIENT_ID',
-    );
-    const clientSecret = this.configService.get<string>(
-      'GOOGLE_CALENDAR_CLIENT_SECRET',
-    );
+    this.clientId = this.configService.get<string>('GOOGLE_CALENDAR_CLIENT_ID');
+    this.clientSecret = this.configService.get<string>('GOOGLE_CALENDAR_CLIENT_SECRET');
     const callbackUrl = this.configService.get<string>(
       'GOOGLE_CALLBACK_URL',
       'http://localhost:4000/api/v1/calendar/oauth/callback',
     );
 
-    if (clientId && clientSecret) {
+    if (this.clientId && this.clientSecret) {
       this.oauth2Client = new google.auth.OAuth2(
-        clientId,
-        clientSecret,
+        this.clientId,
+        this.clientSecret,
         callbackUrl,
       );
       this.calendar = google.calendar({
@@ -58,7 +62,25 @@ export class CalendarService implements OnModuleInit {
   }
 
   isConfigured(): boolean {
-    return this.calendar !== null;
+    return this.clientId !== undefined && this.clientSecret !== undefined;
+  }
+
+  /**
+   * Create an OAuth2 client with user-specific tokens.
+   */
+  private createUserClient(tokens: UserCalendarTokens): calendar_v3.Calendar | null {
+    if (!this.clientId || !this.clientSecret) return null;
+
+    const userAuth = new google.auth.OAuth2(
+      this.clientId,
+      this.clientSecret,
+    );
+    userAuth.setCredentials({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token ?? undefined,
+    });
+
+    return google.calendar({ version: 'v3', auth: userAuth });
   }
 
   /**
@@ -93,9 +115,89 @@ export class CalendarService implements OnModuleInit {
   }
 
   /**
-   * Create a calendar event on Level 2 (HR final) approval.
+   * Create a calendar event on a user's Google Calendar.
+   * Uses the user's own OAuth tokens to write to their primary calendar.
+   * Called at Level 2 (HR final) approval.
+   *
    * Title format: [{{leave_type}}] {{employee_name}}
-   * Google Calendar end date is exclusive, so we add 1 day.
+   */
+  async createEventForUser(
+    params: CreateCalendarEventParams,
+    userTokens: UserCalendarTokens,
+  ): Promise<string | null> {
+    const userCalendar = this.createUserClient(userTokens);
+    if (!userCalendar) {
+      this.logger.warn(
+        `Calendar not configured — skipping event for ${params.employeeEmail}`,
+      );
+      return null;
+    }
+
+    try {
+      const endDateExclusive = this.addDays(params.endDate, 1);
+
+      const event: calendar_v3.Schema$Event = {
+        summary: `[${params.leaveTypeLabel}] ${params.employeeName}`,
+        start: { date: params.startDate },
+        end: { date: endDateExclusive },
+        description: `Leave approved via Rockers HR.\nType: ${params.leaveTypeLabel}\nDuration: ${params.workingDays} working day(s).`,
+      };
+
+      const response = await userCalendar.events.insert({
+        calendarId: 'primary',
+        requestBody: event,
+        sendUpdates: 'none',
+      });
+
+      const eventId = response.data.id ?? null;
+      this.logger.log(
+        `Calendar event created on ${params.employeeEmail}'s calendar: ${eventId}`,
+      );
+      return eventId;
+    } catch (error) {
+      this.logger.error(
+        `Failed to create calendar event on ${params.employeeEmail}'s calendar`,
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Create calendar events for both the employee and their manager.
+   * Stores the employee's event ID on the leave request.
+   */
+  async createEventsForLeave(
+    params: CreateCalendarEventParams,
+    employeeTokens: UserCalendarTokens | null,
+    managerTokens: UserCalendarTokens | null,
+  ): Promise<void> {
+    // Employee calendar
+    if (employeeTokens?.access_token) {
+      const eventId = await this.createEventForUser(params, employeeTokens);
+      if (eventId) {
+        await this.leaveRequestRepo.update(params.leaveRequestId, {
+          calendar_event_id: eventId,
+        });
+      }
+    } else {
+      this.logger.warn(
+        `No Google tokens for employee ${params.employeeEmail} — skipping employee calendar`,
+      );
+    }
+
+    // Manager calendar
+    if (managerTokens?.access_token) {
+      await this.createEventForUser(params, managerTokens);
+    } else {
+      this.logger.warn(
+        `No Google tokens for manager — skipping manager calendar`,
+      );
+    }
+  }
+
+  /**
+   * Legacy createEvent for backward compatibility (uses shared client).
    */
   async createEvent(
     params: CreateCalendarEventParams,
@@ -109,7 +211,6 @@ export class CalendarService implements OnModuleInit {
     }
 
     try {
-      // Google Calendar end date is exclusive — add 1 day
       const endDateExclusive = this.addDays(params.endDate, 1);
 
       const event: calendar_v3.Schema$Event = {
@@ -148,10 +249,18 @@ export class CalendarService implements OnModuleInit {
   }
 
   /**
-   * Delete a calendar event on leave cancellation.
+   * Delete a calendar event (e.g., on leave cancellation).
+   * Uses the user's tokens if provided, else falls back to shared client.
    */
-  async deleteEvent(calendarEventId: string): Promise<boolean> {
-    if (!this.calendar) {
+  async deleteEvent(
+    calendarEventId: string,
+    userTokens?: UserCalendarTokens | null,
+  ): Promise<boolean> {
+    const cal = userTokens?.access_token
+      ? this.createUserClient(userTokens)
+      : this.calendar;
+
+    if (!cal) {
       this.logger.warn(
         'Calendar not configured — skipping event deletion for event ' +
           calendarEventId,
@@ -160,7 +269,7 @@ export class CalendarService implements OnModuleInit {
     }
 
     try {
-      await this.calendar.events.delete({
+      await cal.events.delete({
         calendarId: 'primary',
         eventId: calendarEventId,
         sendUpdates: 'all',
@@ -178,7 +287,6 @@ export class CalendarService implements OnModuleInit {
 
   /**
    * Get team leave calendar data for UI display.
-   * Returns approved leave requests in a calendar-friendly format with colors.
    */
   async getTeamCalendar(query: {
     from?: string;

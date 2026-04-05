@@ -34,6 +34,8 @@ export class AuthService {
     email: string;
     name: string;
     picture?: string;
+    accessToken?: string;
+    refreshToken?: string;
   }): Promise<{
     status: string;
     token: string;
@@ -50,6 +52,15 @@ export class AuthService {
     });
 
     if (existingUser) {
+      // Always update Google OAuth tokens when user logs in
+      if (profile.accessToken || profile.refreshToken) {
+        const tokenUpdate: Partial<User> = {};
+        if (profile.accessToken) tokenUpdate.google_access_token = profile.accessToken;
+        if (profile.refreshToken) tokenUpdate.google_refresh_token = profile.refreshToken;
+        await this.userRepo.update(existingUser.id, tokenUpdate);
+        this.logger.log(`Updated Google tokens for user ${existingUser.gmail}`);
+      }
+
       if (!existingUser.is_active) {
         // User registered but not yet activated by HR
         const tempToken = this.jwtService.sign(
@@ -86,6 +97,8 @@ export class AuthService {
         name: profile.name,
         role: 'registration',
         is_active: false,
+        google_access_token: profile.accessToken,
+        google_refresh_token: profile.refreshToken,
       },
       { expiresIn: '1h' },
     );
@@ -120,7 +133,7 @@ export class AuthService {
     }
 
     const token = this.jwtService.sign({
-      sub: adminUser.id,
+      sub: user.id,
       email: user.gmail,
       role: adminUser.role.name.toLowerCase().replace(/\s+/g, '_'),
       admin_role_id: adminUser.role_id,
@@ -132,7 +145,7 @@ export class AuthService {
     return {
       token,
       user: {
-        id: adminUser.id,
+        id: user.id,
         name: user.name,
         email: user.gmail,
         role: adminUser.role.name,
@@ -146,15 +159,15 @@ export class AuthService {
   async validateUser(payload: JwtPayload): Promise<any> {
     if (payload.is_admin) {
       const admin = await this.adminUserRepo.findOne({
-        where: { id: payload.sub },
+        where: { user_id: payload.sub },
         relations: ['user', 'role'],
       });
       if (!admin || !admin.is_active) {
         throw new UnauthorizedException('Admin account is disabled');
       }
       return {
-        id: admin.id,
-        userId: admin.user_id,
+        id: payload.sub,
+        userId: payload.sub,
         email: admin.user.gmail,
         name: admin.user.name,
         is_admin: true,
