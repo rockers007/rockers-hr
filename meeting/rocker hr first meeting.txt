@@ -1,0 +1,132 @@
+Rakesh Patel: 01:46 
+ Hello.
+
+HRBhrugisha V: 01:53 
+ Hello.
+
+Rakesh Patel: 02:03 
+ Is it audible?
+
+HRBhrugisha V: 02:06 
+ Yes, it's it.  Yes.
+
+Rakesh Patel: 02:10 
+ Okay.  Good afternoon.
+
+HRBhrugisha V: 02:12 
+ Very good afternoon.
+
+Rakesh Patel: 02:15 
+ Okay, thank you for joining the meeting.
+
+HRBhrugisha V: 02:19 
+ Okay, so I do have some plan to build this one of the application that will help to manage the leave application for my employees.  So there are major key points that.  Shall I continue right in detail?
+
+Rakesh Patel: 02:42 
+ Yes, yes.
+
+HRBhrugisha V: 02:43 
+ Okay, fine.  Okay.  So I just need a kind of the application.  That one is the common application that can employee see the dashboard as well as a hr.  I can see my back inside admin.  The admin side.  I can put the policies over there, the types of the leaves over there.  Another thing I need the application very user friendly like mobile and the web portion both like I mean mobile application and the web application.  I need both so anyone can like you know, manage by any of the platform
+
+Rakesh Patel: 03:30 
+ Mobile application and web front for the candidate who requests for the leave.  Am I right?
+
+HRBhrugisha V: 03:37 
+ Yeah.  If it is the like you know, admin side panel also can be hand by the.
+
+Rakesh Patel: 03:43 
+ Yes, yes.
+
+HRBhrugisha V: 03:44 
+ Mobile application it would be also very friendly.  Otherwise it's by the admin panel.  If it is the handle by the web application, then also it's a fine.  But from for the employee side I need the both app both side both user friendly platform, web and mobile.  The features most I need that we can say it's a leave tracker as well.  Right.  Employee can apply the leave from their dashboard.  So by the flow of this application the managers are also over there.  So like you know, the application flow that once the employee submit the application with the format so that we can assign the particular manager to the particular employee.  So the LIU flow that one the leave application that first goes manager as well as the HR.  And like you know, there is a time limit as well.  For example, if it is the by the five hours, six hours to approve the leave.  So once the manager approved the leave the final approval HR can give like you know, take the approval.  Yes.  Verification needed.  Right.  I just needed the leaves that there are different kinds of the leave.  So HR can manage by the admin side.  Right.  The most important thing in the leave format that the leave range leave types the reason.  Right.  And if there is needed the supporting documents as well to update.  Like for example, if the employee asks that okay, I have some kind of the treatment.  So I need a work from home.  Or maybe I need a sick leave for the four days on the next week.  So if it is the LIU on the sick leave side the approval previous approval.  Then in that case we need the supporting documents.  For example doctor prescription, some kind of the like you know, a doctor later.  So we need the supporting documents as well.  Right.  Okay.  Admin can manage the multiple categories of the leave by the admin panel.  Right.  Some auto calculation LIU as well.  Admin dashboard.  Okay, fine.  Today few of the employees apply for the leave that few of them already on the leave or maybe they drop a message something.  So we need admin dashboard so HR can check.  Okay.  Who is on the leave today, who is going okay.  On the leave for the second half somewhere.  So different kinds of the leaves over that it's a full day, half day maybe first half, second half somewhere about.
+
+Rakesh Patel: 07:12 
+ Okay, right.
+
+HRBhrugisha V: 07:14 
+ As we discussed that the approval work approval of the leave it's a kind of the multi level approval.  I mean the manager first approval level is a manager and second approval level is the hr.  Right.  If it is something like if there is no response from the manager within hours.  So in that case it's auto routing to the HR or maybe some other superior person.  Right.  Approval flow like it's.  There are kind of the multiple things approve decline.  I mean the reject.  And if it is a rejection then there will be the reason why it's a rejection from the manager or maybe the HR somewhere.  Right.  So this is the kind of the system for the approval work approval of the leave.  From the employee side and from the admin side we need the leave tracking system.  I mean the balance system for example if anyone gets the 25 leaves per the year.  So if one of the employee apply the LIU and one so at the time of the application leave application he or she get the like what is the exactly the balance of the leave?  So this is the balance of the leave on the category side.  Casual remaining casual remaining sick leave remaining paid leave something.  It may be the leave history.
+
+Rakesh Patel: 08:59 
+ Okay.
+
+HRBhrugisha V: 09:00 
+ Right.  And all the tracking system that one is the monthly and the yearly.  Because monthly and the yearly.
+
+Rakesh Patel: 09:11 
+ Okay.  And cycle start from December.  Yeah.
+
+HRBhrugisha V: 09:14 
+ Yes.  Yeah.  Yeah.  We work on the calendar year January to December and on the some other type of the leave that one is based on the joining after the year.  But we can manage on the PRO database.
+
+Rakesh Patel: 09:30 
+ Okay.
+
+HRBhrugisha V: 09:31 
+ Right.  The LE calculation always be on the PRO database because if the person join he or she not getting the leave on the first three of the months in the probation time.  Once they get their confirmation later on they are eligible for the all kind of the leaves till by the December.  So it's the LEW calculation based on the PRO database.  The leave tracking that one is again based on the sandwich leave system.  The sandwich leave system.  It's A like if you are taking a LE on before the weekend and after the weekend.  So it called the Club of the Leaves.  So it's a sandwich LE concept.  Okay.  Another feature that we are looking.  It's a kind of the alert or we can say it's a notifications.  Once like you know, once the leave is approved from the all platforms.  I mean the manager and the hr.  So employee get the notification that okay, my leave is approved, my leave is declined.  Then why decline?  Right.  If it is the pending of the leave approval might be if we said okay by Within a 10 hours we have it.  I mean within a 10 hours we need to approve the leave.  Or maybe the.  I mean the status of the leave.  So if it is not within a 10 hours.  So manager or maybe HR get the reminder.  Okay, this is the leave application pending leave application for the status.  Right.  So this is the alert or maybe the notification.  Right, like.  Okay, fine.  As we know that I mean notifications alert.  Okay.  We can integrate this system by the calendar as well.  Because we all are working on the Gmail.  I mean the Google.  Okay, so this is a one of the extra features.  We can synchronize this link with the Google Calendar.
+
+Rakesh Patel: 11:53 
+ Yes, yes, we can.
+
+HRBhrugisha V: 11:55 
+ Yeah.  It will help for the team.  Right?  It will help of the team.  Like for example, one of the developer already got the approval for the three days.  So another developer, if he put the LIU application he or she should know about.  Okay, this.  This person already got the approval.  So I'm not eligible to put the leave application during the system.  Okay, so we can synchronize this LE with the calendar.  This is another extra.  Extra features.  We can add it.
+
+Rakesh Patel: 12:31 
+ Yes, yes.
+
+HRBhrugisha V: 12:32 
+ Right.  Lastly, the analytical things.  I mean the report.
+
+Rakesh Patel: 12:40 
+ Report system.
+
+HRBhrugisha V: 12:41 
+ Yes, report system.  Right.  So HR can get like.  Okay, who is going to take more leave who has already the more than pending leaves.  So might be at the end of the year he or she eligible for the like, you know, remuneration.  So there.  There should be the report might be monthly or might be yearly.
+
+Rakesh Patel: 13:06 
+ Okay, right.
+
+HRBhrugisha V: 13:08 
+ So those are the like, you know, the major points that we have we need in this new application system.
+
+Rakesh Patel: 13:17 
+ Yeah, it's very good and detailed requirements.
+
+HRBhrugisha V: 13:21 
+ Okay.  Another thing that in the like, you know, in the future system we can think that.  Okay.  Might be this new application system we need to integrate with the payroll.
+
+Rakesh Patel: 13:35 
+ Yes, yes.
+
+HRBhrugisha V: 13:36 
+ Yeah, that one is on another future system.  But we have to make sure that.  Okay.  Might be this system will be integrated with the payroll.  So we have to make that one user friendly.
+
+Rakesh Patel: 13:49 
+ Sure.  Sure.  Let's complete first the leave system then we will discuss again on the payroll system so we can upgrade our software.
+
+HRBhrugisha V: 13:58 
+ Yes, perfectly fine.  I think I have covered my all the points if you have any question.  Okay.
+
+Rakesh Patel: 14:08 
+ Okay.  Now all.  All things are clear so next we will make a little document for you and if there is some confusion or question then we will discuss again.
+
+HRBhrugisha V: 14:20 
+ Okay?  Yeah, fine.  No worries.  Okay, we can start over there and what kind of the leaves.  Sorry?  Types of the leaves and everything we will discuss in the next part.  Or.  Or else we need to discuss right
+
+Rakesh Patel: 14:34 
+ Away actually we will make the dynamic for from the admin side so you can manage.
+
+HRBhrugisha V: 14:40 
+ Okay?  Okay.  Yeah, that's perfectly fine.  Nice.  Yeah.  Okay.  Any other question for me?
+
+Rakesh Patel: 14:48 
+ No, all proxy.
+
+HRBhrugisha V: 14:50 
+ Okay.  Yeah, fine.  Thank you so much for that call.
+
+Rakesh Patel: 14:53 
+ Thank you.  Bye.  Have a nice day.
+
+HRBhrugisha V: 14:56 
+ Same to you.
+

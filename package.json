@@ -16,6 +16,11 @@
     "clean": "docker compose down -v"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@testmo/testmo-cli": "^1.4.8",
     "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@testmo/testmo-api": "^2.5.0"
   }
 }
