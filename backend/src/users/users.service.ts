@@ -127,6 +127,13 @@ export class UsersService {
       resignation_date: user.resignation_date,
       last_working_day: user.last_working_day,
       employment_status: user.employment_status || 'active',
+      // Payroll fields (editable on /admin/employees/[id]/edit)
+      emp_number: user.emp_number ?? null,
+      designation: user.designation ?? null,
+      gross: user.gross ?? '0',
+      incentive: user.incentive ?? '0',
+      pf_applicable: user.pf_applicable ?? true,
+      dob: user.dob ?? null,
     };
   }
 

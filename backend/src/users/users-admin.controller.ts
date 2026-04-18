@@ -8,7 +8,10 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ConflictException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
 import { ActivateUserDto } from './dto/activate-user.dto';
 import { AdminCreateUserDto } from './dto/admin-create-user.dto';
@@ -16,11 +19,39 @@ import { QueryUsersDto } from './dto/query-users.dto';
 import { AdminJwtGuard } from '../auth/guards/admin-jwt.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { AdminPermissions } from '../auth/decorators/admin-permissions.decorator';
+import { PayrollRun } from '../payroll/entities/payroll-run.entity';
 
 @Controller('admin')
 @UseGuards(AdminJwtGuard, PermissionsGuard)
 export class UsersAdminController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    @InjectRepository(PayrollRun)
+    private readonly payrollRunRepo: Repository<PayrollRun>,
+  ) {}
+
+  /**
+   * Block salary edits while an active payroll run exists for the current month.
+   * Mirrors the guard in SalaryService.patchSalary so both edit surfaces behave
+   * identically.
+   */
+  private async assertPayrollNotInFlight(): Promise<void> {
+    const now = new Date();
+    const blocking = await this.payrollRunRepo
+      .createQueryBuilder('r')
+      .where('r.month = :m AND r.year = :y', {
+        m: now.getMonth() + 1,
+        y: now.getFullYear(),
+      })
+      .andWhere(`r.state IN ('IN_PROGRESS','REVIEW')`)
+      .getOne();
+    if (blocking) {
+      throw new ConflictException({
+        code: 'PR_RUN_INVALID_STATE',
+        message: `Cannot edit salary while current-month payroll run is ${blocking.state}`,
+      });
+    }
+  }
 
   @Get('registrations/pending')
   @AdminPermissions('employees.activate')
@@ -92,12 +123,20 @@ export class UsersAdminController {
       'is_manager', 'qualification_id', 'gender_id',
       'join_date', 'confirmation_date',
       'resignation_date', 'last_working_day', 'employment_status',
+      // Payroll fields
+      'emp_number', 'designation', 'gross', 'incentive', 'pf_applicable', 'dob',
     ];
+    const payrollFields = ['gross', 'incentive', 'pf_applicable'];
     const filtered: Record<string, any> = {};
+    let touchingPayroll = false;
     for (const key of allowedFields) {
       if (updates[key] !== undefined) {
         filtered[key] = updates[key];
+        if (payrollFields.includes(key)) touchingPayroll = true;
       }
+    }
+    if (touchingPayroll) {
+      await this.assertPayrollNotInFlight();
     }
     const data = await this.usersService.adminUpdateUser(id, filtered);
     return { data };

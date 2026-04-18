@@ -26,6 +26,13 @@ interface EmployeeData {
   resignation_date: string | null;
   last_working_day: string | null;
   employment_status: string;
+  // Payroll fields
+  emp_number: string | null;
+  designation: string | null;
+  gross: string;
+  incentive: string;
+  pf_applicable: boolean;
+  dob: string | null;
 }
 
 interface ManagerOption {
@@ -59,6 +66,19 @@ export default function EditEmployeePage() {
   const [lastWorkingDay, setLastWorkingDay] = useState('');
   const [employmentStatus, setEmploymentStatus] = useState('active');
 
+  // Payroll form state
+  const [empNumber, setEmpNumber] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [gross, setGross] = useState('');
+  const [incentive, setIncentive] = useState('');
+  const [pfApplicable, setPfApplicable] = useState(true);
+  const [dob, setDob] = useState('');
+  const [statutory, setStatutory] = useState<{
+    pf_cap_amount: string;
+    pf_fixed_at_cap: string;
+    pf_rate_below_cap: string;
+  } | null>(null);
+
   useEffect(() => {
     async function load() {
       try {
@@ -80,7 +100,22 @@ export default function EditEmployeePage() {
         setResignationDate(emp.resignation_date ? emp.resignation_date.split('T')[0] : '');
         setLastWorkingDay(emp.last_working_day ? emp.last_working_day.split('T')[0] : '');
         setEmploymentStatus(emp.employment_status || 'active');
+        setEmpNumber(emp.emp_number ?? '');
+        setDesignation(emp.designation ?? '');
+        setGross(emp.gross ?? '');
+        setIncentive(emp.incentive ?? '');
+        setPfApplicable(emp.pf_applicable ?? true);
+        setDob(emp.dob ? emp.dob.split('T')[0] : '');
         setManagers(Array.isArray(mgrs) ? mgrs : []);
+
+        // Fetch statutory config for live CTC preview (ignore failures — the
+        // preview silently hides if the endpoint isn't reachable)
+        api
+          .get<{ pf_cap_amount: string; pf_fixed_at_cap: string; pf_rate_below_cap: string }>(
+            '/payroll/master/statutory',
+          )
+          .then((s) => setStatutory(s))
+          .catch(() => setStatutory(null));
       } catch {
         setError('Failed to load employee data.');
       } finally {
@@ -108,6 +143,13 @@ export default function EditEmployeePage() {
         resignation_date: resignationDate || null,
         last_working_day: lastWorkingDay || null,
         employment_status: employmentStatus,
+        // Payroll fields
+        emp_number: empNumber.trim() || null,
+        designation: designation.trim() || null,
+        gross: gross === '' ? 0 : Number(gross),
+        incentive: incentive === '' ? 0 : Number(incentive),
+        pf_applicable: pfApplicable,
+        dob: dob || null,
       };
 
       await api.patch(`/admin/users/${id}`, updates);
@@ -271,6 +313,121 @@ export default function EditEmployeePage() {
             </label>
           </div>
 
+          {/* Payroll Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Payroll
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Required fields for payroll processing; employees without Gross will be skipped in runs.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              {/* Emp Number */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Employee Number{' '}
+                  <span className="text-xs font-normal text-text-secondary">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. RT-DEV-153"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={empNumber}
+                  onChange={(e) => setEmpNumber(e.target.value)}
+                />
+              </div>
+
+              {/* Designation */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Designation
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Full Stack Developer"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                />
+              </div>
+
+              {/* DOB */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Date of Birth{' '}
+                  <span className="text-xs font-normal text-text-secondary">(payslip PDF password = DDMM)</span>
+                </label>
+                <input
+                  type="date"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                />
+              </div>
+
+              {/* Gross Salary */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Gross Salary (Monthly, ₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={gross}
+                  onChange={(e) => setGross(e.target.value)}
+                />
+              </div>
+
+              {/* Incentive */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Incentive / Fix Variable (Monthly, ₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={incentive}
+                  onChange={(e) => setIncentive(e.target.value)}
+                />
+              </div>
+
+              {/* PF Applicable */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  PF Applicable
+                </label>
+                <label className="mt-2 inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    checked={pfApplicable}
+                    onChange={(e) => setPfApplicable(e.target.checked)}
+                  />
+                  <span className="text-sm text-text-primary">
+                    Deduct Employee PF + include Employer PF in CTC
+                  </span>
+                </label>
+              </div>
+
+              {/* Monthly CTC preview */}
+              <div className="sm:col-span-3 rounded-lg bg-[#f0f9ff] px-4 py-3 border border-[#bae6fd]">
+                <CtcPreview
+                  userId={id}
+                  gross={gross}
+                  incentive={incentive}
+                  pfApplicable={pfApplicable}
+                  statutory={statutory}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Separation / Resignation Section */}
           <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
             <h3 className="text-sm font-semibold text-text-primary mb-4">Separation Details</h3>
@@ -330,6 +487,83 @@ export default function EditEmployeePage() {
           </Link>
         </div>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Live-computed Monthly CTC display. CTC = Gross + Employer PF + Incentive
+ * (PAYROLL_CALCULATION_ENGINE.md §4.7 / D5). Employer PF uses the conditional
+ * rule from D4: basic >= 15,000 → 1,800 else round(basic * 0.12). Basic is
+ * assumed 50% of Gross (the BASIC component default in payroll_salary_components).
+ */
+function CtcPreview({
+  userId,
+  gross,
+  incentive,
+  pfApplicable,
+  statutory,
+}: {
+  userId: string;
+  gross: string;
+  incentive: string;
+  pfApplicable: boolean;
+  statutory: {
+    pf_cap_amount: string;
+    pf_fixed_at_cap: string;
+    pf_rate_below_cap: string;
+  } | null;
+}) {
+  const grossN = Number(gross) || 0;
+  const incentiveN = Number(incentive) || 0;
+
+  const cap = Number(statutory?.pf_cap_amount) || 15000;
+  const fixedCap = Number(statutory?.pf_fixed_at_cap) || 1800;
+  const rate = Number(statutory?.pf_rate_below_cap) || 0.12;
+
+  const basic = grossN * 0.5;
+  const employerPf =
+    !pfApplicable || grossN === 0
+      ? 0
+      : basic >= cap
+      ? fixedCap
+      : Math.round(basic * rate);
+
+  const monthlyCtc = grossN + employerPf + incentiveN;
+  const annualCtc = monthlyCtc * 12;
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(n);
+
+  return (
+    <div className="text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold text-text-primary">Monthly CTC</span>
+        <span className="font-semibold text-text-primary">{fmt(monthlyCtc)}</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs text-text-secondary">
+        <span>Annual CTC (×12)</span>
+        <span>{fmt(annualCtc)}</span>
+      </div>
+      <div className="mt-2 text-xs text-text-secondary">
+        = Gross {fmt(grossN)} + Employer PF {fmt(employerPf)} + Incentive {fmt(incentiveN)}
+        {!pfApplicable && <span className="ml-2 italic">(PF exempt)</span>}
+      </div>
+      <p className="mt-2 text-xs text-text-secondary">
+        CTC is computed from Gross + statutory employer PF + Incentive. For
+        detailed per-component setup (TDS, loan, salary deduction), open the{' '}
+        <Link
+          href={`/admin/payroll/employees/${userId}/salary`}
+          className="underline text-accent"
+        >
+          full salary configuration page
+        </Link>
+        .
+      </p>
     </div>
   );
 }
