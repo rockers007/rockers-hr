@@ -820,35 +820,41 @@ export class RunsService {
     const page = filters.page ?? 1;
     const pageSize = Math.min(filters.pageSize ?? 50, 200);
 
-    const qb = this.itemRepo
-      .createQueryBuilder('pi')
-      .leftJoin(User, 'u', 'u.id = pi.user_id')
-      .addSelect([
-        'u.name AS user_name',
-        'u.emp_number AS emp_number',
-        'u.designation AS designation',
-      ])
-      .where('pi.run_id = :rid', { rid: runId })
-      .andWhere('pi.is_current = TRUE')
-      .orderBy('u.name', 'ASC')
-      .take(pageSize)
-      .skip((page - 1) * pageSize);
+    const searchFilter = filters.search
+      ? `AND (u.name ILIKE $${2} OR u.emp_number ILIKE $${2})`
+      : '';
+    const params: unknown[] = [runId];
+    if (filters.search) params.push(`%${filters.search}%`);
 
-    if (filters.search) {
-      qb.andWhere('(u.name ILIKE :q OR u.emp_number ILIKE :q)', {
-        q: `%${filters.search}%`,
-      });
-    }
+    // Avoid TypeORM's DISTINCT-wrapped pagination by using a raw query.
+    // SELECTs payroll_items fields + denormalized user display fields.
+    const rows = await this.dataSource.query(
+      `SELECT pi.*,
+              u.name      AS user_name,
+              u.emp_number AS emp_number,
+              u.designation AS designation
+         FROM payroll_items pi
+         LEFT JOIN users u ON u.id = pi.user_id
+         WHERE pi.run_id = $1
+           AND pi.is_current = TRUE
+           ${searchFilter}
+         ORDER BY u.name ASC NULLS LAST
+         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+      params,
+    );
 
-    const raw = await qb.getRawAndEntities();
-    const items = raw.entities.map((e, i) => ({
-      ...e,
-      user_name: raw.raw[i].user_name,
-      emp_number: raw.raw[i].emp_number,
-      designation: raw.raw[i].designation,
-    }));
-    const total = await qb.getCount();
-    return { items, total, page, pageSize };
+    const totalRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count
+         FROM payroll_items pi
+         LEFT JOIN users u ON u.id = pi.user_id
+         WHERE pi.run_id = $1
+           AND pi.is_current = TRUE
+           ${searchFilter}`,
+      params,
+    );
+    const total = totalRows[0]?.count ?? 0;
+
+    return { items: rows, total, page, pageSize };
   }
 
   // ==========================================================================
