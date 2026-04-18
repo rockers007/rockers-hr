@@ -7,8 +7,10 @@ import {
   Index,
 } from 'typeorm';
 
+import type { ComponentCode } from '../engine/payroll-engine.types';
+
 export interface SnapshotComponent {
-  code: string;
+  code: ComponentCode;
   percentage: number;
   is_pf_base: boolean;
   display_order: number;
