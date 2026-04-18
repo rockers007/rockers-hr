@@ -13,7 +13,7 @@ export class SeedPayrollNotificationTemplates1712000000003
       event_key: string;
       subject?: string;
       body: string;
-      channel: 'email' | 'inapp' | 'both';
+      channel: 'email' | 'in_app' | 'both';
     }> = [
       {
         event_key: 'payroll.payslip_released',
@@ -30,7 +30,7 @@ export class SeedPayrollNotificationTemplates1712000000003
       },
       {
         event_key: 'payroll.payslip_available_inapp',
-        channel: 'inapp',
+        channel: 'in_app',
         body: 'Your payslip for {{monthName}} {{year}} is ready. Net payable: ₹{{netPayable}}. Download from My Payroll.',
       },
       {
@@ -76,7 +76,7 @@ export class SeedPayrollNotificationTemplates1712000000003
       {
         event_key: 'payroll.run_released',
         subject: 'Payroll run released: {{monthName}} {{year}}',
-        channel: 'inapp',
+        channel: 'in_app',
         body: 'Payroll for {{monthName}} {{year}} has been released. {{employeeCount}} payslips dispatched.',
       },
     ];
