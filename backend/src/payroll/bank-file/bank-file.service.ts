@@ -157,7 +157,14 @@ export class BankFileService {
   async generate(
     runId: string,
     actorId: string,
-  ): Promise<{ signed_url?: string; file_id: string; size: number }> {
+  ): Promise<{
+    signed_url?: string;
+    file_id: string;
+    size: number;
+    filename: string;
+    content: string;
+    mime_type: string;
+  }> {
     const run = await this.mustRun(runId);
     if (run.state !== 'BANK_FILE_APPROVED' && run.state !== 'BANK_FILE_GENERATED') {
       throw new ConflictException({
@@ -232,6 +239,8 @@ export class BankFileService {
       await this.runRepo.save(run);
     }
 
+    const filename = `bank_transfer_${run.year}_${String(run.month).padStart(2, '0')}.${format.file_extension}`;
+
     await this.audit.log({
       actorId,
       action: 'payroll.bank_file.downloaded',
@@ -240,7 +249,14 @@ export class BankFileService {
       after: { size: body.length, regenerated: !!latest },
     });
 
-    return { signed_url: signedUrl, file_id: saved.id, size: body.length };
+    return {
+      signed_url: signedUrl,
+      file_id: saved.id,
+      size: body.length,
+      filename,
+      content: body,
+      mime_type: 'text/plain',
+    };
   }
 
   private renderFile(

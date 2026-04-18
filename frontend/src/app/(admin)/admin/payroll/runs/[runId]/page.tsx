@@ -564,12 +564,31 @@ function BankFileSection({ runId, state }: { runId: string; state: string }) {
 
   const generate = async () => {
     setBusy('generate');
+    setError('');
     try {
-      const data = await api.post<{ signed_url?: string; file_id: string }>(
-        `/payroll/runs/${runId}/bank-file/generate`,
-      );
+      const data = await api.post<{
+        signed_url?: string;
+        file_id: string;
+        size: number;
+        filename: string;
+        content: string;
+        mime_type: string;
+      }>(`/payroll/runs/${runId}/bank-file/generate`);
+
+      // Always trigger a local download from the response content — works
+      // regardless of whether S3 is configured.
+      const blob = new Blob([data.content], { type: data.mime_type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      // If S3 returned a signed URL, keep it available as a backup link too.
       if (data.signed_url) setDownloadUrl(data.signed_url);
-      else window.location.reload();
     } catch (e) {
       setError((e as ApiError).message);
     } finally {
