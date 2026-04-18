@@ -134,6 +134,10 @@ export class UsersService {
       incentive: user.incentive ?? '0',
       pf_applicable: user.pf_applicable ?? true,
       dob: user.dob ?? null,
+      // Bank details (editable by admin on same page)
+      bank_name: user.bank_name ?? null,
+      bank_account_no: user.bank_account_no ?? null,
+      bank_ifsc: user.bank_ifsc ?? null,
     };
   }
 

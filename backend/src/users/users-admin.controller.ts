@@ -125,13 +125,36 @@ export class UsersAdminController {
       'resignation_date', 'last_working_day', 'employment_status',
       // Payroll fields
       'emp_number', 'designation', 'gross', 'incentive', 'pf_applicable', 'dob',
+      // Bank details — admin may set directly (onboarding / corrections).
+      // Employees use the self-service bank-change workflow for subsequent
+      // updates so there's an approval trail.
+      'bank_name', 'bank_account_no', 'bank_ifsc',
     ];
     const payrollFields = ['gross', 'incentive', 'pf_applicable'];
+
+    // Bank-field format validation (skip for empty-string / null clears)
+    const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    if (updates.bank_ifsc && !IFSC_REGEX.test(updates.bank_ifsc)) {
+      throw new ConflictException({
+        code: 'PR_BANK_INVALID_IFSC',
+        message: 'IFSC must match the format ABCD0123456 (e.g. HDFC0001234).',
+      });
+    }
+    if (
+      updates.bank_account_no &&
+      !/^\d{9,18}$/.test(String(updates.bank_account_no))
+    ) {
+      throw new ConflictException({
+        code: 'PR_BANK_INVALID_ACCOUNT',
+        message: 'Bank account number must be 9–18 digits (numbers only).',
+      });
+    }
+
     const filtered: Record<string, any> = {};
     let touchingPayroll = false;
     for (const key of allowedFields) {
       if (updates[key] !== undefined) {
-        filtered[key] = updates[key];
+        filtered[key] = updates[key] === '' ? null : updates[key];
         if (payrollFields.includes(key)) touchingPayroll = true;
       }
     }

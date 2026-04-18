@@ -33,6 +33,10 @@ interface EmployeeData {
   incentive: string;
   pf_applicable: boolean;
   dob: string | null;
+  // Bank
+  bank_name: string | null;
+  bank_account_no: string | null;
+  bank_ifsc: string | null;
 }
 
 interface ManagerOption {
@@ -73,6 +77,11 @@ export default function EditEmployeePage() {
   const [incentive, setIncentive] = useState('');
   const [pfApplicable, setPfApplicable] = useState(true);
   const [dob, setDob] = useState('');
+
+  // Bank state
+  const [bankName, setBankName] = useState('');
+  const [bankAccountNo, setBankAccountNo] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
   const [statutory, setStatutory] = useState<{
     pf_cap_amount: string;
     pf_fixed_at_cap: string;
@@ -106,6 +115,9 @@ export default function EditEmployeePage() {
         setIncentive(emp.incentive ?? '');
         setPfApplicable(emp.pf_applicable ?? true);
         setDob(emp.dob ? emp.dob.split('T')[0] : '');
+        setBankName(emp.bank_name ?? '');
+        setBankAccountNo(emp.bank_account_no ?? '');
+        setBankIfsc(emp.bank_ifsc ?? '');
         setManagers(Array.isArray(mgrs) ? mgrs : []);
 
         // Fetch statutory config for live CTC preview (ignore failures — the
@@ -150,6 +162,10 @@ export default function EditEmployeePage() {
         incentive: incentive === '' ? 0 : Number(incentive),
         pf_applicable: pfApplicable,
         dob: dob || null,
+        // Bank details
+        bank_name: bankName.trim() || null,
+        bank_account_no: bankAccountNo.trim() || null,
+        bank_ifsc: bankIfsc.trim().toUpperCase() || null,
       };
 
       await api.patch(`/admin/users/${id}`, updates);
@@ -423,6 +439,61 @@ export default function EditEmployeePage() {
                   incentive={incentive}
                   pfApplicable={pfApplicable}
                   statutory={statutory}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bank Details Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Bank Details
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Used by the payroll bank transfer file. Employees can also submit change requests via self-service — once approved, these fields update automatically.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. HDFC Bank"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Account Number{' '}
+                  <span className="text-xs font-normal text-text-secondary">(9–18 digits)</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{9,18}"
+                  placeholder="e.g. 12830100028299"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankAccountNo}
+                  onChange={(e) => setBankAccountNo(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  IFSC Code{' '}
+                  <span className="text-xs font-normal text-text-secondary">(ABCD0123456)</span>
+                </label>
+                <input
+                  type="text"
+                  pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+                  placeholder="e.g. HDFC0001234"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono uppercase text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankIfsc}
+                  onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
                 />
               </div>
             </div>
