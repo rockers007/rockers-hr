@@ -37,8 +37,10 @@ export class BankChangeService {
     if (!IFSC_REGEX.test(body.new_ifsc)) {
       throw new BadRequestException('Invalid IFSC format (expected ABCD0123456)');
     }
-    if (body.new_account_no.length < 9 || body.new_account_no.length > 18) {
-      throw new BadRequestException('Account number must be 9–18 digits');
+    if (!/^\d{9,18}$/.test(body.new_account_no)) {
+      throw new BadRequestException(
+        'Account number must be 9–18 digits (numbers only)',
+      );
     }
 
     const pending = await this.repo.findOne({

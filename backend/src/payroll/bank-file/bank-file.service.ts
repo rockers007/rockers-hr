@@ -169,9 +169,19 @@ export class BankFileService {
     const latest = await this.fileRepo.findOne({
       where: { run_id: runId, is_latest: true },
     });
-    const format = await this.formatRepo.findOne({
-      where: { is_active: true },
-    });
+    // Prefer the format used by the most recent generation for this run; else
+    // pick the first active format by code (deterministic). Phase 2: persist
+    // the approved format code on payroll_runs so approve→generate are linked
+    // in multi-format setups (v2.3 audit item #3).
+    const format = latest?.file_format
+      ? await this.formatRepo.findOne({
+          where: { code: latest.file_format, is_active: true },
+        })
+      : await this.formatRepo
+          .createQueryBuilder('f')
+          .where('f.is_active = TRUE')
+          .orderBy('f.code', 'ASC')
+          .getOne();
     if (!format) {
       throw new NotFoundException('No active bank file format');
     }

@@ -64,28 +64,35 @@ export class MeController {
     @CurrentUser() user: JwtPayload,
     @Query('year') year?: string,
   ) {
-    const qb = this.itemRepo
-      .createQueryBuilder('pi')
-      .innerJoin(PayrollRun, 'r', 'r.id = pi.run_id')
-      .where('pi.user_id = :uid', { uid: user.sub })
-      .andWhere('pi.is_current = TRUE')
-      .andWhere(`r.state IN ('RELEASED','BANK_FILE_APPROVED','BANK_FILE_GENERATED')`)
-      .addSelect(['r.month AS month', 'r.year AS year', 'r.release_date AS release_date', 'r.state AS state'])
-      .orderBy('r.year', 'DESC')
-      .addOrderBy('r.month', 'DESC');
-    if (year) qb.andWhere('r.year = :y', { y: Number(year) });
+    const yearFilter = year ? `AND r.year = $2` : '';
+    const params: unknown[] = [user.sub];
+    if (year) params.push(Number(year));
 
-    const raw = await qb.getRawAndEntities();
-    const rows = raw.entities.map((e, i) => ({
-      run_id: e.run_id,
-      month: Number(raw.raw[i].month),
-      year: Number(raw.raw[i].year),
-      release_date: raw.raw[i].release_date,
-      net_payable: e.net_payable,
-      total_earnings: e.total_earnings,
-      total_deductions: e.total_deductions,
-    }));
-    return { success: true, data: rows };
+    const rows = await this.dataSource.query(
+      `SELECT pi.run_id,
+              pi.net_payable,
+              pi.total_earnings,
+              pi.total_deductions,
+              r.month,
+              r.year,
+              r.release_date
+         FROM payroll_items pi
+         JOIN payroll_runs r ON r.id = pi.run_id
+         WHERE pi.user_id = $1
+           AND pi.is_current = TRUE
+           AND r.state IN ('RELEASED','BANK_FILE_APPROVED','BANK_FILE_GENERATED')
+           ${yearFilter}
+         ORDER BY r.year DESC, r.month DESC`,
+      params,
+    );
+    return {
+      success: true,
+      data: rows.map((r: Record<string, unknown>) => ({
+        ...r,
+        month: Number(r.month),
+        year: Number(r.year),
+      })),
+    };
   }
 
   // §10.3 Own payslip download — fresh signed S3 URL (24h TTL)
@@ -152,10 +159,20 @@ export class MeController {
   ) {
     const y = Number(year);
     const m = Number(month);
-    if (!y || !m) {
+    if (
+      !Number.isInteger(y) ||
+      !Number.isInteger(m) ||
+      m < 1 ||
+      m > 12 ||
+      y < 2000 ||
+      y > 2100
+    ) {
       return {
         success: false,
-        error: { code: 'PR_INVALID_PARAMS', message: 'year and month required' },
+        error: {
+          code: 'PR_INVALID_PARAMS',
+          message: 'year (2000–2100) and month (1–12) required',
+        },
       };
     }
     const monthStart = `${y}-${String(m).padStart(2, '0')}-01`;

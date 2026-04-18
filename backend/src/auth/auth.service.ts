@@ -148,7 +148,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.gmail,
-        role: adminUser.role.name,
+        role: adminUser.role.name.toLowerCase().replace(/\s+/g, '_'),
+        role_display: adminUser.role.name,
       },
     };
   }

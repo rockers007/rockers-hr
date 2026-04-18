@@ -135,7 +135,25 @@ export class SalaryService {
     const statutory = await this.statutoryRepo.findOne({
       where: { is_active: true },
     });
-    if (!statutory || components.length !== 7) {
+
+    // Preview requires (a) active statutory row, (b) at least the 7 canonical
+    // codes, and (c) percentages that sum to 100 with one pf_base. If any
+    // invariant is broken, return zeros (engine would produce nonsense).
+    const REQUIRED = [
+      'BASIC', 'HRA', 'SP_ALLOW', 'CONVEYANCE', 'LTC', 'RE_MEDICAL', 'EDUCATION',
+    ];
+    const haveAll = REQUIRED.every((code) =>
+      components.some((c) => c.code === code),
+    );
+    const pctSum = components.reduce((acc, c) => acc + Number(c.percentage), 0);
+    const pfBases = components.filter((c) => c.is_pf_base).length;
+    const invariantsOk =
+      !!statutory &&
+      haveAll &&
+      Math.abs(pctSum - 100) < 0.01 &&
+      pfBases === 1;
+
+    if (!statutory || !invariantsOk) {
       return {
         gross: user.gross,
         sal_for_calc: user.gross,

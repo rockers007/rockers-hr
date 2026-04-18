@@ -297,9 +297,14 @@ export class PayslipPdfService {
   }
 }
 
-export function passwordFromDob(dob: string | null): string | null {
+export function passwordFromDob(
+  dob: string | Date | null | undefined,
+): string | null {
   if (!dob) return null;
-  const [y, m, day] = dob.split('-');
+  // pg may return DATE columns as Date objects depending on type parsers.
+  const iso =
+    typeof dob === 'string' ? dob : new Date(dob).toISOString().slice(0, 10);
+  const [y, m, day] = iso.split('-');
   if (!y || !m || !day) return null;
   return `${day}${m}`;
 }
