@@ -19,6 +19,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { LeaveModule } from './leave/leave.module';
 import { OvertimeModule } from './overtime/overtime.module';
+import { PayrollModule } from './payroll/payroll.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { OvertimeModule } from './overtime/overtime.module';
     UsersModule,
     LeaveModule,
     OvertimeModule,
+    PayrollModule,
     CalendarModule,
     BackupModule,
     ReportsModule,

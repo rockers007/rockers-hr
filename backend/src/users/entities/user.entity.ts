@@ -110,6 +110,43 @@ export class User {
   @Column({ type: 'text', nullable: true })
   google_refresh_token: string | null;
 
+  // --- Payroll fields (PAYROLL_DATABASE_SCHEMA.md §1) ---
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  gross: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  incentive: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  tds: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  loan_emi: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  sal_deduction: string;
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  security_return: string;
+
+  @Column({ type: 'boolean', default: true })
+  pf_applicable: boolean;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  bank_name: string | null;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  bank_account_no: string | null;
+
+  @Column({ type: 'varchar', length: 15, nullable: true })
+  bank_ifsc: string | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  emp_number: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  designation: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

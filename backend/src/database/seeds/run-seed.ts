@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { seedMasterData } from './seed-master-data';
+import { seedPayrollMasterData } from './seed-payroll-master-data';
 
 config();
 
@@ -16,6 +17,7 @@ async function runSeed() {
   console.log('Database connected. Running seeds...');
 
   await seedMasterData(dataSource);
+  await seedPayrollMasterData(dataSource);
 
   await dataSource.destroy();
   console.log('Seed complete. Connection closed.');
