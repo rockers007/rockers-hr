@@ -27,6 +27,8 @@ import { BankChangeService } from './bank-change/bank-change.service';
 import { InvestmentProofsService } from './investment-proofs/investment-proofs.service';
 import { PayrollAuditService } from './common/payroll-audit.service';
 import { IdempotencyService } from './common/idempotency.service';
+import { PayslipPdfService } from './payslip/payslip-pdf.service';
+import { PayslipDeliveryService } from './payslip/payslip-delivery.service';
 
 // Controllers
 import { MasterPayrollController } from './master/master-payroll.controller';
@@ -35,15 +37,17 @@ import { SalaryController } from './salary/salary.controller';
 import { BankChangeController } from './bank-change/bank-change.controller';
 import { InvestmentProofsController } from './investment-proofs/investment-proofs.controller';
 import { MeController } from './me/me.controller';
-import { PayslipsAdminController } from './stubs/payslips.controller';
+import { PayslipsController } from './payslip/payslips.controller';
 import { ReportsController } from './stubs/reports.controller';
 import { BankFileController } from './stubs/bank-file.controller';
 
 import { AuditModule } from '../audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     AuditModule,
+    NotificationsModule,
     TypeOrmModule.forFeature([
       PayrollSalaryComponent,
       PayrollStatutoryConfig,
@@ -69,7 +73,7 @@ import { AuditModule } from '../audit/audit.module';
     BankChangeController,
     InvestmentProofsController,
     MeController,
-    PayslipsAdminController,
+    PayslipsController,
     ReportsController,
     BankFileController,
   ],
@@ -82,6 +86,8 @@ import { AuditModule } from '../audit/audit.module';
     InvestmentProofsService,
     PayrollAuditService,
     IdempotencyService,
+    PayslipPdfService,
+    PayslipDeliveryService,
   ],
   exports: [TypeOrmModule, PayrollAuditService, IdempotencyService],
 })

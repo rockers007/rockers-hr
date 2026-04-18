@@ -719,6 +719,7 @@ export class RunsService {
     runId: string,
     releaseDate: string,
     actorId: string,
+    deliver?: (runId: string, actorId: string) => Promise<void>,
   ): Promise<PayrollRun> {
     const run = await this.mustGetRun(runId);
     if (run.state !== 'LOCKED') {
@@ -741,6 +742,14 @@ export class RunsService {
       entityId: runId,
       after: { release_date: releaseDate },
     });
+
+    // Fire-and-forget PDF + SMTP delivery
+    if (deliver) {
+      deliver(runId, actorId).catch(() => {
+        // errors are logged inside the delivery service; individual failures
+        // are recorded in payslip_deliveries and retryable by admin.
+      });
+    }
     return saved;
   }
 

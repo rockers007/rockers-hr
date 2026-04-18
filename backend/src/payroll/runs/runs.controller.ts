@@ -16,11 +16,15 @@ import { RequirePayrollPermission } from '../rbac/require-payroll-permission.dec
 import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { RunsService } from './runs.service';
 import { PayrollRunState } from '../entities/payroll-run.entity';
+import { PayslipDeliveryService } from '../payslip/payslip-delivery.service';
 
 @Controller('api/v1/payroll/runs')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class RunsController {
-  constructor(private readonly runs: RunsService) {}
+  constructor(
+    private readonly runs: RunsService,
+    private readonly delivery: PayslipDeliveryService,
+  ) {}
 
   // §4.1 List runs
   @Get()
@@ -152,7 +156,7 @@ export class RunsController {
     return { success: true, data: run };
   }
 
-  // §4.10 Step 5b — Release
+  // §4.10 Step 5b — Release + trigger PDF/SMTP delivery pipeline
   @Post(':runId/release')
   @RequirePayrollPermission(PAYROLL_PERMISSIONS.RUN_RELEASE)
   async release(
@@ -160,7 +164,12 @@ export class RunsController {
     @Body() body: { release_date: string },
     @CurrentUser() user: JwtPayload,
   ) {
-    const run = await this.runs.release(runId, body.release_date, user.sub);
+    const run = await this.runs.release(
+      runId,
+      body.release_date,
+      user.sub,
+      (rid, aid) => this.delivery.deliverRun(rid, aid),
+    );
     return { success: true, data: run };
   }
 
@@ -175,21 +184,10 @@ export class RunsController {
     return { success: true, data: run };
   }
 
-  // §4.11 Release progress — payslip delivery status table (Phase F wires real data)
+  // §4.11 Release progress — aggregated payslip_deliveries status
   @Get(':runId/release-progress')
   @RequirePayrollPermission(PAYROLL_PERMISSIONS.RUN_VIEW)
   async releaseProgress(@Param('runId') runId: string) {
-    return {
-      success: true,
-      data: {
-        run_id: runId,
-        total: 0,
-        generated: 0,
-        emailed: 0,
-        failed: 0,
-        pending: 0,
-        note: 'Release progress is populated by payslip generation (Phase F).',
-      },
-    };
+    return { success: true, data: await this.delivery.releaseProgress(runId) };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -11,6 +11,7 @@ import { SalaryService } from '../salary/salary.service';
 import { PayrollItem } from '../entities/payroll-item.entity';
 import { PayrollRun } from '../entities/payroll-run.entity';
 import { PayslipDelivery } from '../entities/payslip-delivery.entity';
+import { PayslipDeliveryService } from '../payslip/payslip-delivery.service';
 
 @Controller('api/v1/payroll/me')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
@@ -24,6 +25,7 @@ export class MeController {
     private readonly runRepo: Repository<PayrollRun>,
     @InjectRepository(PayslipDelivery)
     private readonly payslipRepo: Repository<PayslipDelivery>,
+    private readonly delivery: PayslipDeliveryService,
   ) {}
 
   // §10.1 Own salary
@@ -86,35 +88,39 @@ export class MeController {
     return { success: true, data: rows };
   }
 
-  // §10.3 Payslip download — Phase F completes the signed-URL flow
+  // §10.3 Own payslip download — fresh signed S3 URL (24h TTL)
   @Get('payslips/:year/:month/download')
   @RequirePayrollPermission(PAYROLL_PERMISSIONS.ME_PAYSLIPS_DOWNLOAD)
-  async payslipDownload(@CurrentUser() user: JwtPayload) {
-    const delivery = await this.payslipRepo
-      .createQueryBuilder('d')
-      .where('d.user_id = :uid', { uid: user.sub })
-      .andWhere('d.status IN (:...st)', {
-        st: ['GENERATED', 'EMAILED'],
-      })
-      .orderBy('d.created_at', 'DESC')
+  async payslipDownload(
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const run = await this.runRepo
+      .createQueryBuilder('r')
+      .where('r.year = :y AND r.month = :m', { y: Number(year), m: Number(month) })
+      .andWhere(`r.state IN ('RELEASED','BANK_FILE_APPROVED','BANK_FILE_GENERATED')`)
       .getOne();
-
-    if (!delivery) {
+    if (!run) {
       return {
         success: false,
         error: {
           code: 'PR_PAYSLIP_NOT_READY',
-          message: 'Payslip is not yet generated (Phase F feature).',
+          message: 'No released run for this month.',
         },
       };
     }
-    return {
-      success: true,
-      data: {
-        signed_url: delivery.s3_url_signed,
-        password_hint: delivery.pdf_password_hint,
-      },
-    };
+    const data = await this.delivery.getSignedDownloadUrl(run.id, user.sub);
+    if (!data) {
+      return {
+        success: false,
+        error: {
+          code: 'PR_PAYSLIP_NOT_READY',
+          message: 'Payslip not generated yet. Contact HR if this persists.',
+        },
+      };
+    }
+    return { success: true, data };
   }
 
   // §10.4 YTD

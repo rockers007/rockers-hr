@@ -96,6 +96,11 @@ export class NotificationsService {
     to: string,
     subject: string,
     body: string,
+    attachments?: Array<{
+      filename: string;
+      content: Buffer;
+      contentType?: string;
+    }>,
   ): Promise<void> {
     if (!this.transporter) {
       this.logger.warn('SMTP not configured — skipping email');
@@ -112,6 +117,7 @@ export class NotificationsService {
           to,
           subject,
           html: body,
+          attachments,
         });
         return;
       } catch (error) {
@@ -121,6 +127,8 @@ export class NotificationsService {
         );
         if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, attempt * attempt * 1000));
+        } else {
+          throw error;
         }
       }
     }
