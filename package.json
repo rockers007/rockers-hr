@@ -1,0 +1,26 @@
+{
+  "name": "rockers-hr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rockers HR — HR Management System",
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:db": "docker compose up postgres -d",
+    "db:migrate": "cd backend && npx typeorm migration:run -d dist/config/typeorm.config.js",
+    "db:seed": "cd backend && npx ts-node src/database/seeds/run-seed.ts",
+    "test": "cd backend && npm test",
+    "test:e2e": "cd backend && npm run test:e2e",
+    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",
+    "clean": "docker compose down -v"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@testmo/testmo-cli": "^1.4.8",
+    "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@testmo/testmo-api": "^2.5.0"
+  }
+}

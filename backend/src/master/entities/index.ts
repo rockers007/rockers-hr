@@ -1,0 +1,11 @@
+export { MasterAdminRole } from './master-admin-role.entity';
+export { MasterQualification } from './master-qualification.entity';
+export { MasterGender } from './master-gender.entity';
+export { MasterRoleType } from './master-role-type.entity';
+export { MasterLeaveType } from './master-leave-type.entity';
+export { MasterLeaveDuration } from './master-leave-duration.entity';
+export { MasterDepartment } from './master-department.entity';
+export { MasterFileType } from './master-file-type.entity';
+export { MasterNotificationTemplate } from './master-notification-template.entity';
+export { MasterSlaConfig } from './master-sla-config.entity';
+export { MasterPublicHoliday } from './master-public-holiday.entity';
