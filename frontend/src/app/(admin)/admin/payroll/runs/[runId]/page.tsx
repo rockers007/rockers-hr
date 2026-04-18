@@ -370,18 +370,137 @@ export default function RunDetailPage() {
       )}
 
       {['RELEASED', 'BANK_FILE_APPROVED', 'BANK_FILE_GENERATED'].includes(run.state) && (
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold">Released</h2>
-          <p className="mt-2 text-sm text-text-secondary">
-            Released on{' '}
-            {run.release_date
-              ? new Date(run.release_date).toLocaleDateString('en-IN')
-              : 'unknown date'}
-            . Bank transfer file requires Super Admin approval (Phase G).
-          </p>
-        </Card>
+        <BankFileSection runId={run.id} state={run.state} />
       )}
     </div>
+  );
+}
+
+function BankFileSection({ runId, state }: { runId: string; state: string }) {
+  const [preview, setPreview] = useState<{
+    rows: Array<{
+      user_id: string;
+      emp_number: string | null;
+      name: string;
+      bank_name: string | null;
+      net_payable: string;
+      has_pending_bank_change: boolean;
+    }>;
+    total_amount: string;
+    pending_bank_changes: number;
+  } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.get<typeof preview>(
+          `/payroll/runs/${runId}/bank-file/preview`,
+        );
+        setPreview(data);
+      } catch (e) {
+        setError((e as ApiError).message);
+      }
+    })();
+  }, [runId]);
+
+  const approve = async () => {
+    const phrase = 'APPROVE BANK TRANSFER FILE';
+    const typed = window.prompt(
+      `Confirm by typing exactly:\n${phrase}`,
+    );
+    if (typed !== phrase) return;
+    const action =
+      (preview?.pending_bank_changes ?? 0) > 0
+        ? window.confirm(
+            `There are ${preview?.pending_bank_changes} employees with pending bank change requests. Use old details for them? (Cancel excludes them.)`,
+          )
+          ? 'use_old'
+          : 'exclude_employee'
+        : 'use_old';
+    setBusy('approve');
+    try {
+      await api.post(`/payroll/runs/${runId}/bank-file/approve`, {
+        confirmation_phrase: typed,
+        file_format_code: 'DEFAULT_NEFT',
+        pending_bank_changes_action: action,
+      });
+      window.location.reload();
+    } catch (e) {
+      setError((e as ApiError).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const generate = async () => {
+    setBusy('generate');
+    try {
+      const data = await api.post<{ signed_url?: string; file_id: string }>(
+        `/payroll/runs/${runId}/bank-file/generate`,
+      );
+      if (data.signed_url) setDownloadUrl(data.signed_url);
+      else window.location.reload();
+    } catch (e) {
+      setError((e as ApiError).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="p-6 space-y-4">
+      <h2 className="text-lg font-semibold">Bank Transfer File</h2>
+
+      {preview && (
+        <div className="flex flex-wrap gap-6 text-sm">
+          <div>
+            <div className="text-xs uppercase text-text-secondary">Employees</div>
+            <div className="font-semibold">{preview.rows.length}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase text-text-secondary">Total Amount</div>
+            <div className="font-semibold">{formatINR(preview.total_amount)}</div>
+          </div>
+          {preview.pending_bank_changes > 0 && (
+            <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {preview.pending_bank_changes} pending bank change{preview.pending_bank_changes === 1 ? '' : 's'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && <div className="rounded bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+
+      <div className="flex flex-wrap gap-2">
+        {state === 'RELEASED' && (
+          <Button onClick={approve} disabled={busy === 'approve'}>
+            {busy === 'approve' ? 'Approving…' : 'Approve Bank Transfer File'}
+          </Button>
+        )}
+        {(state === 'BANK_FILE_APPROVED' || state === 'BANK_FILE_GENERATED') && (
+          <Button onClick={generate} disabled={busy === 'generate'}>
+            {busy === 'generate' ? 'Generating…' : 'Generate / Download File'}
+          </Button>
+        )}
+        {downloadUrl && (
+          <a
+            href={downloadUrl}
+            download
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+          >
+            Download File ↓
+          </a>
+        )}
+      </div>
+
+      <p className="text-xs text-text-secondary">
+        Super Admin only. Approval is irreversible once generated. Format:
+        NEFT bulk upload (DEFAULT_NEFT). Signed URLs expire in 15 min.
+      </p>
+    </Card>
   );
 }
 

@@ -38,8 +38,10 @@ import { BankChangeController } from './bank-change/bank-change.controller';
 import { InvestmentProofsController } from './investment-proofs/investment-proofs.controller';
 import { MeController } from './me/me.controller';
 import { PayslipsController } from './payslip/payslips.controller';
-import { ReportsController } from './stubs/reports.controller';
-import { BankFileController } from './stubs/bank-file.controller';
+import { ReportsController } from './reports/reports.controller';
+import { ReportsService } from './reports/reports.service';
+import { BankFileController } from './bank-file/bank-file.controller';
+import { BankFileService } from './bank-file/bank-file.service';
 
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -88,6 +90,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     IdempotencyService,
     PayslipPdfService,
     PayslipDeliveryService,
+    ReportsService,
+    BankFileService,
   ],
   exports: [TypeOrmModule, PayrollAuditService, IdempotencyService],
 })
