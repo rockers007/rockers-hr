@@ -1,0 +1,2278 @@
+{
+  "generated_at": "2026-04-18T10:00:00Z",
+  "source_documents": [
+    "PAYROLL_PLAN.md",
+    "PAYROLL_MASTER_DATA.md",
+    "PAYROLL_WORKFLOW.md",
+    "PAYROLL_DATABASE_SCHEMA.md",
+    "PAYROLL_CALCULATION_ENGINE.md",
+    "PAYROLL_API_CONTRACTS.md",
+    "PAYROLL_RBAC.md",
+    "PAYROLL_NOTIFICATIONS.md",
+    "PAYROLL_FRONTEND_DESIGN.md",
+    "PAYROLL_PAYSLIP_FORMAT.md",
+    "PAYROLL_TESTING.md",
+    "PAYROLL_OPEN_QUESTIONS.md",
+    "PAYROLL_REVIEW.md"
+  ],
+  "folders": [
+    {
+      "name": "Payroll - Master Data",
+      "cases": [
+        {
+          "name": "[Payroll-Master] Save 7 salary components summing exactly to 100% succeeds",
+          "steps": [
+            "Login as Super Admin",
+            "Navigate to Master Data > Salary Component Settings",
+            "Set Basic=50, HRA=20, SP=15, Conv=7, LTC=5, Med=2, Edu=1",
+            "Confirm exactly one component has is_pf_base=true (BASIC)",
+            "Click Save"
+          ],
+          "expected": "PUT /api/v1/payroll/master/components returns 200; all 7 rows persisted; audit event payroll.master.component_updated written",
+          "tags": ["payroll-master", "payroll-components", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Master] Save components summing to 99.99 is rejected with PR_COMPONENTS_INVALID",
+          "steps": [
+            "Login as Super Admin",
+            "Edit HRA from 20.00 to 19.99 (sum becomes 99.99)",
+            "Attempt Save"
+          ],
+          "expected": "PUT /api/v1/payroll/master/components returns 400 PR_COMPONENTS_INVALID; field-level error identifies sum mismatch; no DB mutation",
+          "tags": ["payroll-master", "payroll-components", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Master] Rebalance rejects zero or multiple is_pf_base=true rows",
+          "steps": [
+            "Login as Super Admin",
+            "Attempt save with is_pf_base=true on BASIC and HRA",
+            "Attempt save with no is_pf_base=true flag anywhere"
+          ],
+          "expected": "Both attempts return 400 PR_COMPONENTS_INVALID; error says 'exactly one is_pf_base required'",
+          "tags": ["payroll-master", "payroll-components", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Master] Component % edit applies to next payroll run only (D20)",
+          "steps": [
+            "Create payroll run for April 2026 (state DRAFT)",
+            "Complete Step 2 import (snapshot frozen)",
+            "As Super Admin, change HRA from 20% to 22% in master data",
+            "Run calculation for April 2026",
+            "Inspect snapshot_components in payroll_run_employees"
+          ],
+          "expected": "April run uses 20% HRA from snapshot; next run (May) picks up 22%; engine never reads live master during calc",
+          "tags": ["payroll-master", "payroll-components", "snapshot", "d20"],
+          "estimate": 8
+        },
+        {
+          "name": "[Payroll-Master] Update statutory config PT flat amount takes effect next run",
+          "steps": [
+            "Login as Super Admin",
+            "PATCH /api/v1/payroll/master/statutory with pt_flat_amount=250.00",
+            "Create a new payroll run and complete calculation"
+          ],
+          "expected": "New run uses PT=250 via snapshot_statutory; prior runs unaffected",
+          "tags": ["payroll-master", "payroll-statutory", "snapshot"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Master] ESIC activation requires exact confirmation phrase",
+          "steps": [
+            "Login as Super Admin",
+            "POST /api/v1/payroll/master/statutory/esic/activate with activate=true, confirmation_phrase='activate esic' (wrong case)",
+            "Retry with confirmation_phrase='ACTIVATE ESIC'"
+          ],
+          "expected": "First call returns 400 PR_ESIC_CONFIRMATION_REQUIRED; second succeeds; esic_active flips to true; audit event payroll.master.esic_toggled written",
+          "tags": ["payroll-master", "payroll-esic", "validation"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Master] ESIC toggle gate: HR Manager forbidden (Super Admin only)",
+          "steps": [
+            "Login as HR Manager",
+            "Attempt POST /api/v1/payroll/master/statutory/esic/activate"
+          ],
+          "expected": "403 Forbidden (payroll.master.esic.toggle is Super Admin only)",
+          "tags": ["payroll-master", "payroll-esic", "payroll-rbac"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Master] Earning types list includes seeded rows with BONUS marked out-of-scope",
+          "steps": [
+            "GET /api/v1/payroll/master/earning-types",
+            "Verify FIX_VARIABLE, OT_PAY, SECURITY_RETURN, BONUS rows present"
+          ],
+          "expected": "4 rows returned; BONUS seeded but calculation engine ignores it in MVP runs (D29)",
+          "tags": ["payroll-master", "payroll-earning-types", "phase-2"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Master] Deduction types include 7 seeded rows with ESIC_EMPLOYEE inactive by default",
+          "steps": [
+            "GET /api/v1/payroll/master/deduction-types",
+            "Verify PF_EMPLOYEE, ESIC_EMPLOYEE, PT, TDS, SECURITY, LOAN_EMI, SAL_DEDUCTION rows present"
+          ],
+          "expected": "ESIC_EMPLOYEE has is_active_by_default=false; all others true",
+          "tags": ["payroll-master", "payroll-deduction-types"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Master] Bank file format column_order affects generated NEFT file",
+          "steps": [
+            "As Super Admin, PATCH DEFAULT_NEFT format column_order to swap AMOUNT and IFSC positions",
+            "Run payroll, approve bank file, download generated file"
+          ],
+          "expected": "Downloaded file columns reflect new order; delimiter and amount_format also respected",
+          "tags": ["payroll-master", "payroll-bank-format"],
+          "estimate": 7
+        },
+        {
+          "name": "[Payroll-Master] Company profile edit propagates to next payslip header (Zone 1)",
+          "steps": [
+            "As Super Admin, PATCH /api/v1/payroll/master/company-profile with new address_line_1",
+            "Release next payroll run",
+            "Open generated payslip PDF"
+          ],
+          "expected": "Zone 1 shows updated address; older payslips unchanged",
+          "tags": ["payroll-master", "payroll-company-profile"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Master] payroll_working_days_config table removed (D22) - only statutory holds cycle_days",
+          "steps": [
+            "Inspect DB schema",
+            "Verify only payroll_statutory_config.payroll_cycle_days exists",
+            "Attempt SELECT * FROM payroll_working_days_config"
+          ],
+          "expected": "Table does not exist; cycle_days (30) and ot_divisor_hour (9) live in payroll_statutory_config only",
+          "tags": ["payroll-master", "payroll-schema", "d22"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Master] Active statutory config enforces unique index (one active row)",
+          "steps": [
+            "Attempt INSERT into payroll_statutory_config with is_active=true while existing row has is_active=true"
+          ],
+          "expected": "DB unique index idx_psc_active prevents two active rows; error raised",
+          "tags": ["payroll-master", "payroll-schema", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Master] Component audit log captures old/new percentage values",
+          "steps": [
+            "As Super Admin, update HRA 20% to 22%",
+            "Query audit log for payroll.master.component_updated"
+          ],
+          "expected": "Audit event has actor=super_admin_id, old_value=20.00, new_value=22.00, target=HRA",
+          "tags": ["payroll-master", "payroll-audit"],
+          "estimate": 4
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Salary Configuration",
+      "cases": [
+        {
+          "name": "[Payroll-Salary] GET /employees/:userId/salary returns config + computed_preview (CTC, expected_net)",
+          "steps": [
+            "Login as HR Manager",
+            "GET /api/v1/payroll/employees/{RT-DEV-153}/salary"
+          ],
+          "expected": "Response contains gross, incentive, pf_applicable, bank details and computed_preview {ctc:45000, expected_net:41200, employee_pf:1800, pt:200}",
+          "tags": ["payroll-salary", "payroll-api", "happy-path"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Salary] PATCH gross updates users.gross and triggers N12 in-app notification",
+          "steps": [
+            "Login as HR Manager",
+            "PATCH /api/v1/payroll/employees/:userId/salary with gross=40000",
+            "Check employee in-app inbox"
+          ],
+          "expected": "users.gross=40000; audit payroll.salary.config_updated; in-app notif 'Your salary structure has been updated by HR' delivered (no email)",
+          "tags": ["payroll-salary", "payroll-notifications", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Salary] PATCH rejected while run is IN_PROGRESS for current month (409 PR_LOCKED)",
+          "steps": [
+            "Start payroll run for April 2026 and move to IN_PROGRESS",
+            "Attempt PATCH /api/v1/payroll/employees/:userId/salary with incentive=6000"
+          ],
+          "expected": "409 PR_LOCKED; users.incentive unchanged; run snapshot unaffected",
+          "tags": ["payroll-salary", "in-flight-guard", "validation"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Salary] PATCH rejected while run is REVIEW for current month",
+          "steps": [
+            "Advance April run to REVIEW state",
+            "Attempt PATCH gross=42000"
+          ],
+          "expected": "409 PR_LOCKED returned",
+          "tags": ["payroll-salary", "in-flight-guard"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Salary] PATCH with negative gross/incentive returns 400 validation error",
+          "steps": [
+            "PATCH with gross=-1000",
+            "PATCH with tds=-200"
+          ],
+          "expected": "400 with field-level errors; no DB mutation",
+          "tags": ["payroll-salary", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Salary] Toggle pf_applicable=false sets Employee+Employer PF=0 in preview",
+          "steps": [
+            "Open salary config for a PF-eligible employee",
+            "PATCH pf_applicable=false",
+            "Read computed_preview"
+          ],
+          "expected": "preview.employee_pf=0, preview.employer_pf=0, ctc=gross+0+incentive",
+          "tags": ["payroll-salary", "payroll-engine", "d16"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Salary] Employee cannot call admin salary endpoints (403)",
+          "steps": [
+            "Login as EMPLOYEE",
+            "GET /api/v1/payroll/employees/{otherUserId}/salary"
+          ],
+          "expected": "403 Forbidden; no data leaked",
+          "tags": ["payroll-salary", "payroll-rbac", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Salary] Reports Admin has no salary.edit permission (403 on PATCH)",
+          "steps": [
+            "Login as REPORTS_ADMIN",
+            "Attempt PATCH /api/v1/payroll/employees/:userId/salary"
+          ],
+          "expected": "403 Forbidden",
+          "tags": ["payroll-salary", "payroll-rbac"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Salary] UI Save button disabled when IN_PROGRESS run exists for current month",
+          "steps": [
+            "Admin opens Screen S3 Employee Salary Configuration",
+            "Current-month run exists in IN_PROGRESS state",
+            "Verify Save button"
+          ],
+          "expected": "Save button disabled; tooltip explains 'A payroll run for this month is in progress'",
+          "tags": ["payroll-salary", "frontend", "in-flight-guard"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Salary] Live CTC preview updates as gross/incentive change",
+          "steps": [
+            "Open S3 Employee Salary Configuration",
+            "Type gross=38200 then change to 50000",
+            "Observe right-hand preview"
+          ],
+          "expected": "Basic, HRA, PF, CTC, Expected Net recompute live client-side; sub-500ms response",
+          "tags": ["payroll-salary", "frontend"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Salary] DOB-missing warning shown in UI",
+          "steps": [
+            "Open S3 for employee with users.dob=NULL",
+            "Inspect Bank Details section"
+          ],
+          "expected": "Yellow warning 'DOB missing - payslip cannot be emailed' displayed",
+          "tags": ["payroll-salary", "frontend", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Salary] View History drawer shows audit log of past salary edits",
+          "steps": [
+            "Make three PATCH edits to an employee's salary over time",
+            "Open S3 and click View History"
+          ],
+          "expected": "Drawer lists 3 rows with actor, timestamp, field, old and new values, source=payroll.salary.config_updated",
+          "tags": ["payroll-salary", "payroll-audit", "frontend"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Salary] Bank details section shows masked A/C with unmask toggle",
+          "steps": [
+            "Open S3 for RT-DEV-153",
+            "Inspect bank section",
+            "Click unmask toggle"
+          ],
+          "expected": "Default shows XXXX-XXXX-8299; unmask reveals full number; admin-only masking is UX - full number still accessible to admin",
+          "tags": ["payroll-salary", "frontend", "security"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Salary] Admin cannot edit bank details directly from S3 (must use bank-change workflow)",
+          "steps": [
+            "Open S3",
+            "Inspect bank fields"
+          ],
+          "expected": "Bank fields read-only; helper text 'ask the employee to submit a bank change request' shown",
+          "tags": ["payroll-salary", "frontend", "payroll-bank-change"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Calculation Engine",
+      "cases": [
+        {
+          "name": "[Payroll-Engine] RT-DEV-153 golden fixture produces exact payslip values (Gross 38200, 0 LWP)",
+          "steps": [
+            "Load golden fixture RT_DEV_153 (gross=38200, incentive=5000, pf_applicable=true)",
+            "Call calculate(snapshot) with lwp_days=0, ot_hours=0",
+            "Compare output to PAYROLL_CALCULATION_ENGINE.md section 6"
+          ],
+          "expected": "Basic=19100/19100, HRA=7640/7640, SP=5730/5730, Conv=2674/2674, LTC=1910/1910, Med=764/764, Edu=382/382, Fix=5000, PF=1800, PT=200, Total Earnings=43200, Total Deductions=2000, Net=41200, CTC=45000",
+          "tags": ["payroll-engine", "golden-fixture", "happy-path"],
+          "estimate": 8
+        },
+        {
+          "name": "[Payroll-Engine] PQR fixture (Gross 67815) produces PF=1800 capped and CTC=84615",
+          "steps": [
+            "Load PQR fixture (gross=67815, basic_actual=33908, incentive=15000)",
+            "Run engine"
+          ],
+          "expected": "basic>=15000 => PF=1800 fixed (D4); CTC=67815+1800+15000=84615",
+          "tags": ["payroll-engine", "golden-fixture", "d4"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] HSBC fixture (Gross 25000, Basic 12500) produces PF=1500 (12%)",
+          "steps": [
+            "Load HSBC fixture",
+            "Run engine"
+          ],
+          "expected": "basic<15000 => PF=round(12500*0.12)=1500; engineer uses conditional form not MIN() (D4)",
+          "tags": ["payroll-engine", "golden-fixture", "d4"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] Reliance fixture (Gross 24000, Basic 12000) produces PF=1440",
+          "steps": [
+            "Load Reliance fixture",
+            "Run engine"
+          ],
+          "expected": "PF=round(12000*0.12)=1440",
+          "tags": ["payroll-engine", "golden-fixture", "d4"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] ABC fixture (PF-exempt) produces Employer PF=0 and CTC=Gross+0+Incentive",
+          "steps": [
+            "Load ABC fixture with pf_applicable=false, gross=50000",
+            "Run engine"
+          ],
+          "expected": "employee_pf=0, employer_pf=0, ctc=50000+0+incentive (D16)",
+          "tags": ["payroll-engine", "golden-fixture", "d16", "pf-exempt"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] LWP=2 on Gross 38200 produces SFC=35653.33 with payable components prorated",
+          "steps": [
+            "Set lwp_days=2",
+            "Run engine"
+          ],
+          "expected": "lwp_deduction=2546.67, sal_for_calc=35653.33; actual columns still on gross; payable columns on SFC; D3+D17",
+          "tags": ["payroll-engine", "lwp", "d3", "d17"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] LWP=30 produces SFC=0 and all payable components=0 but PF still deducted (D24)",
+          "steps": [
+            "Set lwp_days=30 for RT-DEV-153 (gross=38200)",
+            "Run engine"
+          ],
+          "expected": "sal_for_calc=0, all 7 payable components=0, basic_actual=19100, employee_pf=1800 (calc'd on actual basic), net_payable clamps to 0 with warning flag (D24)",
+          "tags": ["payroll-engine", "lwp", "d24", "edge-case"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-Engine] LWP>30 capped at 30 during import Step 2",
+          "steps": [
+            "Inject leave_requests returning LWP=33 days",
+            "Run Step 2 import"
+          ],
+          "expected": "payroll_run_employees.lwp_days=30 (capped); import log warns 'LWP capped at cycle_days'",
+          "tags": ["payroll-engine", "lwp", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] OT rate = Gross/30/9 x 1.5 (9-hour day per D7)",
+          "steps": [
+            "Gross=38200, ot_hours=5",
+            "Run engine"
+          ],
+          "expected": "ot_per_hour=141.48, ot_rate=212.22, ot_pay=1061.11 (matches BRD Addendum §2)",
+          "tags": ["payroll-engine", "overtime", "d7"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] OT with fractional hours (4.5) computes correctly",
+          "steps": [
+            "Gross=38200, ot_hours=4.5",
+            "Run engine"
+          ],
+          "expected": "ot_pay=round2(212.22*4.5)=954.99",
+          "tags": ["payroll-engine", "overtime", "edge-case"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Engine] Incentive (fix_variable) NOT prorated for LWP (D25)",
+          "steps": [
+            "incentive=5000, lwp_days=15",
+            "Run engine"
+          ],
+          "expected": "fix_variable stored exactly 5000; total_earnings includes full incentive; payslip Actual and Payable columns both show 5000 (D25)",
+          "tags": ["payroll-engine", "incentive", "d25"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] Rounding remainder absorbed by EDUCATION ensures 7 payable components sum exactly to SFC (D23)",
+          "steps": [
+            "Construct a gross that produces rounding drift (e.g., 38201)",
+            "Run engine",
+            "Sum 7 payable component amounts"
+          ],
+          "expected": "sum equals sal_for_calc exactly; only EDUCATION.payable adjusted by +/- <=0.07",
+          "tags": ["payroll-engine", "rounding", "d23"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] Rounding remainder absorbed by EDUCATION ensures 7 actual components sum exactly to Gross",
+          "steps": [
+            "Gross with rounding drift",
+            "Run engine",
+            "Sum actual amounts"
+          ],
+          "expected": "sum equals gross exactly; EDUCATION.actual absorbs remainder (D23)",
+          "tags": ["payroll-engine", "rounding", "d23"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] Professional Tax fixed at 200 from master (D8)",
+          "steps": [
+            "Any fixture",
+            "Run engine"
+          ],
+          "expected": "professional_tax=200; read from snapshot.statutory.pt_flat_amount (not hardcoded)",
+          "tags": ["payroll-engine", "pt", "d8"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Engine] ESIC scaffold: esic_active=false -> employee_esic=0 in totals (value still stored)",
+          "steps": [
+            "Set esic_active=false, gross=20000",
+            "Run engine"
+          ],
+          "expected": "esic_applied=false; employee_esic stored as round(20000*0.0075)=150 but total_deductions excludes it (D9)",
+          "tags": ["payroll-engine", "esic", "d9", "phase-2"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] ESIC scaffold: esic_active=true + gross>=21000 -> ESIC not applied",
+          "steps": [
+            "Set esic_active=true, gross=25000",
+            "Run engine"
+          ],
+          "expected": "esic_applied=false (above threshold); deductions unchanged",
+          "tags": ["payroll-engine", "esic", "d9"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] ESIC scaffold: esic_active=true + gross<21000 -> ESIC deducted from employee and added to CTC via employer_esic",
+          "steps": [
+            "Set esic_active=true, gross=20000",
+            "Run engine"
+          ],
+          "expected": "esic_applied=true; employee_esic=150 included in total_deductions; employer_esic=650 (not in payslip deductions but available for compliance report)",
+          "tags": ["payroll-engine", "esic", "d9", "phase-2"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Engine] CTC formula = Gross + Employer PF + Incentive (D5)",
+          "steps": [
+            "RT-DEV-153 snapshot",
+            "Run engine"
+          ],
+          "expected": "ctc=38200+1800+5000=45000",
+          "tags": ["payroll-engine", "ctc", "d5"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Engine] CTC As Per IT = Gross + Incentive (no Employer PF) (D6)",
+          "steps": [
+            "RT-DEV-153 snapshot",
+            "Run engine"
+          ],
+          "expected": "ctc_as_per_it=38200+5000=43200",
+          "tags": ["payroll-engine", "ctc", "d6"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Engine] Net payable clamps to 0 when deductions exceed earnings",
+          "steps": [
+            "Construct snapshot with loan_emi > total_earnings",
+            "Run engine"
+          ],
+          "expected": "net_payable=0 not negative; warning flag raised on employee row",
+          "tags": ["payroll-engine", "edge-case", "invariant"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] Present Days = 30 - LWP only (CL/SL/PL/WFH/CompOff do NOT reduce) (D10)",
+          "steps": [
+            "Set lwp_days=2, cl_days=3, sl_days=1, wfh_days=5",
+            "Run engine"
+          ],
+          "expected": "present_days=30-2=28; CL/SL/WFH ignored for this metric (D10)",
+          "tags": ["payroll-engine", "present-days", "d10"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] Engine is deterministic: same snapshot input yields identical output",
+          "steps": [
+            "Run engine twice on identical RT-DEV-153 snapshot",
+            "Compare outputs"
+          ],
+          "expected": "All fields identical; engine has no side effects, no Date.now, no Math.random",
+          "tags": ["payroll-engine", "invariant"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Engine] Engine reads only from snapshot (insulated from live master edits mid-run)",
+          "steps": [
+            "Build snapshot with HRA=20",
+            "Mutate live payroll_salary_components.HRA to 25",
+            "Run engine on snapshot"
+          ],
+          "expected": "Output HRA uses 20%; live master changes ignored",
+          "tags": ["payroll-engine", "snapshot", "d20"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Engine] Bonus earning type seeded but NOT processed by engine in MVP (D29)",
+          "steps": [
+            "Verify BONUS row in payroll_earning_types",
+            "Run engine on any snapshot"
+          ],
+          "expected": "Engine ignores BONUS code; no bonus line added to totals; tagged phase-2",
+          "tags": ["payroll-engine", "bonus", "d29", "phase-2"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Run Workflow",
+      "cases": [
+        {
+          "name": "[Payroll-Run] Step 1 - Create run for April 2026 creates DRAFT with active employees snapshot",
+          "steps": [
+            "Login as HR Manager",
+            "POST /api/v1/payroll/runs {month:4, year:2026}",
+            "Inspect payroll_runs row"
+          ],
+          "expected": "state=DRAFT; total_employees matches active user count at snapshot time; audit payroll.run.created",
+          "tags": ["payroll-run", "step-1", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 1 - Duplicate (month,year) returns 409 PR_RUN_ALREADY_EXISTS",
+          "steps": [
+            "Create April 2026 run (state=DRAFT)",
+            "POST /api/v1/payroll/runs {month:4, year:2026} again"
+          ],
+          "expected": "409 PR_RUN_ALREADY_EXISTS; only one active run per (month,year) (partial unique index)",
+          "tags": ["payroll-run", "step-1", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Run] Step 2 - Import fetches approved LWP and OT, excludes pending",
+          "steps": [
+            "Seed leave_requests: 2 approved LWP days + 1 pending LWP day",
+            "Seed overtime_requests: 5 approved OT hours + 2 pending",
+            "POST /runs/:runId/import"
+          ],
+          "expected": "payroll_run_employees.lwp_days=2 (pending excluded); ot_hours=5; state=IN_PROGRESS",
+          "tags": ["payroll-run", "step-2", "leave-integration"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-Run] Step 2 - Import is always async returning 202 + job_id",
+          "steps": [
+            "POST /runs/:runId/import",
+            "Inspect response"
+          ],
+          "expected": "HTTP 202 with {job_id, state:IN_PROGRESS, message:'Import started.'}; frontend polls GET /runs/:runId",
+          "tags": ["payroll-run", "step-2", "async"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Run] Step 2 - Snapshot freezes employee salary structure at import time (D20)",
+          "steps": [
+            "Run Step 2 import with gross=38200",
+            "Admin changes users.gross to 40000",
+            "Inspect payroll_run_employees.snapshot_gross"
+          ],
+          "expected": "snapshot_gross=38200 (unchanged); live users.gross=40000 takes effect only in next run (D20)",
+          "tags": ["payroll-run", "snapshot", "d20"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 2b - PATCH snapshot override for lwp_days/ot_hours works in IN_PROGRESS",
+          "steps": [
+            "Run in IN_PROGRESS after import",
+            "PATCH /runs/:runId/employees/:userId {lwp_days:3, ot_hours:5.5}",
+            "Verify snapshot updated"
+          ],
+          "expected": "payroll_run_employees updated; audit event payroll.run.snapshot_overridden; if state=REVIEW, auto-recalc for that employee",
+          "tags": ["payroll-run", "step-2b", "override"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 2b - PATCH override with lwp_days=35 rejected (must be 0..30)",
+          "steps": [
+            "PATCH /runs/:runId/employees/:userId {lwp_days:35}"
+          ],
+          "expected": "400 validation error; lwp_days must be <= payroll_cycle_days (30)",
+          "tags": ["payroll-run", "step-2b", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Run] Step 3 - Calculate transitions IN_PROGRESS -> REVIEW and writes payroll_items",
+          "steps": [
+            "Run in IN_PROGRESS",
+            "POST /runs/:runId/calculate"
+          ],
+          "expected": "state=REVIEW; one is_current payroll_items row per employee; audit payroll.run.calculated",
+          "tags": ["payroll-run", "step-3", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 4 - Edit incentive creates new payroll_items row and supersedes old",
+          "steps": [
+            "Run in REVIEW",
+            "PATCH /runs/:runId/items/:userId {incentive:6500.00}"
+          ],
+          "expected": "New payroll_items row with is_current=true; old row has superseded_at+superseded_by; calculation_version incremented; audit payroll.run.item_edited",
+          "tags": ["payroll-run", "step-4", "edit"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-Run] Step 4 - Attempting to edit Gross in Review returns 403 PR_FORBIDDEN_FIELD",
+          "steps": [
+            "PATCH /runs/:runId/items/:userId {gross:40000}"
+          ],
+          "expected": "403 PR_FORBIDDEN_FIELD; gross locked from snapshot",
+          "tags": ["payroll-run", "step-4", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Run] Step 4 - Re-import WITH manual edits requires DISCARD EDITS AND RE-IMPORT phrase",
+          "steps": [
+            "Make at least one item edit in REVIEW",
+            "Click Re-import in UI (or POST /runs/:runId/reimport)",
+            "Submit without phrase"
+          ],
+          "expected": "400 - confirmation phrase required; retrying with 'DISCARD EDITS AND RE-IMPORT' succeeds and overwrites edits (v2.3 W2)",
+          "tags": ["payroll-run", "step-4", "reimport", "confirmation-phrase"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 4 - Re-import WITHOUT edits only needs simple confirmation",
+          "steps": [
+            "Run in REVIEW with no manual edits",
+            "Click Re-import"
+          ],
+          "expected": "Simple 'Are you sure?' confirmation; no phrase required",
+          "tags": ["payroll-run", "step-4", "reimport"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Run] Step 5a - Lock requires confirmation phrase 'LOCK {MONTH} {YEAR}'",
+          "steps": [
+            "POST /runs/:runId/lock with confirmation_phrase='lock april 2026' (wrong case)",
+            "Retry with 'LOCK APRIL 2026'"
+          ],
+          "expected": "First call 400; second call succeeds; state=LOCKED; audit payroll.run.locked",
+          "tags": ["payroll-run", "step-5a", "confirmation-phrase"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 5a - Lock fails validation when any net_payable < 0",
+          "steps": [
+            "Force an employee into negative-net state and bypass clamp",
+            "POST /runs/:runId/lock"
+          ],
+          "expected": "400 PR_RUN_VALIDATION_FAILED with error list; state unchanged",
+          "tags": ["payroll-run", "step-5a", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Run] Step 5a - Lock is irreversible: edits in LOCKED return 409 PR_LOCKED (D19)",
+          "steps": [
+            "Run in LOCKED",
+            "PATCH /runs/:runId/items/:userId {tds:500}"
+          ],
+          "expected": "409 PR_LOCKED; no mutation (D19)",
+          "tags": ["payroll-run", "step-5a", "d19"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Run] Step 5b - Release with admin-chosen release_date (D13) triggers payslip job",
+          "steps": [
+            "POST /runs/:runId/release {release_date:'2026-05-02'}"
+          ],
+          "expected": "Background job enqueued; state transitions to RELEASED on completion; release_date stored; audit payroll.run.released",
+          "tags": ["payroll-run", "step-5b", "d13"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Cancel allowed only in DRAFT/IN_PROGRESS/REVIEW (not after LOCKED)",
+          "steps": [
+            "Attempt cancel on DRAFT, IN_PROGRESS, REVIEW - expect success",
+            "Attempt cancel on LOCKED, RELEASED"
+          ],
+          "expected": "DRAFT/IN_PROGRESS/REVIEW: 200 state=CANCELLED; LOCKED/RELEASED: 409 PR_RUN_INVALID_STATE",
+          "tags": ["payroll-run", "cancel"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Idempotency key replays first response for 24h",
+          "steps": [
+            "POST /runs/:runId/lock with Idempotency-Key: uuid-1",
+            "POST /runs/:runId/lock with same key (potentially different body)"
+          ],
+          "expected": "Second response matches first; DB not mutated twice; v2.3 G9 semantics (body not compared)",
+          "tags": ["payroll-run", "idempotency"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 6 - Bank file approval requires Super Admin with confirmation phrase (D14)",
+          "steps": [
+            "Login as HR Manager",
+            "POST /runs/:runId/bank-file/approve"
+          ],
+          "expected": "403 Forbidden; HR Manager cannot approve (D14). Super Admin call with confirmation_phrase='APPROVE BANK TRANSFER FILE' succeeds",
+          "tags": ["payroll-run", "step-6", "payroll-bank-file", "d14"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 6 - pending_bank_changes_action=use_old keeps employee in file with old bank",
+          "steps": [
+            "Employee has PENDING bank_change_request",
+            "Approve bank file with pending_bank_changes_action='use_old'"
+          ],
+          "expected": "File includes employee with old bank details; payslip released normally (v2.3 A4)",
+          "tags": ["payroll-run", "step-6", "payroll-bank-file"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 6 - pending_bank_changes_action=exclude_employee excludes from file, flags payment pending",
+          "steps": [
+            "Approve with 'exclude_employee'"
+          ],
+          "expected": "Employee not in bank file; payslip still released; flagged 'payment pending' for manual transfer",
+          "tags": ["payroll-run", "step-6", "payroll-bank-file"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Step 6 - pending_bank_changes_action=hold_separate generates separate single-employee file",
+          "steps": [
+            "Approve with 'hold_separate'"
+          ],
+          "expected": "Main file excludes employee; a separate file generated for manual processing (v2.3 A4)",
+          "tags": ["payroll-run", "step-6", "payroll-bank-file"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Run] Full E2E 5-step wizard succeeds end-to-end",
+          "steps": [
+            "Login as HR Manager",
+            "Step 1 Select -> Step 2 Import -> Step 3 Calculate -> Step 4 Review -> Step 5 Lock & Release",
+            "Verify state transitions DRAFT -> IN_PROGRESS -> REVIEW -> LOCKED -> RELEASED"
+          ],
+          "expected": "Wizard completes; payslips generated; audit trail complete; release_date stored",
+          "tags": ["payroll-run", "e2e", "happy-path"],
+          "estimate": 10
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Review Screen",
+      "cases": [
+        {
+          "name": "[Payroll-Review] 25 columns render grouped under Identity/Salary/Earnings/Additions/Deductions/Totals/Actions",
+          "steps": [
+            "Open Step 4 Review for a run with 42 employees",
+            "Inspect table header groups"
+          ],
+          "expected": "Groups visible with collapse/expand; defaults: Identity, Salary, Totals, Actions visible; Earnings, Additions, Deductions collapsed (v2.3 F1)",
+          "tags": ["payroll-review", "frontend", "v2.3-f1"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Review] Column group preference persists in browser localStorage",
+          "steps": [
+            "Expand Earnings group",
+            "Reload page"
+          ],
+          "expected": "Earnings group remains expanded after reload",
+          "tags": ["payroll-review", "frontend"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Review] Inline edit of incentive triggers engine re-run for that row only",
+          "steps": [
+            "Click incentive cell for RT-DEV-153",
+            "Change from 5000 to 6500",
+            "Blur/Enter to save"
+          ],
+          "expected": "Row re-renders with updated totals; other rows unaffected; loading indicator on that row only",
+          "tags": ["payroll-review", "inline-edit"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Review] Inline editable fields limited to incentive, TDS, loan_emi, sal_deduction, security_return",
+          "steps": [
+            "Attempt to double-click BASIC, HRA, PF, PT, Gross cells"
+          ],
+          "expected": "Non-editable cells show gray background and no input on click",
+          "tags": ["payroll-review", "inline-edit", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Review] Totals row at bottom sums Gross/SFC/Net/Earnings/Deductions/CTC/TDS live",
+          "steps": [
+            "Edit TDS for one employee",
+            "Observe sticky totals row"
+          ],
+          "expected": "Total TDS updates immediately; sums match sum of column values",
+          "tags": ["payroll-review", "totals"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Review] Search filter matches emp_number or name substrings",
+          "steps": [
+            "Type 'RT-DEV' in search",
+            "Type employee name substring"
+          ],
+          "expected": "Table filters live; matching rows only",
+          "tags": ["payroll-review", "frontend", "filter"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Review] Filter 'only employees with LWP' shows only lwp_days>0 rows",
+          "steps": [
+            "Enable 'only LWP' filter"
+          ],
+          "expected": "Only employees with lwp_days>0 remain",
+          "tags": ["payroll-review", "frontend", "filter"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Review] Warnings column icon shown for missing DOB, negative net, pending bank change",
+          "steps": [
+            "Seed one employee without DOB, one with loan > gross, one with PENDING bank change",
+            "Inspect Warnings column"
+          ],
+          "expected": "All three rows show warning icon with tooltip listing specific issue",
+          "tags": ["payroll-review", "frontend", "warnings"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Review] Preview Payslip button opens watermarked PDF modal",
+          "steps": [
+            "Click Preview Payslip on a row"
+          ],
+          "expected": "Modal with PDF showing 'PREVIEW - NOT RELEASED' diagonal watermark; PDF not password-protected",
+          "tags": ["payroll-review", "payslip-preview"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Review] View Calculation Breakdown shows step-by-step engine trace",
+          "steps": [
+            "Click View Breakdown on RT-DEV-153 row"
+          ],
+          "expected": "Drawer shows lwp_deduction, SFC, each of 7 components (actual+payable), PF conditional branch, OT calc, totals",
+          "tags": ["payroll-review", "frontend", "debug-aid"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Review] Recalculate All warns about discarding manual edits",
+          "steps": [
+            "Make one edit in Review",
+            "Click Recalculate All"
+          ],
+          "expected": "Modal warns edits will be discarded; requires confirmation",
+          "tags": ["payroll-review", "frontend", "recalc"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Review] Export Preview CSV downloads offline-reviewable file",
+          "steps": [
+            "Click Export Preview (CSV)"
+          ],
+          "expected": "CSV downloaded with all 25 columns for all employees; encoding UTF-8",
+          "tags": ["payroll-review", "export", "csv"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Review] 500+ employees loaded with react-window virtualization under 3s",
+          "steps": [
+            "Seed 500 employees in run",
+            "Load Review screen",
+            "Measure time-to-interactive"
+          ],
+          "expected": "Renders under 3s (PAY-E2E-PERF-001); scroll smooth",
+          "tags": ["payroll-review", "performance"],
+          "estimate": 8
+        },
+        {
+          "name": "[Payroll-Review] Concurrent admin edits: last-write-wins with indicator (v2.3 T3)",
+          "steps": [
+            "Admin A and Admin B open same Review",
+            "Admin A edits TDS to 500",
+            "Admin B edits same TDS to 800"
+          ],
+          "expected": "B's value wins; UI shows 'Last updated by B at ...'; no crash",
+          "tags": ["payroll-review", "concurrency", "v2.3-t3"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-Review] Proceed to Lock button disabled while edits in-flight",
+          "steps": [
+            "Start editing an incentive cell but don't blur/save",
+            "Inspect Proceed to Lock button"
+          ],
+          "expected": "Button disabled; tooltip explains 'Save or cancel your edit first'",
+          "tags": ["payroll-review", "frontend"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Payslip PDF",
+      "cases": [
+        {
+          "name": "[Payroll-PDF] Generated PDF has all 4 zones (header, meta, 3-col body, net payable)",
+          "steps": [
+            "Release a run with RT-DEV-153",
+            "Open generated PDF",
+            "Extract text regions via pdf-lib"
+          ],
+          "expected": "Zone 1 company name/address present; Zone 2 meta; Zone 3 three columns; Zone 4 net payable + footer",
+          "tags": ["payroll-pdf", "layout"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-PDF] RT-DEV-153 payslip numerically matches Sample_Pay_Slip.pdf exactly",
+          "steps": [
+            "Release RT-DEV-153 for March 2026",
+            "Compare extracted text to golden fixture /src/payroll/test-fixtures/golden-payslip-rt-dev-153.json"
+          ],
+          "expected": "All 19 numeric values (Basic 19100, HRA 7640 .. Net 41200, CTC 45000) match byte-for-value",
+          "tags": ["payroll-pdf", "golden-fixture", "happy-path"],
+          "estimate": 8
+        },
+        {
+          "name": "[Payroll-PDF] 7 component rows render with Actual + Payable columns (D17)",
+          "steps": [
+            "Release employee with LWP=2 so actual != payable",
+            "Inspect Zone 3 earnings column"
+          ],
+          "expected": "Actual column shows gross-based values; Payable column shows SFC-based values; clearly labeled (D17)",
+          "tags": ["payroll-pdf", "d17"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-PDF] Working Details shows 'Complimentary Off' label not 'COM Leave' (D15)",
+          "steps": [
+            "Inspect Zone 3 Working Details column"
+          ],
+          "expected": "Row 7 labeled 'Complimentary Off' (D15)",
+          "tags": ["payroll-pdf", "d15"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-PDF] Present Days = 30 - LWP only on payslip (D10)",
+          "steps": [
+            "lwp_days=2, cl_days=3, sl_days=1",
+            "Release payslip"
+          ],
+          "expected": "Present Days row shows 28 (30-2); CL/SL do not reduce it (D10)",
+          "tags": ["payroll-pdf", "d10"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] Password = DOB in DDMM format (D11) - DOB 14-Mar-1995 -> '1403'",
+          "steps": [
+            "Set users.dob=1995-03-14",
+            "Release payslip",
+            "Try to open PDF with password '1403'"
+          ],
+          "expected": "PDF opens with password 1403; wrong password rejected (D11)",
+          "tags": ["payroll-pdf", "password", "d11"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] Password leading zeros preserved - DOB 5-Jan -> '0501'",
+          "steps": [
+            "Set users.dob=1995-01-05",
+            "Release payslip",
+            "Open with '0501'"
+          ],
+          "expected": "PDF opens; formatDDMM pads single-digit day and month",
+          "tags": ["payroll-pdf", "password", "d11", "edge-case"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-PDF] Password for DOB 31-Dec -> '3112'",
+          "steps": [
+            "Set users.dob=1990-12-31",
+            "Release payslip",
+            "Open with '3112'"
+          ],
+          "expected": "PDF opens with 3112",
+          "tags": ["payroll-pdf", "password", "d11"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-PDF] Missing DOB causes payslip generation to fail with PR_MISSING_DOB",
+          "steps": [
+            "Set users.dob=NULL for one employee",
+            "Release run"
+          ],
+          "expected": "That employee's payslip marked FAILED with PR_MISSING_DOB; other payslips proceed; admin can retry after fixing DOB",
+          "tags": ["payroll-pdf", "error-handling", "d11"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-PDF] No thousand separators anywhere on PDF (D26)",
+          "steps": [
+            "Release payslip with Net Payable 41200",
+            "Extract PDF text"
+          ],
+          "expected": "All amounts formatted as '41200.00' not '41,200.00'; Zone 4 net payable consistent with earnings/deductions (D26)",
+          "tags": ["payroll-pdf", "formatting", "d26"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] Rupee glyph renders (not placeholder box)",
+          "steps": [
+            "Inspect Zone 4 'NET PAYABLE (A - B): ₹ 41200.00'"
+          ],
+          "expected": "Unicode ₹ (U+20B9) renders correctly via embedded Noto/DejaVu font",
+          "tags": ["payroll-pdf", "font"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-PDF] PDF uploaded to S3 at s3://rockers-hr-payslips/{year}/{month}/{emp_number}.pdf",
+          "steps": [
+            "Release March 2026 payslip for RT-DEV-153"
+          ],
+          "expected": "S3 object exists at rockers-hr-payslips/2026/march/RT-DEV-153.pdf; SSE-S3 encryption; versioning on; bucket-level public access blocked",
+          "tags": ["payroll-pdf", "s3"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-PDF] Admin preview is watermarked 'PREVIEW - NOT RELEASED' and not password-protected",
+          "steps": [
+            "GET /api/v1/payroll/payslips/:userId/:year/:month/preview as admin"
+          ],
+          "expected": "PDF streams directly; diagonal watermark; opens without password",
+          "tags": ["payroll-pdf", "preview"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] Email attachment N1 uses filename payslip_{EMP}_{MONTH}_{YEAR}.pdf",
+          "steps": [
+            "Release and inspect SMTP mail attached file"
+          ],
+          "expected": "Filename 'payslip_RT-DEV-153_MARCH_2026.pdf'; password-protected",
+          "tags": ["payroll-pdf", "smtp", "attachment"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] SMTP bounce triggers auto-retry 3 times with exponential backoff (30s/2m/10m)",
+          "steps": [
+            "Mock SMTP to return 5xx bounce",
+            "Release payslip"
+          ],
+          "expected": "payslip_deliveries.status cycles PENDING->GENERATED->FAILED->retries; retry_count increments; after 3 failures status=BOUNCED/FAILED and N2 admin alert sent",
+          "tags": ["payroll-pdf", "smtp", "retry"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-PDF] Manual retry via POST /payslips/:u/:y/:m/retry-email re-sends email",
+          "steps": [
+            "After a FAILED delivery, admin clicks Retry",
+            "POST /api/v1/payroll/payslips/:userId/:year/:month/retry-email"
+          ],
+          "expected": "New delivery attempt; status updated; audit payroll.payslip.retried",
+          "tags": ["payroll-pdf", "retry", "admin-action"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-PDF] Employee download uses 24h signed S3 URL",
+          "steps": [
+            "Employee GET /api/v1/payroll/me/payslips/2026/3/download"
+          ],
+          "expected": "Response contains signed URL with 24h TTL; downloaded PDF still password-protected",
+          "tags": ["payroll-pdf", "download", "s3"],
+          "estimate": 4
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Bank Transfer File",
+      "cases": [
+        {
+          "name": "[Payroll-BankFile] GET preview returns all rows with columns from master format",
+          "steps": [
+            "Run in RELEASED state",
+            "GET /api/v1/payroll/runs/:runId/bank-file/preview"
+          ],
+          "expected": "Preview shows Employee Name, Bank Name, A/C No, IFSC, Amount, Txn Type per master column_order; no file yet generated",
+          "tags": ["payroll-bank-file", "preview"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] Preview flags employees with pending bank_change_requests",
+          "steps": [
+            "One employee has PENDING bank change",
+            "GET preview"
+          ],
+          "expected": "That row flagged with warning icon prompting admin to choose action on approve",
+          "tags": ["payroll-bank-file", "preview", "bank-change"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] Approve requires Super Admin (HR Manager 403)",
+          "steps": [
+            "Login as HR Manager",
+            "POST /runs/:runId/bank-file/approve"
+          ],
+          "expected": "403 Forbidden; payroll.bank_file.approve is Super Admin only (D14)",
+          "tags": ["payroll-bank-file", "payroll-rbac", "d14"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankFile] Approve requires exact phrase 'APPROVE BANK TRANSFER FILE'",
+          "steps": [
+            "As Super Admin POST approve with wrong phrase",
+            "Retry with exact phrase"
+          ],
+          "expected": "First 400; second 200 with state BANK_FILE_APPROVED; audit payroll.bank_file.approved",
+          "tags": ["payroll-bank-file", "confirmation-phrase", "d14"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankFile] Generate before approval returns 409 PR_BANK_FILE_NOT_APPROVED",
+          "steps": [
+            "Run in RELEASED (not BANK_FILE_APPROVED)",
+            "POST /runs/:runId/bank-file/generate"
+          ],
+          "expected": "409 PR_BANK_FILE_NOT_APPROVED",
+          "tags": ["payroll-bank-file", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankFile] Generate after approval downloads file without S3 via blob content",
+          "steps": [
+            "Run in BANK_FILE_APPROVED",
+            "POST /runs/:runId/bank-file/generate when AWS_* env vars are absent"
+          ],
+          "expected": "File returned as blob/inline download (fallback); bank_transfer_files row written with is_latest=true; state BANK_FILE_GENERATED (fix 86ab1ff)",
+          "tags": ["payroll-bank-file", "s3-fallback", "download"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankFile] Generate with S3 configured returns 15-min signed URL",
+          "steps": [
+            "AWS_* env vars set",
+            "Generate bank file"
+          ],
+          "expected": "Response contains signed URL with TTL 15 min; s3_key stored in bank_transfer_files",
+          "tags": ["payroll-bank-file", "s3"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] Regeneration via is_latest=TRUE flag allowed per run (D4 v2.3)",
+          "steps": [
+            "Generate bank file (is_latest=true)",
+            "Generate again"
+          ],
+          "expected": "New row inserted with is_latest=true; prior row flipped to is_latest=false; partial unique idx_btf_latest_per_run respected",
+          "tags": ["payroll-bank-file", "regeneration"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankFile] File format matches DEFAULT_NEFT column_order and delimiter",
+          "steps": [
+            "Inspect generated file"
+          ],
+          "expected": "Columns match payroll_bank_file_formats.column_order exactly; delimiter '|'; amount format 2 decimals",
+          "tags": ["payroll-bank-file", "format"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] pending_bank_changes_action='use_old' includes old bank in file",
+          "steps": [
+            "Employee with PENDING bank change",
+            "Approve with use_old"
+          ],
+          "expected": "File row uses old bank_account_no/ifsc; employee still paid",
+          "tags": ["payroll-bank-file", "pending-change", "v2.3-a4"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankFile] pending_bank_changes_action='exclude_employee' omits employee from file",
+          "steps": [
+            "Approve with exclude_employee"
+          ],
+          "expected": "Employee not in file; payment pending flag raised on them",
+          "tags": ["payroll-bank-file", "pending-change", "v2.3-a4"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] pending_bank_changes_action='hold_separate' generates separate single-emp file",
+          "steps": [
+            "Approve with hold_separate"
+          ],
+          "expected": "Main file excludes; separate single-employee file available; audit captures both",
+          "tags": ["payroll-bank-file", "pending-change", "v2.3-a4"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankFile] N9 email sent only to approving Super Admin on approval",
+          "steps": [
+            "Approve bank file"
+          ],
+          "expected": "N9 email delivered to approver + configured audit contacts in payroll_notification_recipients; not to HR Managers by default",
+          "tags": ["payroll-bank-file", "payroll-notifications"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankFile] Total amount on file equals sum of payroll_items.net_payable for included employees",
+          "steps": [
+            "Generate file",
+            "Sum Amount column from file",
+            "Compare to bank_transfer_files.total_amount and SUM(net_payable)"
+          ],
+          "expected": "All three sums match to 2 decimals",
+          "tags": ["payroll-bank-file", "invariant"],
+          "estimate": 4
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Bank Change Workflow",
+      "cases": [
+        {
+          "name": "[Payroll-BankChange] Employee submits with valid IFSC + 9-18 digit A/C + optional cheque proof",
+          "steps": [
+            "Login as EMPLOYEE",
+            "POST /api/v1/payroll/bank-change (multipart) new_bank_name=HDFC, new_account_no=12345678901234, new_ifsc=HDFC0001234, proof_file=cheque.pdf"
+          ],
+          "expected": "201 PENDING row in bank_change_requests; audit payroll.bank_change.submitted; N4 email to admins",
+          "tags": ["payroll-bank-change", "employee", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankChange] Invalid IFSC '1234HDFC567' rejected by regex ^[A-Z]{4}0[A-Z0-9]{6}$",
+          "steps": [
+            "POST with new_ifsc='1234HDFC567'"
+          ],
+          "expected": "400 field error IFSC regex fail; no DB mutation",
+          "tags": ["payroll-bank-change", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] Account number < 9 digits rejected",
+          "steps": [
+            "POST with new_account_no='12345678'"
+          ],
+          "expected": "400 validation error",
+          "tags": ["payroll-bank-change", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] Account number > 18 digits rejected",
+          "steps": [
+            "POST with new_account_no='1234567890123456789'"
+          ],
+          "expected": "400 validation error",
+          "tags": ["payroll-bank-change", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] Proof file > 5MB rejected",
+          "steps": [
+            "Upload proof file of 6MB"
+          ],
+          "expected": "400 file size validation; master_file_types max check",
+          "tags": ["payroll-bank-change", "validation", "upload"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankChange] Only PDF/JPG/PNG accepted for proof",
+          "steps": [
+            "Upload .docx file"
+          ],
+          "expected": "400 MIME validation failure; runtime check against master_file_types",
+          "tags": ["payroll-bank-change", "validation", "upload"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] Submitting while PENDING exists returns 409 PR_BANK_CHANGE_PENDING",
+          "steps": [
+            "Submit once (PENDING)",
+            "Submit again"
+          ],
+          "expected": "409 PR_BANK_CHANGE_PENDING; partial unique idx_bcr_pending_per_user enforces one PENDING per user",
+          "tags": ["payroll-bank-change", "validation"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankChange] Admin approve atomically updates users.bank_name/account_no/ifsc",
+          "steps": [
+            "Login as HR Manager",
+            "POST /bank-change/:id/approve"
+          ],
+          "expected": "Status APPROVED; users.bank_* fields updated; audit payroll.bank_change.approved; N5 email+in-app sent to employee with masked account",
+          "tags": ["payroll-bank-change", "admin", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankChange] Admin reject requires rejection_reason text",
+          "steps": [
+            "POST /bank-change/:id/reject {rejection_reason: 'Cheque unclear'}"
+          ],
+          "expected": "Status REJECTED with reason stored; audit payroll.bank_change.rejected; N6 email+in-app sent",
+          "tags": ["payroll-bank-change", "admin"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankChange] Reject without reason returns 400 validation error",
+          "steps": [
+            "POST reject with empty reason"
+          ],
+          "expected": "400; rejection_reason required",
+          "tags": ["payroll-bank-change", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] Employee cannot approve their own or others' requests",
+          "steps": [
+            "Login as EMPLOYEE",
+            "Attempt POST approve"
+          ],
+          "expected": "403 Forbidden; payroll.bank_change.approve denied",
+          "tags": ["payroll-bank-change", "payroll-rbac", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-BankChange] GET /bank-change/mine returns only requesting user's history",
+          "steps": [
+            "Employee A GETs own list",
+            "Ensure Employee B's requests not visible"
+          ],
+          "expected": "Only own records; derives user_id from JWT (IDOR-safe)",
+          "tags": ["payroll-bank-change", "security", "idor"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-BankChange] Approved change applies from next payroll run (effective_from_run_id tracked)",
+          "steps": [
+            "Approve before Step 2 of next run",
+            "Run Step 2"
+          ],
+          "expected": "bank_change_requests.effective_from_run_id set to new run id; snapshot picks up updated users.bank_*",
+          "tags": ["payroll-bank-change", "workflow-integration"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-BankChange] N5 email body contains masked account (XXXX-XXXX-1234) never full number",
+          "steps": [
+            "Approve bank change",
+            "Inspect N5 email body"
+          ],
+          "expected": "Account number masked; no full A/C number in email body (security)",
+          "tags": ["payroll-bank-change", "security", "payroll-notifications"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Investment Proofs",
+      "cases": [
+        {
+          "name": "[Payroll-Investment] Employee upload via /uploads/presigned stores in s3 with FY metadata",
+          "steps": [
+            "Login as EMPLOYEE",
+            "POST /api/v1/payroll/investment-proofs (multipart) financial_year=2025-2026, category=80C, amount=50000, file=proof.pdf"
+          ],
+          "expected": "201; investment_proofs row with s3_key, file_size, mime_type; N10 in-app confirmation",
+          "tags": ["payroll-investment-proofs", "employee", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Investment] Invalid FY format '2025/26' rejected",
+          "steps": [
+            "POST with financial_year='2025/26'"
+          ],
+          "expected": "400 validation; must match ^\\d{4}-\\d{4}$",
+          "tags": ["payroll-investment-proofs", "validation"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] File > 5MB rejected",
+          "steps": [
+            "Upload 6MB file"
+          ],
+          "expected": "400 file too large",
+          "tags": ["payroll-investment-proofs", "validation", "upload"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] Only pdf/jpg/png accepted",
+          "steps": [
+            "Upload .xlsx"
+          ],
+          "expected": "400 MIME validation fail",
+          "tags": ["payroll-investment-proofs", "validation", "upload"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] GET /mine?fy=2025-2026 returns only own proofs for that FY",
+          "steps": [
+            "Employee uploads 3 proofs across two FYs",
+            "GET /investment-proofs/mine?fy=2025-2026"
+          ],
+          "expected": "Only 2025-2026 proofs returned; other FY rows excluded",
+          "tags": ["payroll-investment-proofs", "employee", "filter"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Investment] Employee can soft-delete own proof",
+          "steps": [
+            "DELETE /investment-proofs/:id"
+          ],
+          "expected": "200; record soft-deleted; GET /mine no longer returns it",
+          "tags": ["payroll-investment-proofs", "employee", "delete"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] Employee cannot delete another user's proof (IDOR)",
+          "steps": [
+            "Employee A uploads proof id=X",
+            "Employee B attempts DELETE /investment-proofs/X"
+          ],
+          "expected": "403 Forbidden; ownership enforced",
+          "tags": ["payroll-investment-proofs", "security", "idor"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Investment] Admin GET /investment-proofs?userId=X&fy=... views any employee",
+          "steps": [
+            "HR Manager GETs another employee's proofs"
+          ],
+          "expected": "200 read-only; admin permission payroll.investment_proof.view_any satisfied",
+          "tags": ["payroll-investment-proofs", "admin"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] Admin cannot upload on behalf of employee (no permission)",
+          "steps": [
+            "HR Manager POST /investment-proofs with userId override"
+          ],
+          "expected": "403; only employee may upload own",
+          "tags": ["payroll-investment-proofs", "payroll-rbac"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] Employee cannot delete admin-uploaded proofs (none exist in MVP)",
+          "steps": [
+            "Verify RBAC matrix"
+          ],
+          "expected": "payroll.investment_proof.delete_own covers only own records; admin has no upload permission",
+          "tags": ["payroll-investment-proofs", "payroll-rbac"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Investment] Unique constraint (user_id, financial_year, s3_key) prevents duplicate upload",
+          "steps": [
+            "Upload same file twice"
+          ],
+          "expected": "Second upload generates new s3_key (server de-dupes by content); or unique index rejects exact duplicate",
+          "tags": ["payroll-investment-proofs", "schema"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Investment] N10 in-app notification sent on successful upload (no email)",
+          "steps": [
+            "Upload proof",
+            "Check employee's in-app inbox"
+          ],
+          "expected": "In-app entry 'Investment proof uploaded: 80C - 50000 (proof.pdf)'; no email (low-importance)",
+          "tags": ["payroll-investment-proofs", "payroll-notifications"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Reports",
+      "cases": [
+        {
+          "name": "[Payroll-Reports] Salary Register JSON returns columns matching Sample_Salary_Sheet.xls",
+          "steps": [
+            "GET /api/v1/payroll/reports/salary-register?year=2026&month=3&format=json"
+          ],
+          "expected": "Response has every column from sample salary sheet (all component actuals/payables, PF, PT, TDS, totals, CTC)",
+          "tags": ["payroll-reports", "salary-register", "happy-path"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Reports] Salary Register CSV export downloads file with same columns",
+          "steps": [
+            "GET /reports/salary-register?year=2026&month=3&format=csv"
+          ],
+          "expected": "200 with Content-Type text/csv; all employees present; audit payroll.report.exported",
+          "tags": ["payroll-reports", "salary-register", "export", "csv"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Salary Register PDF export generates formatted PDF",
+          "steps": [
+            "GET with format=pdf"
+          ],
+          "expected": "PDF download with header, landscape layout; audit payroll.report.exported",
+          "tags": ["payroll-reports", "salary-register", "export", "pdf"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Department Cost filter by department_id shows totals card + bar chart",
+          "steps": [
+            "GET /reports/department-cost?year=2026&month=3&department_id=eng"
+          ],
+          "expected": "Total Gross, Total CTC, Net Payable for Engineering only; chart data included for UI",
+          "tags": ["payroll-reports", "department-cost"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Reports] Department Cost 'All Departments' shows per-dept breakdown",
+          "steps": [
+            "GET without department_id"
+          ],
+          "expected": "JSON array with one row per department",
+          "tags": ["payroll-reports", "department-cost"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Payroll Summary period=monthly returns 12 months for FY",
+          "steps": [
+            "GET /reports/payroll-summary?year=2026&period=monthly"
+          ],
+          "expected": "12 monthly totals; headcount; average salary; line chart series",
+          "tags": ["payroll-reports", "payroll-summary", "monthly"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Payroll Summary period=quarterly returns 4 buckets",
+          "steps": [
+            "GET with period=quarterly"
+          ],
+          "expected": "Q1-Q4 aggregated totals; FY boundary April 1",
+          "tags": ["payroll-reports", "payroll-summary", "quarterly"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Reports] Payroll Summary period=yearly returns single FY total",
+          "steps": [
+            "GET with period=yearly"
+          ],
+          "expected": "Single row: full FY totals",
+          "tags": ["payroll-reports", "payroll-summary", "yearly"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Reports] Compliance report totals Employer PF / Employee PF / ESIC / PT",
+          "steps": [
+            "GET /reports/compliance?year=2026&month=3"
+          ],
+          "expected": "Totals match SUM(payroll_items.employer_pf), employee_pf, PT; ESIC totals=0 while inactive (D9)",
+          "tags": ["payroll-reports", "compliance"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Only RELEASED+ runs included in reports (DRAFT/REVIEW excluded)",
+          "steps": [
+            "Create a DRAFT run and a LOCKED run",
+            "GET salary-register for that month"
+          ],
+          "expected": "Only LOCKED/RELEASED data aggregated; DRAFT invisible",
+          "tags": ["payroll-reports", "data-filter"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Reports Admin has read-only access (403 on any mutation)",
+          "steps": [
+            "Login as REPORTS_ADMIN",
+            "GET reports - allowed",
+            "POST any payroll run endpoint - denied"
+          ],
+          "expected": "Report endpoints 200; run mutations 403",
+          "tags": ["payroll-reports", "payroll-rbac"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Reports] Employee cannot call admin report endpoints (403)",
+          "steps": [
+            "Login as EMPLOYEE",
+            "GET /reports/salary-register"
+          ],
+          "expected": "403 Forbidden",
+          "tags": ["payroll-reports", "payroll-rbac", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Reports] CSV encoded UTF-8 with BOM (handles Indic names correctly)",
+          "steps": [
+            "Include employees with Gujarati/Hindi names",
+            "Export CSV"
+          ],
+          "expected": "Excel opens without mojibake; BOM prefix present",
+          "tags": ["payroll-reports", "export", "csv", "i18n"],
+          "estimate": 4
+        }
+      ]
+    },
+    {
+      "name": "Payroll - RBAC",
+      "cases": [
+        {
+          "name": "[Payroll-RBAC] Super Admin can edit master components (payroll.master.components.edit)",
+          "steps": [
+            "Login Super Admin",
+            "PUT /master/components"
+          ],
+          "expected": "200",
+          "tags": ["payroll-rbac", "super-admin"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] HR Manager CANNOT edit master components (403)",
+          "steps": [
+            "Login HR Manager",
+            "PUT /master/components"
+          ],
+          "expected": "403; permission denied logged for audit",
+          "tags": ["payroll-rbac", "hr-manager"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] HR Manager CAN run full 5-step payroll",
+          "steps": [
+            "Create run -> import -> calculate -> edit -> lock -> release"
+          ],
+          "expected": "All steps succeed for HR_MANAGER role",
+          "tags": ["payroll-rbac", "hr-manager", "happy-path"],
+          "estimate": 6
+        },
+        {
+          "name": "[Payroll-RBAC] HR Manager CANNOT approve bank transfer file (Super Admin only per D14)",
+          "steps": [
+            "HR Manager POST /runs/:id/bank-file/approve"
+          ],
+          "expected": "403; payroll.bank_file.approve restricted to SUPER_ADMIN only (D14)",
+          "tags": ["payroll-rbac", "hr-manager", "d14"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] Reports Admin CAN read all reports (payroll.report.*)",
+          "steps": [
+            "Login REPORTS_ADMIN",
+            "GET each of 4 report endpoints"
+          ],
+          "expected": "200 for all report endpoints",
+          "tags": ["payroll-rbac", "reports-admin"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] Reports Admin CANNOT create payroll run (403)",
+          "steps": [
+            "Login REPORTS_ADMIN",
+            "POST /runs"
+          ],
+          "expected": "403 Forbidden",
+          "tags": ["payroll-rbac", "reports-admin"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] Employee only sees own payslips (/me/payslips)",
+          "steps": [
+            "Login EMPLOYEE A",
+            "GET /me/payslips"
+          ],
+          "expected": "Only A's payslips; user_id derived from JWT not URL",
+          "tags": ["payroll-rbac", "employee", "idor"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] Employee accessing /payslips/:otherUserId returns 403",
+          "steps": [
+            "Login EMPLOYEE A",
+            "GET /api/v1/payroll/payslips/{EMPLOYEE_B}/2026/3"
+          ],
+          "expected": "403; payslip.view_any requires admin role",
+          "tags": ["payroll-rbac", "employee", "idor", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] Employee CAN submit bank change, CANNOT approve own",
+          "steps": [
+            "Employee POST /bank-change - allowed",
+            "Employee POST /bank-change/:id/approve - denied"
+          ],
+          "expected": "Submit 201; approve 403",
+          "tags": ["payroll-rbac", "employee"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] Leave Admin has ZERO payroll permissions (all endpoints 403)",
+          "steps": [
+            "Login LEAVE_ADMIN",
+            "GET salary register, GET runs, PUT master, GET /me/payslips"
+          ],
+          "expected": "All payroll endpoints 403 except /me/* (they have EMPLOYEE-level access too)",
+          "tags": ["payroll-rbac", "leave-admin"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] Manager (is_manager=true) has EMPLOYEE-level payroll access only (I6)",
+          "steps": [
+            "Login Manager user",
+            "Attempt payroll.run.create"
+          ],
+          "expected": "403; Manager is not a distinct payroll role (v2.3 I6)",
+          "tags": ["payroll-rbac", "manager", "v2.3-i6"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] bank_file.approve is Super-Admin-only (HR Manager has 0 match in matrix)",
+          "steps": [
+            "Inspect RBAC matrix for payroll.bank_file.approve"
+          ],
+          "expected": "Only SUPER_ADMIN column ticks true; everyone else false (D14)",
+          "tags": ["payroll-rbac", "d14"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-RBAC] Audit event payroll.bank_file.approved written with super_admin_id",
+          "steps": [
+            "Super Admin approves bank file",
+            "Query audit log"
+          ],
+          "expected": "Event actor=super_admin_id, target=run_id, ip_address + user_agent + request_id populated",
+          "tags": ["payroll-rbac", "payroll-audit"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] Audit event payroll.run.item_edited includes old/new values",
+          "steps": [
+            "Edit TDS 0 -> 1500 in Review",
+            "Query audit log"
+          ],
+          "expected": "Event meta has {field:'tds', old_value:'0.00', new_value:'1500.00'}",
+          "tags": ["payroll-rbac", "payroll-audit"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] Denied request (403) still logged for security monitoring",
+          "steps": [
+            "Employee attempts DELETE another user's proof",
+            "Query audit log"
+          ],
+          "expected": "Denial event logged with actor, intended_action, target, outcome='DENIED'",
+          "tags": ["payroll-rbac", "payroll-audit", "security"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] /me/permissions endpoint returns correct permission set per role",
+          "steps": [
+            "GET /api/v1/me/permissions for each role"
+          ],
+          "expected": "Set matches PAYROLL_RBAC.md matrix; used by frontend for UI gating",
+          "tags": ["payroll-rbac", "frontend-gating"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-RBAC] bonus permission payroll.run.add_bonus deferred to Phase 2 (not enforced)",
+          "steps": [
+            "Inspect RBAC matrix and API behavior"
+          ],
+          "expected": "Permission exists in matrix but no endpoint currently enforces it (D29 phase-2)",
+          "tags": ["payroll-rbac", "bonus", "d29", "phase-2"],
+          "estimate": 3
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Employee Portal",
+      "cases": [
+        {
+          "name": "[Payroll-Portal] /me dashboard shows 3 cards: Current Month Preview, Last Payslip, YTD Summary",
+          "steps": [
+            "Login EMPLOYEE",
+            "Navigate /me/payroll"
+          ],
+          "expected": "3 cards populated from /me/salary-preview, /me/payslips (latest), /me/ytd",
+          "tags": ["payroll-portal", "dashboard"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/salary returns own structure (sensitive fields intact for self)",
+          "steps": [
+            "GET /api/v1/payroll/me/salary"
+          ],
+          "expected": "Full structure for self; derives user_id from JWT",
+          "tags": ["payroll-portal", "me-salary"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/salary-preview runs engine with lwp=0, ot=0 for dashboard preview card",
+          "steps": [
+            "GET /api/v1/payroll/me/salary-preview"
+          ],
+          "expected": "Returns {preview_month, preview_year, gross, sal_for_calc, total_earnings, total_deductions, estimated_net_payable, note}; cached 1h; invalidated on salary edit (v2.3 F3)",
+          "tags": ["payroll-portal", "me-salary-preview", "v2.3-f3"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/payslips?year=2026 lists released payslips by month",
+          "steps": [
+            "Release payslips for Jan-Mar 2026",
+            "GET /me/payslips?year=2026"
+          ],
+          "expected": "3 rows sorted by month desc; each with net_payable and status=Released",
+          "tags": ["payroll-portal", "me-payslips"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/payslips/:y/:m/download returns fresh 24h signed S3 URL",
+          "steps": [
+            "GET /me/payslips/2026/3/download"
+          ],
+          "expected": "Response {signed_url, expires_at, password_hint:'DOB in DDMM format'}; URL TTL 24h",
+          "tags": ["payroll-portal", "me-download", "s3"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Portal] Salary Breakdown page is read-only (no edit controls)",
+          "steps": [
+            "Navigate /me/payroll/salary-breakdown"
+          ],
+          "expected": "Gross, 7 components, deductions, CTC, CTC_as_per_IT displayed; no editable inputs",
+          "tags": ["payroll-portal", "frontend", "salary-breakdown"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/ytd?fy=2025-2026 returns YTD totals from v_employee_ytd",
+          "steps": [
+            "GET /me/ytd?fy=2025-2026"
+          ],
+          "expected": "Returns ytd_earnings, ytd_employee_pf, ytd_pt, ytd_tds, ytd_net_payable, months_processed; aggregates only RELEASED+ runs",
+          "tags": ["payroll-portal", "me-ytd", "d12"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Portal] YTD FY boundary Apr-Mar correct (D12)",
+          "steps": [
+            "Seed runs March 2026 (FY 2025-2026) and April 2026 (FY 2026-2027)",
+            "GET /me/ytd?fy=2025-2026 and ?fy=2026-2027"
+          ],
+          "expected": "March bucketed in 2025-2026; April in 2026-2027 (D12)",
+          "tags": ["payroll-portal", "me-ytd", "d12"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Portal] GET /me/ot-tracker?year=2026&month=3 returns approved + pending OT",
+          "steps": [
+            "GET /me/ot-tracker?year=2026&month=3"
+          ],
+          "expected": "Summary of approved OT hours this month + history; pending shown separately",
+          "tags": ["payroll-portal", "me-ot-tracker"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Portal] Employee can upload investment proof from portal",
+          "steps": [
+            "Navigate Investment Proofs tab",
+            "Upload via UI"
+          ],
+          "expected": "Uploads to /uploads/presigned then creates investment_proofs row; listed in UI",
+          "tags": ["payroll-portal", "frontend", "upload"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Portal] Bank Details view shows current + link to Request Change",
+          "steps": [
+            "Navigate Bank Details tab"
+          ],
+          "expected": "Current bank_name, masked A/C (unmask toggle), IFSC; 'Request Change' button opens form",
+          "tags": ["payroll-portal", "frontend", "bank"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Portal] IDOR: GET /me/payslips with ?userId=OTHER is ignored (uses JWT)",
+          "steps": [
+            "Employee A GET /me/payslips?userId={B}"
+          ],
+          "expected": "Still only A's payslips; userId query param ignored",
+          "tags": ["payroll-portal", "security", "idor"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Portal] Salary Breakdown respects master component changes from next run",
+          "steps": [
+            "Super Admin updates HRA from 20 -> 22",
+            "Employee refreshes Salary Breakdown"
+          ],
+          "expected": "Breakdown shows new 22% HRA (live master reflects forward-looking estimate); but latest payslip still on old percentages",
+          "tags": ["payroll-portal", "me-salary", "d20"],
+          "estimate": 5
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Mobile (Flutter)",
+      "cases": [
+        {
+          "name": "[Payroll-Mobile] Payroll tab visible in bottom nav for employee (parity with web)",
+          "steps": [
+            "Open Flutter app as EMPLOYEE",
+            "Inspect bottom nav"
+          ],
+          "expected": "Payroll tab present; note: full payroll on Flutter was Phase 2 per PAYROLL_PLAN.md but built early",
+          "tags": ["payroll-mobile", "flutter", "nav"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Mobile] Home screen renders Current Month Preview card via /me/salary-preview",
+          "steps": [
+            "Open Payroll > Home",
+            "Inspect card"
+          ],
+          "expected": "Card shows estimated_net_payable, gross; uses /me/salary-preview endpoint",
+          "tags": ["payroll-mobile", "flutter", "dashboard"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Mobile] Payslips screen lists released payslips, pull-to-refresh",
+          "steps": [
+            "Open Payslips screen",
+            "Pull down to refresh"
+          ],
+          "expected": "List refreshes via /me/payslips; spinner + refresh indicator",
+          "tags": ["payroll-mobile", "flutter", "payslips"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Mobile] Tap payslip -> download PDF via 24h signed URL, open with system viewer",
+          "steps": [
+            "Tap a month in payslips list"
+          ],
+          "expected": "PDF downloaded; iOS/Android PDF viewer opens; password prompt (DOB DDMM) shown on first open",
+          "tags": ["payroll-mobile", "flutter", "download"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Mobile] Salary Breakdown screen shows 7 components + CTC read-only",
+          "steps": [
+            "Open Salary Breakdown"
+          ],
+          "expected": "Same data as web; no edit controls",
+          "tags": ["payroll-mobile", "flutter", "salary-breakdown"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Mobile] OT Tracker screen shows approved OT hours current month",
+          "steps": [
+            "Open OT Tracker"
+          ],
+          "expected": "List of approved OT entries via /me/ot-tracker; pending entries separated",
+          "tags": ["payroll-mobile", "flutter", "ot-tracker"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Mobile] Bank Change submit form validates IFSC regex + A/C length on device",
+          "steps": [
+            "Open Bank Change form",
+            "Enter invalid IFSC then valid"
+          ],
+          "expected": "Client-side validation shows error; submit disabled until valid; server-side validation redundant",
+          "tags": ["payroll-mobile", "flutter", "bank-change"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Mobile] Bank Change upload cheque proof via Flutter image picker",
+          "steps": [
+            "Tap Upload Cheque",
+            "Pick image from gallery/camera"
+          ],
+          "expected": "File uploaded to /uploads/presigned; proof_s3_key stored",
+          "tags": ["payroll-mobile", "flutter", "upload"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Mobile] YTD view shows FY 2025-2026 totals",
+          "steps": [
+            "Open YTD tab"
+          ],
+          "expected": "Totals from /me/ytd?fy=2025-2026; FY selector allows switching",
+          "tags": ["payroll-mobile", "flutter", "ytd"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Mobile] FCM push on payslip release triggers notification",
+          "steps": [
+            "Release payroll for employee",
+            "Verify FCM arrives on device"
+          ],
+          "expected": "Notification 'Your payslip for March 2026 is ready' received; tap opens Payslips screen",
+          "tags": ["payroll-mobile", "flutter", "fcm"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Mobile] Authorization: Flutter user can only see own data (JWT enforcement)",
+          "steps": [
+            "Inspect network calls for user A"
+          ],
+          "expected": "All /me/* calls succeed; attempting /payslips/:otherUserId returns 403",
+          "tags": ["payroll-mobile", "flutter", "security", "idor"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Mobile] Dark mode support across all payroll screens",
+          "steps": [
+            "Toggle iOS/Android dark mode",
+            "Open each screen"
+          ],
+          "expected": "Colors inherit semantic tokens (v2.3 F2); no hardcoded hex",
+          "tags": ["payroll-mobile", "flutter", "dark-mode"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Mobile] Offline graceful degradation: cached last payslip list shown",
+          "steps": [
+            "Disable network",
+            "Open Payslips"
+          ],
+          "expected": "Cached data shown with 'Offline' badge; download button disabled",
+          "tags": ["payroll-mobile", "flutter", "offline"],
+          "estimate": 5
+        }
+      ]
+    },
+    {
+      "name": "Payroll - Notifications",
+      "cases": [
+        {
+          "name": "[Payroll-Notif] 8 payroll templates seeded in master_notification_templates on migration (D30)",
+          "steps": [
+            "Run migrations",
+            "SELECT * FROM master_notification_templates WHERE template_id LIKE 'payroll.%'"
+          ],
+          "expected": "Rows for payroll.payslip_released, payslip_available_inapp, payslip_bounced, bank_change_submitted, bank_change_approved, bank_change_rejected, salary_config_updated_inapp, run_released_inapp; ON CONFLICT DO NOTHING respected (D30)",
+          "tags": ["payroll-notifications", "seed", "d30"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] N1 Payslip Released email sent per employee on Step 5b with PDF attachment",
+          "steps": [
+            "Release run for 3 employees",
+            "Inspect SMTP outbox"
+          ],
+          "expected": "3 emails sent; each with password-protected PDF attachment; Subject 'Your payslip for March 2026 - Rockers HR'",
+          "tags": ["payroll-notifications", "n1", "smtp"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Notif] N1 body contains DDMM password hint but NOT the password value",
+          "steps": [
+            "Inspect N1 body"
+          ],
+          "expected": "Contains 'your date of birth in DDMM format'; does NOT contain '1403' or raw DOB",
+          "tags": ["payroll-notifications", "n1", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N2 Payslip Bounced email sent to admins after 3 retries exhausted",
+          "steps": [
+            "Mock SMTP bounces for one employee",
+            "Complete 3 retries"
+          ],
+          "expected": "N2 email sent to all Super Admins + HR Managers (or payroll_notification_recipients override); body contains empNumber, failureReason, adminRetryUrl",
+          "tags": ["payroll-notifications", "n2", "retry"],
+          "estimate": 5
+        },
+        {
+          "name": "[Payroll-Notif] N3 In-app 'Payslip Available' delivered to employee on Step 5b",
+          "steps": [
+            "Release run",
+            "Check employee inbox"
+          ],
+          "expected": "In-app entry with month/year/netPayable; click-through goes to /me/payroll",
+          "tags": ["payroll-notifications", "n3", "in-app"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N4 Bank Change Submitted email to all admins with masked A/C",
+          "steps": [
+            "Employee submits bank change",
+            "Inspect admin mailboxes"
+          ],
+          "expected": "Email subject 'New bank change request: RT-DEV-153'; body has new bank name, masked A/C (XXXX-XXXX-1234), IFSC, reviewUrl",
+          "tags": ["payroll-notifications", "n4", "bank-change"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] N5 Bank Change Approved email+in-app sent to employee",
+          "steps": [
+            "Admin approves bank change"
+          ],
+          "expected": "Both channels delivered; email has masked account last4; in-app contains 'Bank details updated'",
+          "tags": ["payroll-notifications", "n5", "bank-change"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] N5/N6 never include unmasked bank account in email body",
+          "steps": [
+            "Inspect N5 and N6 bodies"
+          ],
+          "expected": "No 12830100028299 or similar; only last 4 digits shown",
+          "tags": ["payroll-notifications", "security"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N6 Bank Change Rejected includes rejection_reason",
+          "steps": [
+            "Admin rejects with reason 'Proof unclear'"
+          ],
+          "expected": "Email body contains reason verbatim; in-app short form matches",
+          "tags": ["payroll-notifications", "n6"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N7 Payroll Run Locked in-app to HR team only (no email)",
+          "steps": [
+            "Lock run",
+            "Inspect HR inboxes"
+          ],
+          "expected": "In-app notification to all Super Admins/HR Managers/Reports Admins; no email (anti-spam)",
+          "tags": ["payroll-notifications", "n7"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N8 Payroll Run Released in-app to HR team with failure count",
+          "steps": [
+            "Release run with 1 email failure",
+            "Inspect HR inbox"
+          ],
+          "expected": "In-app 'Payroll released. 41 sent, 1 failure'",
+          "tags": ["payroll-notifications", "n8"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] N9 Bank Transfer File Approved email to approver + audit contacts",
+          "steps": [
+            "Super Admin approves bank file"
+          ],
+          "expected": "Email to approving Super Admin; additional recipients from payroll_notification_recipients where notification_type='bank_file_approved'",
+          "tags": ["payroll-notifications", "n9"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] N12 Salary Config Updated in-app ONLY (no email, no old/new values) (v2.3)",
+          "steps": [
+            "Admin PATCHes employee salary",
+            "Inspect employee inbox"
+          ],
+          "expected": "In-app 'Your salary structure has been updated by HR'; no email; no numeric values in content (v2.3 N2)",
+          "tags": ["payroll-notifications", "n12", "v2.3-n2"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] Template changes in DB take effect without redeploy (D30)",
+          "steps": [
+            "UPDATE master_notification_templates SET body_html_template=... WHERE template_id='payroll.payslip_released'",
+            "Release next run"
+          ],
+          "expected": "New template used without app restart",
+          "tags": ["payroll-notifications", "hot-reload", "d30"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] Do-not-notify: no email per Review-stage item edit",
+          "steps": [
+            "Edit TDS in Review 10 times",
+            "Inspect SMTP outbox"
+          ],
+          "expected": "Zero emails sent (anti-pattern protection)",
+          "tags": ["payroll-notifications", "anti-spam"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] Do-not-notify: no email on ESIC toggle or master data changes",
+          "steps": [
+            "Super Admin toggles ESIC",
+            "Inspect outbox"
+          ],
+          "expected": "No email; audit log captures event only",
+          "tags": ["payroll-notifications", "anti-spam"],
+          "estimate": 3
+        },
+        {
+          "name": "[Payroll-Notif] Terminated/inactive employees do NOT receive payroll notifications",
+          "steps": [
+            "Deactivate user post-release",
+            "Ensure no further notifs"
+          ],
+          "expected": "Inactive users skipped in transport layer",
+          "tags": ["payroll-notifications", "anti-spam"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] Recipients resolution: default all SUPER_ADMINS + HR_MANAGERS when payroll_notification_recipients empty",
+          "steps": [
+            "Ensure payroll_notification_recipients has no rows for 'payslip_bounce'",
+            "Force N2 delivery"
+          ],
+          "expected": "N2 delivered to all Super Admins + HR Managers (default fallback per v2.3 N3)",
+          "tags": ["payroll-notifications", "v2.3-n3"],
+          "estimate": 4
+        },
+        {
+          "name": "[Payroll-Notif] Recipients override: payroll_notification_recipients row wins over default",
+          "steps": [
+            "INSERT row notification_type='bank_file_approved', email='ops@rockershr.com', is_active=true",
+            "Trigger N9"
+          ],
+          "expected": "N9 delivered only to ops@rockershr.com (and approver); not to all Super Admins",
+          "tags": ["payroll-notifications", "v2.3-n3"],
+          "estimate": 4
+        }
+      ]
+    }
+  ]
+}
