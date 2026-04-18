@@ -16,7 +16,7 @@ import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { BankChangeService } from './bank-change.service';
 import { BankChangeStatus } from '../entities/bank-change-request.entity';
 
-@Controller('api/v1/payroll/bank-change')
+@Controller('payroll/bank-change')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class BankChangeController {
   constructor(private readonly svc: BankChangeService) {}

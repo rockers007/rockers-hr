@@ -12,7 +12,7 @@ import { RequirePayrollPermission } from '../rbac/require-payroll-permission.dec
 import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { ReportsService, SalaryRegisterRow } from './reports.service';
 
-@Controller('api/v1/payroll/reports')
+@Controller('payroll/reports')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}

@@ -13,7 +13,7 @@ import { PayrollRun } from '../entities/payroll-run.entity';
 import { PayslipDelivery } from '../entities/payslip-delivery.entity';
 import { PayslipDeliveryService } from '../payslip/payslip-delivery.service';
 
-@Controller('api/v1/payroll/me')
+@Controller('payroll/me')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class MeController {
   constructor(

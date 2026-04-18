@@ -14,7 +14,7 @@ import { RequirePayrollPermission } from '../rbac/require-payroll-permission.dec
 import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { SalaryService, SalaryPatch } from './salary.service';
 
-@Controller('api/v1/payroll/employees')
+@Controller('payroll/employees')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class SalaryController {
   constructor(private readonly salary: SalaryService) {}

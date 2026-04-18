@@ -23,7 +23,7 @@ import { PayrollDeductionType } from '../entities/payroll-deduction-type.entity'
 import { CompanyProfile } from '../entities/company-profile.entity';
 import { PayrollBankFileFormat } from '../entities/payroll-bank-file-format.entity';
 
-@Controller('api/v1/payroll/master')
+@Controller('payroll/master')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class MasterPayrollController {
   constructor(

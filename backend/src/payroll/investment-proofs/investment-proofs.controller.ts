@@ -16,7 +16,7 @@ import { RequirePayrollPermission } from '../rbac/require-payroll-permission.dec
 import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { InvestmentProofsService } from './investment-proofs.service';
 
-@Controller('api/v1/payroll/investment-proofs')
+@Controller('payroll/investment-proofs')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class InvestmentProofsController {
   constructor(private readonly svc: InvestmentProofsService) {}
