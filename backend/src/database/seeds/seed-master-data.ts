@@ -261,44 +261,6 @@ export async function seedMasterData(dataSource: DataSource): Promise<void> {
       ON CONFLICT (date) DO NOTHING;
     `);
 
-    // ========================================
-    // 11. Default Super Admin user
-    // ========================================
-    // Create a default user record for the Super Admin
-    const roleResult = await queryRunner.query(
-      `SELECT id FROM master_role_types WHERE system_key = 'employee' LIMIT 1`
-    );
-    const employeeRoleId = roleResult[0]?.id;
-
-    if (employeeRoleId) {
-      await queryRunner.query(`
-        INSERT INTO users (gmail, name, role_type_id, is_active, registration_method)
-        VALUES ('admin@rockers.com', 'Super Admin', $1, true, 'admin_direct')
-        ON CONFLICT (gmail) DO NOTHING;
-      `, [employeeRoleId]);
-
-      // Link user to Super Admin role in admin_users
-      const adminRoleResult = await queryRunner.query(
-        `SELECT id FROM master_admin_roles WHERE name = 'Super Admin' LIMIT 1`
-      );
-      const superAdminRoleId = adminRoleResult[0]?.id;
-
-      const userResult = await queryRunner.query(
-        `SELECT id FROM users WHERE gmail = 'admin@rockers.com' LIMIT 1`
-      );
-      const userId = userResult[0]?.id;
-
-      if (superAdminRoleId && userId) {
-        // Default password: "admin123" — bcrypt hash (must be changed on first login)
-        const defaultPasswordHash = '$2b$10$Sur1llpcM898rwVbTQdPNuw6HXO5J/xamqBCAs8RD6HhZK5QQkPBi';
-        await queryRunner.query(`
-          INSERT INTO admin_users (user_id, role_id, password_hash, is_active)
-          VALUES ($1, $2, $3, true)
-          ON CONFLICT (user_id) DO NOTHING;
-        `, [userId, superAdminRoleId, defaultPasswordHash]);
-      }
-    }
-
     await queryRunner.commitTransaction();
     console.log('Master data seeded successfully.');
   } catch (error) {
@@ -307,5 +269,59 @@ export async function seedMasterData(dataSource: DataSource): Promise<void> {
     throw error;
   } finally {
     await queryRunner.release();
+  }
+
+  // Default Super Admin user — extracted so it runs on both fresh-bootstrap
+  // and snapshot-based seeding paths without touching master tables twice.
+  await seedDefaultSuperAdmin(dataSource);
+}
+
+/**
+ * Creates the default Super Admin (admin@rockers.com / admin123) if missing.
+ * Safe to call repeatedly — each INSERT uses ON CONFLICT on its natural key
+ * (users.gmail, admin_users.user_id).
+ */
+export async function seedDefaultSuperAdmin(
+  dataSource: DataSource,
+): Promise<void> {
+  const qr = dataSource.createQueryRunner();
+  await qr.connect();
+  try {
+    const roleResult = await qr.query(
+      `SELECT id FROM master_role_types WHERE system_key = 'employee' LIMIT 1`,
+    );
+    const employeeRoleId = roleResult[0]?.id;
+    if (!employeeRoleId) return;
+
+    await qr.query(
+      `INSERT INTO users (gmail, name, role_type_id, is_active, registration_method)
+       VALUES ('admin@rockers.com', 'Super Admin', $1, true, 'admin_direct')
+       ON CONFLICT (gmail) DO NOTHING`,
+      [employeeRoleId],
+    );
+
+    const adminRoleResult = await qr.query(
+      `SELECT id FROM master_admin_roles WHERE name = 'Super Admin' LIMIT 1`,
+    );
+    const superAdminRoleId = adminRoleResult[0]?.id;
+
+    const userResult = await qr.query(
+      `SELECT id FROM users WHERE gmail = 'admin@rockers.com' LIMIT 1`,
+    );
+    const userId = userResult[0]?.id;
+
+    if (superAdminRoleId && userId) {
+      // Default password "admin123" (bcrypt). Change on first login.
+      const defaultPasswordHash =
+        '$2b$10$Sur1llpcM898rwVbTQdPNuw6HXO5J/xamqBCAs8RD6HhZK5QQkPBi';
+      await qr.query(
+        `INSERT INTO admin_users (user_id, role_id, password_hash, is_active)
+         VALUES ($1, $2, $3, true)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [userId, superAdminRoleId, defaultPasswordHash],
+      );
+    }
+  } finally {
+    await qr.release();
   }
 }
