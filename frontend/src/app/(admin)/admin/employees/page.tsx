@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type FormEvent } from 'react';
 import Link from 'next/link';
-import { api, type ApiResponse } from '@/lib/api';
+import { api, ApiError, type ApiResponse } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -33,6 +33,13 @@ export default function EmployeesPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
+
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', emp_number: '' });
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [resendBusyId, setResendBusyId] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -77,7 +84,14 @@ export default function EmployeesPage() {
             {total} employee{total !== 1 ? 's' : ''} total
           </p>
         </div>
+        <Button onClick={() => setShowInvite(true)}>Add Employee</Button>
       </div>
+
+      {toast && (
+        <div className="mb-4 rounded-lg bg-[#d1fae5] px-4 py-3 text-sm text-[#065f46]">
+          {toast}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
@@ -154,6 +168,9 @@ export default function EmployeesPage() {
                     <th className="px-6 py-3 text-left font-medium text-text-secondary">
                       Status
                     </th>
+                    <th className="px-6 py-3 text-right font-medium text-text-secondary">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -207,6 +224,40 @@ export default function EmployeesPage() {
                         >
                           {emp.is_active ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {!emp.is_active && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            isLoading={resendBusyId === emp.id}
+                            disabled={resendBusyId !== null}
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setResendBusyId(emp.id);
+                              setToast('');
+                              try {
+                                await api.post(
+                                  `/admin/users/${emp.id}/resend-invite`,
+                                );
+                                setToast(
+                                  `Invite re-sent to ${emp.gmail}. A new password has been emailed.`,
+                                );
+                              } catch (err) {
+                                setToast(
+                                  `Resend failed: ${
+                                    (err as ApiError).message
+                                  }`,
+                                );
+                              } finally {
+                                setResendBusyId(null);
+                              }
+                            }}
+                          >
+                            Resend Invite
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -268,6 +319,129 @@ export default function EmployeesPage() {
             </div>
           )}
         </>
+      )}
+
+      {showInvite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card-bg p-6 shadow-lg">
+            <h2 className="text-lg font-semibold text-text-primary">
+              Invite New Employee
+            </h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              The employee will receive a welcome email with a login link and
+              random password. They'll complete their profile on first login.
+            </p>
+
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={async (e: FormEvent) => {
+                e.preventDefault();
+                setInviteError('');
+                setInviting(true);
+                try {
+                  await api.post('/admin/users/invite', {
+                    name: inviteForm.name.trim(),
+                    email: inviteForm.email.trim(),
+                    emp_number:
+                      inviteForm.emp_number.trim() || undefined,
+                  });
+                  setShowInvite(false);
+                  setInviteForm({ name: '', email: '', emp_number: '' });
+                  setToast(
+                    `Invite sent to ${inviteForm.email}. Employee will appear in the list as Inactive until they activate.`,
+                  );
+                  setPage(1);
+                  await fetchEmployees();
+                } catch (err) {
+                  const apiErr = err as ApiError;
+                  setInviteError(apiErr.message || 'Invite failed');
+                } finally {
+                  setInviting(false);
+                }
+              }}
+            >
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={inviteForm.name}
+                  onChange={(e) =>
+                    setInviteForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={inviteForm.email}
+                  onChange={(e) =>
+                    setInviteForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Employee Number{' '}
+                  <span className="text-xs font-normal text-text-secondary">
+                    (optional)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={inviteForm.emp_number}
+                  onChange={(e) =>
+                    setInviteForm((f) => ({
+                      ...f,
+                      emp_number: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                  placeholder="e.g. RT-HR-050"
+                />
+              </div>
+
+              {inviteError && (
+                <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {inviteError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={inviting}
+                  onClick={() => {
+                    setShowInvite(false);
+                    setInviteError('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  isLoading={inviting}
+                  disabled={
+                    inviting ||
+                    !inviteForm.name.trim() ||
+                    !inviteForm.email.trim()
+                  }
+                >
+                  Send Invite
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
