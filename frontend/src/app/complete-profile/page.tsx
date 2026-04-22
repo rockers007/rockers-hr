@@ -110,7 +110,10 @@ function CompleteProfileForm() {
       });
       localStorage.setItem('token', result.token);
       setUser(result.user);
-      router.replace('/dashboard');
+      // Land on /profile so the employee can fill in the remaining optional
+      // fields (marital status, addresses, emergency contact, statutory IDs,
+      // family, documents, bank details) before navigating elsewhere.
+      router.replace('/profile?welcome=1');
     } catch (e) {
       const err = e as ApiError;
       setError(err.message || 'Activation failed. Please try again.');

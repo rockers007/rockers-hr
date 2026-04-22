@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { api, ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/card';
@@ -56,6 +57,8 @@ interface UserDoc {
 
 function ProfileInner() {
   const { data: master } = useMasterData();
+  const searchParams = useSearchParams();
+  const welcome = searchParams.get('welcome') === '1';
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [family, setFamily] = useState<FamilyMember[]>([]);
@@ -102,6 +105,15 @@ function ProfileInner() {
           Employee Number and Email are managed by HR and shown read-only.
         </p>
       </div>
+
+      {welcome && (
+        <div className="rounded-lg border border-[#bae6fd] bg-[#f0f9ff] px-4 py-3 text-sm text-[#0c4a6e]">
+          <strong>Welcome aboard!</strong> Your account is now active. Please take a
+          minute to fill in the remaining details below — address, emergency
+          contact, statutory IDs, family members, documents and bank details —
+          so HR has everything on record.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
