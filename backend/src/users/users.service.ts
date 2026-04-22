@@ -138,12 +138,57 @@ export class UsersService {
       bank_name: user.bank_name ?? null,
       bank_account_no: user.bank_account_no ?? null,
       bank_ifsc: user.bank_ifsc ?? null,
+      // Extended profile
+      marital_status_id: user.marital_status_id ?? null,
+      current_address: user.current_address ?? null,
+      permanent_address: user.permanent_address ?? null,
+      emergency_phone: user.emergency_phone ?? null,
+      pf_uan_no: user.pf_uan_no ?? null,
+      esic_no: user.esic_no ?? null,
     };
   }
 
+  /**
+   * Fields an employee may edit about themselves via PATCH /users/me.
+   * NOT editable by the employee: gmail, emp_number, role_type_id, manager_id,
+   * is_active, is_manager, employment_status, and anything payroll-related
+   * (gross / incentive / pf_applicable etc.). Admin can still edit those via
+   * PATCH /admin/users/:id.
+   */
+  private readonly SELF_ALLOWED_FIELDS: Array<keyof User> = [
+    'name',
+    'phone',
+    'dob',
+    'gender_id',
+    'qualification_id',
+    'department_id',
+    'photo_s3_key',
+    'resume_s3_key',
+    'extra_info',
+    // Extended profile
+    'marital_status_id',
+    'current_address',
+    'permanent_address',
+    'emergency_phone',
+    'pf_uan_no',
+    'esic_no',
+    // Bank — self-serve write allowed (employee can also use the bank-change
+    // workflow, but the profile page accepts direct edits for onboarding use).
+    'bank_name',
+    'bank_account_no',
+    'bank_ifsc',
+  ];
+
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<User> {
     const user = await this.findById(userId);
-    Object.assign(user, dto);
+    const incoming = dto as unknown as Record<string, unknown>;
+    for (const key of this.SELF_ALLOWED_FIELDS) {
+      if (incoming[key] !== undefined) {
+        // Normalize empty strings to null for nullable text columns
+        (user as unknown as Record<string, unknown>)[key] =
+          incoming[key] === '' ? null : incoming[key];
+      }
+    }
     return this.userRepo.save(user);
   }
 

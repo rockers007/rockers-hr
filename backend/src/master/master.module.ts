@@ -15,6 +15,8 @@ import {
   MasterPublicHoliday,
   MasterAdminRole,
 } from './entities';
+import { MasterMaritalStatus } from './entities/master-marital-status.entity';
+import { MasterDocumentType } from './entities/master-document-type.entity';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import {
       MasterSlaConfig,
       MasterPublicHoliday,
       MasterAdminRole,
+      MasterMaritalStatus,
+      MasterDocumentType,
     ]),
   ],
   controllers: [MasterController],

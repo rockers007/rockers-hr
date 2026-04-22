@@ -156,6 +156,9 @@ export class UsersAdminController {
       // Employees use the self-service bank-change workflow for subsequent
       // updates so there's an approval trail.
       'bank_name', 'bank_account_no', 'bank_ifsc',
+      // Extended profile (editable by admin AND employee)
+      'marital_status_id', 'current_address', 'permanent_address',
+      'emergency_phone', 'pf_uan_no', 'esic_no',
     ];
     const payrollFields = ['gross', 'incentive', 'pf_applicable'];
 
