@@ -103,6 +103,17 @@ export class EmployeeProfileExpansion1712000000020
     );
 
     // --- master_file_types: allow uploads under a new 'user_document' context ---
+    // The initial CHECK constraint only whitelists profile_photo / resume / leave_doc,
+    // so we widen it before seeding the rows for this context.
+    await queryRunner.query(`
+      ALTER TABLE "master_file_types"
+        DROP CONSTRAINT IF EXISTS "master_file_types_context_check"
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "master_file_types"
+        ADD CONSTRAINT "master_file_types_context_check"
+        CHECK (context IN ('profile_photo', 'resume', 'leave_doc', 'user_document'))
+    `);
     await queryRunner.query(`
       INSERT INTO "master_file_types" (mime_type, extension, max_size_mb, context) VALUES
         ('application/pdf', '.pdf', 10, 'user_document'),
@@ -117,6 +128,16 @@ export class EmployeeProfileExpansion1712000000020
     await queryRunner.query(
       `DELETE FROM "master_file_types" WHERE context = 'user_document'`,
     );
+    // Restore the original CHECK constraint (no user_document in the allowlist)
+    await queryRunner.query(`
+      ALTER TABLE "master_file_types"
+        DROP CONSTRAINT IF EXISTS "master_file_types_context_check"
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "master_file_types"
+        ADD CONSTRAINT "master_file_types_context_check"
+        CHECK (context IN ('profile_photo', 'resume', 'leave_doc'))
+    `);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_documents"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_family_members"`);
     await queryRunner.query(`
