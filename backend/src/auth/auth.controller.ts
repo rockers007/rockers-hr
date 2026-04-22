@@ -12,17 +12,58 @@ import {
 import { Response, Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { AdminLoginDto } from './auth.dto';
+import { InviteAuthService } from './invite-auth.service';
+import {
+  AdminLoginDto,
+  EmployeeLoginDto,
+  ActivateAccountHttpDto,
+  JwtPayload,
+} from './auth.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly inviteAuth: InviteAuthService,
     private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * POST /api/v1/auth/login/email  (v2.0 admin-invite flow)
+   * Employee logs in with email + password. Returns first_login_required
+   * flag so the frontend can route to /complete-profile on first login.
+   */
+  @Post('login/email')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async loginEmail(@Body() dto: EmployeeLoginDto) {
+    const result = await this.inviteAuth.loginWithEmail(dto.email, dto.password);
+    return {
+      data: {
+        token: result.token,
+        user: result.user,
+        first_login_required: result.first_login_required,
+      },
+    };
+  }
+
+  /**
+   * POST /api/v1/auth/activate-account  (v2.0 admin-invite flow)
+   * First-login profile completion + password reset → activates account.
+   */
+  @Post('activate-account')
+  @UseGuards(JwtAuthGuard)
+  async activateAccount(
+    @Body() dto: ActivateAccountHttpDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.inviteAuth.activateAccount(user.sub, dto);
+    return { data: result };
+  }
 
   /**
    * GET /api/v1/auth/google

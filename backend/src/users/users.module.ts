@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersController } from './users.controller';
 import { UsersAdminController } from './users-admin.controller';
@@ -8,6 +8,7 @@ import { LeaveBalance } from '../leave/entities/leave-balance.entity';
 import { MasterLeaveType } from '../master/entities/master-leave-type.entity';
 import { MasterSlaConfig } from '../master/entities/master-sla-config.entity';
 import { PayrollRun } from '../payroll/entities/payroll-run.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { PayrollRun } from '../payroll/entities/payroll-run.entity';
       MasterSlaConfig,
       PayrollRun,
     ]),
+    // For InviteAuthService used by POST /admin/users/invite + resend-invite
+    forwardRef(() => AuthModule),
   ],
   controllers: [UsersController, UsersAdminController],
   providers: [UsersService],

@@ -110,6 +110,19 @@ export class User {
   @Column({ type: 'text', nullable: true })
   google_refresh_token: string | null;
 
+  // --- v2.0 admin-invite auth (AUTH_REGISTRATION.md) ---
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  password_hash: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  invite_token: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  invite_token_expires_at: Date | null;
+
+  @Column({ type: 'boolean', default: false })
+  first_login_required: boolean;
+
   // --- Payroll fields (PAYROLL_DATABASE_SCHEMA.md §1) ---
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
   gross: string;

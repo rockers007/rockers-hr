@@ -20,15 +20,42 @@ import { AdminJwtGuard } from '../auth/guards/admin-jwt.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { AdminPermissions } from '../auth/decorators/admin-permissions.decorator';
 import { PayrollRun } from '../payroll/entities/payroll-run.entity';
+import { InviteAuthService } from '../auth/invite-auth.service';
+import { InviteUserDto } from '../auth/auth.dto';
 
 @Controller('admin')
 @UseGuards(AdminJwtGuard, PermissionsGuard)
 export class UsersAdminController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly inviteAuth: InviteAuthService,
     @InjectRepository(PayrollRun)
     private readonly payrollRunRepo: Repository<PayrollRun>,
   ) {}
+
+  /**
+   * POST /api/v1/admin/users/invite  (v2.0 admin-invite flow)
+   * Creates the employee record with first_login_required=true and dispatches
+   * the user.invited welcome email.
+   */
+  @Post('users/invite')
+  @AdminPermissions('employees.add_direct')
+  async inviteUser(@Body() dto: InviteUserDto) {
+    const result = await this.inviteAuth.inviteUser(dto);
+    return { data: result };
+  }
+
+  /**
+   * POST /api/v1/admin/users/:id/resend-invite
+   * Regenerates the random password, refreshes the 7-day token, re-sends
+   * the user.invited email. 409 if the user is already active.
+   */
+  @Post('users/:id/resend-invite')
+  @AdminPermissions('employees.add_direct')
+  async resendInvite(@Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.inviteAuth.resendInvite(id);
+    return { data: result };
+  }
 
   /**
    * Block salary edits while an active payroll run exists for the current month.
