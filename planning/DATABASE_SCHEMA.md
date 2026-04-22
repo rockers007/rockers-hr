@@ -202,8 +202,13 @@ CREATE TABLE users (
   confirmation_date   DATE,                            -- join_date + probation period
   manager_id          UUID REFERENCES users(id) ON DELETE SET NULL,
   is_manager          BOOLEAN NOT NULL DEFAULT false,  -- eligible to be assigned as manager for others; set by HR Admin
-  registration_method TEXT NOT NULL DEFAULT 'self',    -- "self" | "admin_direct"
+  registration_method TEXT NOT NULL DEFAULT 'self',    -- "self" | "admin_direct" | "admin_invite" (v2.0)
   fcm_token           TEXT,                             -- Firebase Cloud Messaging device token; updated on each app launch
+  -- v2.0 admin-invite flow (AUTH_REGISTRATION.md)
+  password_hash            VARCHAR(80),                 -- bcrypt; NULL for pure Google-only accounts
+  invite_token             UUID,                        -- set by admin on invite, cleared on activation
+  invite_token_expires_at  TIMESTAMPTZ,                 -- now() + 7 days at invite
+  first_login_required     BOOLEAN NOT NULL DEFAULT false,  -- true between invite and activation
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );

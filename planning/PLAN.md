@@ -6,7 +6,7 @@
 
 ## 1. Vision
 
-Rockers HR HR Management System is a full-stack HR platform for managing employee leave end-to-end — from Gmail OAuth registration through two-level approval, SLA enforcement, Google Calendar sync, and admin analytics. It is built on a **100% dynamic, zero-hardcoded architecture**: every dropdown, every policy value, and every notification template lives in a PostgreSQL master table managed by HR admins. No leave type, no department, no gender option is ever baked into source code.
+Rockers HR HR Management System is a full-stack HR platform for managing employee leave end-to-end — from admin-invite registration (email + password) through two-level approval, SLA enforcement, Google Calendar sync, and admin analytics. Google OAuth is retained as a fallback for employees who registered under the legacy self-signup flow, but new employees are invited by an admin. It is built on a **100% dynamic, zero-hardcoded architecture**: every dropdown, every policy value, and every notification template lives in a PostgreSQL master table managed by HR admins. No leave type, no department, no gender option is ever baked into source code.
 
 The system runs on three surfaces: a Next.js web app (employee portal + HR admin panel), a Flutter mobile app (iOS & Android), and a shared NestJS REST API.
 
@@ -48,7 +48,7 @@ Adding a new leave type, a new department, or changing an SLA window requires **
 | File Storage | AWS S3 | Allowed file types driven by `master_file_types` at runtime |
 | Email | SMTP | Templates stored in `master_notification_templates` |
 | Push Notifications | Firebase Cloud Messaging (FCM) | Mobile push via `firebase-admin` SDK; FCM token registered on app launch |
-| Authentication | Google OAuth 2.0 | Any standard `@gmail.com` account; no domain restriction |
+| Authentication | Admin-invite + email/password (primary, v2.0); Google OAuth 2.0 (legacy fallback for pre-existing Google users) | See `AUTH_REGISTRATION.md` |
 | Calendar Integration | Google Calendar API | Read/Write; triggered at Level 2 (HR final) approval only |
 | Audit Log | Open-source library | Rakesh to select; logs all write operations |
 
@@ -80,7 +80,7 @@ rockers-hr/
 ├── planning/                  # This folder — agent shared contract
 │   ├── PLAN.md                # This document
 │   ├── MASTER_DATA.md         # All 11 master tables + API pattern
-│   ├── AUTH_REGISTRATION.md   # Gmail OAuth + registration flow
+│   ├── AUTH_REGISTRATION.md   # Admin-invite + email/password (primary); Gmail OAuth (legacy)
 │   ├── LEAVE_WORKFLOW.md      # Leave application + 2-level approval
 │   ├── ADMIN_RBAC.md          # Admin roles + superset capabilities
 │   ├── DATABASE_SCHEMA.md     # Full PostgreSQL schema

@@ -1,285 +1,288 @@
 # Authentication & Registration
 
-Design for Gmail OAuth registration, session management, and the HR activation workflow.
+Design for admin-invited email + password registration, first-login profile completion, and JWT session management.
+
+> **Version:** v2.0 (invite-based flow replaces employee self-registration via Google OAuth).
+> Google OAuth is retained as a fallback for employees who originally registered that way — their accounts keep working untouched. The `/login` page shows email+password primary and a secondary "Continue with Google" link.
 
 ---
 
 ## Overview
 
-Authentication is Google OAuth 2.0 only. Any standard `@gmail.com` account is accepted — no domain whitelist, no Google Workspace requirement. Security is enforced at the **HR activation step**: every new registration is manually reviewed and activated by HR Admin before the employee can access the system.
+Employees are **invited by an admin** — they cannot self-register. On invite, a welcome email with a login link, username (the employee's email), and a randomly-generated password is sent. First login with that password takes the employee to a profile-completion page where they fill remaining details and set a new password. On submit they become `is_active = true` and are redirected to the dashboard.
 
 ```
-User visits app
-      │
-      ▼
-Google OAuth (any @gmail.com)
-      │
-      ▼
-Profile Form (all dropdowns from master tables)
-      │
-      ▼
-File Uploads (photo + resume)
-      │
-      ▼
-Pending HR Review
-      │
-      ▼
-HR Activates → Welcome Email → Account Live
+ Admin adds Employee  ────────►  Invite email fires
+  (Name, Emp No, Email)           (link + username + random password)
+                                            │
+                                            ▼
+                                 Employee clicks link / opens /login
+                                            │
+                                            ▼
+                                 Email + Password form
+                                            │
+                                            ▼
+                                 first_login_required = true?
+                                    │ YES          │ NO
+                                    ▼              ▼
+                          Complete Profile     Dashboard
+                          (pending fields +      (existing session)
+                           new password)
+                                    │
+                                    ▼
+                        is_active = true  +  verification email
+                                    │
+                                    ▼
+                                 Dashboard
 ```
+
+If the employee is still inactive (hasn't completed first login), the admin user-list UI shows a **Resend Invite** button that regenerates the password, resets the 7-day invite token, and re-sends the welcome email.
 
 ---
 
-## Step 1 — Gmail OAuth
+## Roles in the flow
 
-- User clicks **Continue with Google** on the login/register page
-- Standard Google OAuth 2.0 authorization code flow
-- Scopes requested: `openid`, `email`, `profile`
-- Callback URL: `GET /api/v1/auth/google/callback`
-- After callback:
-  - If email already exists in `users` → log in and issue JWT
-  - If email does not exist → redirect to registration profile form
+| Actor | Capability |
+|---|---|
+| **Admin (HR Manager / Super Admin)** | Adds employee (Name, Emp No, Email); resends invite; sees status |
+| **Employee** | Logs in with email + emailed password; completes profile on first login; sets own password |
+| **System** | Generates random password, invite token, sends emails, flips `is_active` on activation |
 
-**No domain restriction.** `@gmail.com` only (not Google Workspace `@company.com`). The NestJS guard validates that the email ends in `@gmail.com`.
+---
 
-### JWT Session
+## Step 1 — Admin invites employee
 
-After successful activation + login:
+**UI:** `/admin/employees` → "Add Employee" button → modal/form.
+
+**Required fields (minimum to invite):**
+- `name` — free text, required
+- `email` — valid email, must be unique in `users`
+- `emp_number` — optional; if omitted admin fills later
+
+Admin clicks **Save**. Backend:
+
+1. Creates a row in `users`:
+   - `is_active = false`
+   - `first_login_required = true`
+   - `registration_method = 'admin_invite'`
+   - `password_hash = bcrypt(randomPassword)`
+   - `invite_token = crypto.randomUUID()` (opaque)
+   - `invite_token_expires_at = now() + 7 days`
+   - `role_type_id` defaulting to `employee` system key
+2. Dispatches the `user.invited` notification template with tokens:
+   - `{{name}}`
+   - `{{email}}`
+   - `{{plain_password}}` (the pre-hash random one — only referenced in this email, not stored)
+   - `{{login_url}}` — `{FRONTEND_URL}/login?invite={invite_token}`
+   - `{{expires_in_days}}` — 7
+
+The `login_url` pre-fills the email field on the login form and is a convenience — the invite token itself is only used by the frontend to UX-prefill the email. The actual login remains email+password.
+
+### API
+
+```
+POST /api/v1/admin/users/invite
+Body: { "name": "Priya Sharma", "email": "priya@gmail.com", "emp_number": "RT-HR-050" }
+→ 201 { "data": { "user": { "id":..., "name":..., "email":..., "emp_number":..., "is_active": false } } }
+```
+
+Validation:
+- `400 EMAIL_INVALID` — malformed
+- `409 EMAIL_TAKEN` — another user row already has this email
+
+The endpoint is idempotent **only on the exact same email**: a repeated call with the same email returns 409. To re-send, use the dedicated resend endpoint below.
+
+---
+
+## Step 2 — Employee first login
+
+**UI:** `/login?invite=<token>` (link from email) OR visit `/login` directly and type credentials.
+
+Login form:
+- **Email** (pre-filled if invite token is present)
+- **Password**
+- Secondary: "Continue with Google" link (legacy Google-registered users)
+
+On submit: `POST /api/v1/auth/login/email`
+
+### Response paths
+
+| Scenario | Response |
+|---|---|
+| Credentials OK and `first_login_required = true` | 200 `{ data: { token, user, first_login_required: true } }` — frontend redirects to `/complete-profile` |
+| Credentials OK and `first_login_required = false` and `is_active = true` | 200 same shape with `first_login_required: false` — frontend redirects to `/dashboard` |
+| Credentials OK and `is_active = false` and `first_login_required = false` | 403 `ACCOUNT_INACTIVE` — account was deactivated; contact admin |
+| Wrong password | 401 `INVALID_CREDENTIALS` |
+| No such email | 401 `INVALID_CREDENTIALS` (do not leak whether email exists) |
+
+Issued JWT:
+
 ```json
 {
   "sub": "user-uuid",
   "email": "employee@gmail.com",
   "role": "employee",
   "name": "Priya Sharma",
-  "is_active": true,
+  "is_active": false,
+  "first_login_required": true,
   "iat": 1234567890,
   "exp": 1235172690
 }
 ```
 
-JWT expiry: 7 days (from `JWT_EXPIRES_IN` env var). Refresh token not implemented in Phase 1.
+JWT `exp` = 7 days. Frontend routes the user based on `first_login_required`.
 
 ---
 
-## Step 2 — Profile Form
+## Step 3 — Complete profile + set new password
 
-All dropdown options are fetched from master tables at form load. **No option is hardcoded.**
+**UI:** `/complete-profile` — shown automatically after first-login when `first_login_required = true`. This is the same form that previously appeared after Google OAuth registration; it now lives at the email-login flow terminus.
 
-```
-GET /api/v1/master/qualifications   → Highest Degree dropdown
-GET /api/v1/master/genders          → Gender dropdown
-GET /api/v1/master/role_types       → Role Type dropdown
-GET /api/v1/master/departments      → Department dropdown (optional field)
-```
+Fields:
 
-### Form Fields
+| Field | Source | Required |
+|---|---|---|
+| Phone | user input | yes |
+| Date of birth | user input | yes |
+| Gender | `/master/genders` | yes |
+| Qualification | `/master/qualifications` | yes |
+| Department | `/master/departments` | yes |
+| Joining date | user input | yes |
+| Profile photo | S3 presigned | no |
+| Resume | S3 presigned | no |
+| **New password** | user input | yes |
+| **Confirm password** | must match | yes |
 
-| Field | Type | Required | Source |
-|-------|------|----------|--------|
-| Full Name | Text | ✅ | Free text |
-| Gmail Address | Email | ✅ | Locked — pre-filled from OAuth, read-only |
-| Phone Number | Text | ✅ | Free text |
-| Date of Birth | Date | ✅ | Date picker |
-| Highest Degree | Select | ✅ | `master_qualifications` |
-| Degree Specify | Text | Conditional | Visible only when "Other" selected |
-| Gender | Select | ✅ | `master_genders` |
-| Role Type | Select | ✅ | `master_role_types` |
-| Department | Select | ❌ | `master_departments` (optional) |
-| Extra Info | Textarea | ❌ | Free text — any additional info |
+Password rules:
+- Min 8 characters
+- At least 1 letter + 1 digit
+- Max 72 (bcrypt ceiling)
+- Must differ from the random invite password
 
-**Gmail field is read-only.** It is pre-filled from the OAuth response and cannot be edited.
+On submit: `POST /api/v1/auth/activate-account` with JWT in the Authorization header.
 
-### Validation Rules
+Server:
+1. Verifies JWT, loads user, requires `first_login_required = true` (else 409)
+2. Validates password complexity + match
+3. Writes all profile fields to `users`
+4. Sets `password_hash = bcrypt(new_password)`, `first_login_required = false`, `is_active = true`, `invite_token = null`, `invite_token_expires_at = null`
+5. Dispatches `user.activated` notification (email) to the employee
+6. Returns a **refreshed JWT** with the new flags + full user payload → frontend replaces the old JWT and redirects to `/dashboard`
 
-- Phone: 10-digit Indian mobile number format (or international with +)
-- Date of Birth: must be 18+ years ago
-- All required dropdowns must have a selection before form submit
-
----
-
-## Step 3 — File Uploads
-
-**Allowed file types** fetched from `master_file_types` at runtime — not hardcoded.
-
-```
-GET /api/v1/master/file_types?context=profile_photo  → for photo upload validation
-GET /api/v1/master/file_types?context=resume         → for resume upload validation
-```
-
-| Upload | Required | Allowed Types | Max Size |
-|--------|----------|--------------|---------|
-| Profile Photo | ✅ Mandatory | image/jpeg, image/png (from master) | 2 MB (from master) |
-| Resume / CV | ❌ Optional | application/pdf, .doc, .docx (from master) | 5 MB (from master) |
-
-**S3 upload flow:**
-1. Frontend requests a pre-signed S3 PUT URL: `POST /api/v1/uploads/presigned`
-2. Backend validates MIME type and size against `master_file_types`
-3. Returns pre-signed URL + `s3_key`
-4. Frontend uploads directly to S3
-5. Frontend confirms upload by sending `s3_key` in the profile form submission
-
----
-
-## Step 4 — HR Review (Pending Registrations)
-
-After form submission, the user's record is created in the `users` table with `is_active = false`.
-
-- Notification sent to HR Admin: `registration.pending` template from `master_notification_templates`
-- Employee receives: "Your profile is under HR review" confirmation page
-- HR Admin sees the registration in **Pending Registrations** panel in the admin UI
-- HR can view: full profile details, uploaded photo, resume download link (signed S3 URL)
-
-### What Happens on Activation
-
-HR Admin clicks **Activate** on the pending registration:
-
-1. `users.is_active` set to `true`
-2. `users.join_date` set to today's date (or HR can override)
-3. **`users.is_manager`** — HR Admin sees a toggle: "This employee can be assigned as manager for others." Default: off. Setting this to true makes the employee appear in the manager dropdown on other employees' profiles.
-4. `users.confirmation_date` auto-calculated: `join_date + probation.duration_months`
-5. Leave balance rows created automatically in `leave_balances` for all active `master_leave_types` for the current year — prorated based on join date
-6. Welcome email sent using `registration.activated` template from `master_notification_templates`
-7. In-app notification created
-8. Audit log: `action: user.activate`, `actor_id: [admin_uuid]`, `entity_id: [user_uuid]`
-
-### Leave Balance Proration on Join
-
-If employee joins mid-year, balances are prorated:
-```
-prorated_days = annual_days × (months_remaining_in_year / 12)
-```
-Rounded to nearest 0.5. Stored in `leave_balances.total_days`.
-
----
-
-## Admin Direct Registration (Bypassing OAuth)
-
-HR Admin or Super Admin can create an employee account directly from the admin panel — without requiring the employee to go through the Gmail OAuth self-registration flow.
-
-**Use cases:** bulk onboarding, employees needing immediate access, correcting a registration.
-
-**Additional admin-only fields:**
-| Field | Notes |
-|-------|-------|
-| Joining Date | Drives probation end date auto-calculation and leave balance proration |
-| Reporting Manager | Assigns manager_id for approval workflow |
-| Account Status | `active` (immediate login) or `pending` (welcome email, employee completes setup) |
-
-**Flow:**
-1. Admin fills in all profile fields + joining date + reporting manager
-2. Admin can upload photo/resume or leave blank for employee to fill after first login
-3. On save: user record created, leave balances auto-created, welcome email sent
-4. Employee uses Gmail OAuth to first login — system recognizes the email and skips registration form
-5. Audit log: `action: user.create`, `method: admin_direct`
-
----
-
-## Admin Authentication (Separate Login)
-
-Admin users do **not** log in via Gmail OAuth. There is a dedicated admin login page with email + password authentication.
-
-### Why Separate?
-
-- Employee accounts are tied to Gmail OAuth — admins need independent credentials
-- The first Super Admin must exist before any HR workflow can run, so it is seeded at deployment time
-- Admin credentials are managed internally, not dependent on Google
-
-### First Super Admin (Seed)
-
-The initial Super Admin account is created via a database migration/seed script during deployment:
-
-```ts
-// seed: creates first Super Admin
-{
-  email: 'superadmin@rockershr.com',   // configurable via env
-  password_hash: bcrypt('...'),         // from SUPER_ADMIN_PASSWORD env var
-  full_name: 'Super Admin',
-  role: 'super_admin',
-  is_active: true
-}
-```
-
-After deployment, this Super Admin can create additional admin accounts (HR Admin, Leave Admin, Reports Admin) from the admin panel.
-
-### Admin Login Flow
-
-```
-Admin visits /admin/login
-        │
-        ▼
-Enters email + password
-        │
-        ▼
-POST /api/v1/admin/auth/login
-        │
-        ▼
-Backend verifies password_hash (bcrypt)
-        │
-        ▼
-Issues Admin JWT → redirect to /admin/dashboard
-```
-
-**Login page:** `/admin/login` — a standalone page, visually distinct from the employee Gmail OAuth login.
-
-### Admin JWT Payload
+### Response
 
 ```json
 {
-  "sub": "admin-user-uuid",
-  "email": "hr@rockershr.com",
-  "role": "hr_admin",
-  "admin_role_id": "uuid-of-master_admin_roles-row",
-  "is_admin": true,
-  "name": "HR Manager",
-  "iat": 1234567890,
-  "exp": 1235172690
+  "data": {
+    "token": "<new JWT>",
+    "user": { "id":..., "is_active": true, "first_login_required": false, ... }
+  }
 }
 ```
 
-The `is_admin: true` flag and `role` field distinguish admin JWTs from employee JWTs. All `/admin/*` API routes validate the `is_admin` claim.
+---
 
-### Admin Credentials Storage
+## Step 4 — Resend invite (if employee never activated)
 
-The `admin_users` table must include a `password_hash` column for email + password authentication:
+**UI:** `/admin/employees` lists all users. For any row with `is_active = false`, show a "Resend Invite" button.
+
+Clicking it:
+- Generates a **new** random password (invalidates the previous one)
+- Generates a new `invite_token` with 7-day expiry
+- Writes both to the user row
+- Re-dispatches the same `user.invited` template
+
+### API
+
+```
+POST /api/v1/admin/users/:id/resend-invite
+→ 200 { "data": { "sent_at": "2026-...", "expires_at": "2026-..." } }
+```
+
+Validation:
+- `404 USER_NOT_FOUND`
+- `409 ALREADY_ACTIVE` — the user has completed first login; no invite to resend
+
+---
+
+## Legacy: Gmail OAuth (existing users only)
+
+Users created via the previous self-registration flow (`registration_method = 'self'` with Google tokens on record) keep using Google OAuth:
+
+- `GET /api/v1/auth/google` — initiate OAuth
+- `GET /api/v1/auth/google/callback` — handle callback; issues JWT if account is active
+
+The `/login` page renders the "Continue with Google" link below the email+password form. For **new** employees created via admin invite, Google OAuth is not part of the flow — they must use email + password. If a Google user hasn't completed their original profile (pending HR activation) they're routed to the legacy `/register` form as before. No migration is run over existing rows.
+
+---
+
+## Database impact
+
+New columns on `users` (migration bundled with this change):
 
 | Column | Type | Notes |
-|--------|------|-------|
-| `password_hash` | `TEXT NOT NULL` | bcrypt hash (cost factor 12) |
+|---|---|---|
+| `password_hash` | `varchar(80)` NULL | bcrypt; NULL for pure Google users |
+| `invite_token` | `uuid` NULL | opaque identifier; used only for email-link pre-fill |
+| `invite_token_expires_at` | `timestamptz` NULL | 7-day default |
+| `first_login_required` | `boolean` NOT NULL DEFAULT false | flipped to true at invite, false after `activate-account` |
 
-Passwords are never stored in plaintext. The backend uses `bcrypt` for hashing and comparison.
-
-### Password Rules (Phase 1)
-
-- Minimum 8 characters, at least 1 uppercase, 1 lowercase, 1 digit
-- No password reset in Phase 1 — Super Admin resets other admin passwords from the admin panel
-- Account locks after 5 consecutive failed login attempts (unlocked by Super Admin)
+Existing `registration_method` text column gains a new value: `'admin_invite'`.
 
 ---
 
-## Session & Security
+## Notification templates
 
-- JWT stored in HTTP-only cookie (not localStorage)
-- CSRF protection on all state-changing endpoints
-- Google OAuth state parameter validated to prevent CSRF on OAuth callback
-- All `/admin/*` routes require `is_admin: true` claim in JWT + active `admin_users` record with valid `password_hash`
-- Inactive users (`is_active: false`) are rejected at the JWT validation middleware even with a valid token
-- Re-validation: on each request, `is_active` is confirmed from DB (cached for 60s to avoid DB hit per request)
+Two new rows in `master_notification_templates` (seeded via migration):
+
+### `user.invited`
+
+**Subject:** `You've been invited to Rockers HR`
+
+**Body (HTML):**
+> Hi {{name}},
+>
+> An account has been created for you in Rockers HR. Log in using the details below:
+>
+> **Link:** {{login_url}}
+> **Username:** {{email}}
+> **Password:** `{{plain_password}}`
+>
+> For your security, you'll be asked to set a new password and complete your profile on first login. This invite link expires in {{expires_in_days}} days.
+>
+> If you didn't expect this email, contact HR.
+
+Channel: `email`
+
+### `user.activated`
+
+**Subject:** `Your Rockers HR account is active`
+
+**Body (HTML):**
+> Hi {{name}},
+>
+> Your account has been verified and activated. You can now log in and start managing your leave.
+>
+> — Rockers HR
+
+Channel: `email`
 
 ---
 
-## API Endpoints Summary
+## Edge cases
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/v1/auth/google` | None | Redirects to Google OAuth consent |
-| GET | `/api/v1/auth/google/callback` | None | Handles OAuth callback, issues JWT |
-| POST | `/api/v1/auth/logout` | JWT | Clears session cookie |
-| POST | `/api/v1/users/register` | JWT (partial) | Submits profile form after OAuth |
-| POST | `/api/v1/uploads/presigned` | JWT | Returns pre-signed S3 URL for upload |
-| GET | `/api/v1/users/me` | JWT | Returns current user profile |
-| PATCH | `/api/v1/users/me` | JWT | Updates own profile (limited fields) |
-| GET | `/api/v1/admin/registrations/pending` | Admin JWT | Lists pending registrations for HR |
-| POST | `/api/v1/admin/registrations/:id/activate` | Admin JWT | Activates a pending registration |
-| POST | `/api/v1/admin/registrations/:id/reject` | Admin JWT | Rejects a pending registration |
-| POST | `/api/v1/admin/auth/login` | None | Admin email + password login, issues Admin JWT |
-| POST | `/api/v1/admin/auth/logout` | Admin JWT | Clears admin session cookie |
-| POST | `/api/v1/admin/users` | Admin JWT | Direct admin registration of an employee |
+| Case | Behaviour |
+|---|---|
+| Admin invites email that already exists as admin-only account | 409 EMAIL_TAKEN |
+| Employee enters wrong password 5× in a row | No lockout in v2.0 (Phase 2 — rate-limiting via existing throttler is 100/min at IP) |
+| Invite token expired when employee clicks link | Login still works if they know the password; admin can resend to reset |
+| Employee completes profile but password complexity fails | 422 with field-level error; no state change |
+| Employee closes the Complete Profile page after first login | Next login returns `first_login_required: true` again; they resume where they left off |
+| Admin tries to resend invite to an active user | 409 ALREADY_ACTIVE |
+| Google-registered existing user logs in via email+password | 401 INVALID_CREDENTIALS (no `password_hash` set); they must use Google |
+
+---
+
+## Open questions
+
+None — implementation proceeds per the decisions above. If password complexity rules, token expiry, or lockout semantics need tightening (compliance requirement), track them as follow-up items; the schema supports all of these without further migration.
