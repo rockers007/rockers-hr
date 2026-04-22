@@ -33,6 +33,7 @@ interface ProfileData {
   bank_account_no: string | null;
   bank_ifsc: string | null;
   photo_s3_key: string | null;
+  photo_url: string | null;
 }
 
 interface FamilyMember {
@@ -128,9 +129,12 @@ function ProfileInner() {
 
       {/* Header */}
       <Card className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-accent text-2xl font-bold text-white">
-          {getInitials(profile.name)}
-        </div>
+        <PhotoUploader
+          profile={profile}
+          setProfile={setProfile}
+          setError={setError}
+          setSuccess={setSuccess}
+        />
         <div className="text-center sm:text-left">
           <h2 className="text-xl font-semibold text-text-primary">{profile.name}</h2>
           <p className="text-sm text-text-secondary">{profile.email}</p>
@@ -190,6 +194,101 @@ export default function ProfilePage() {
     <MasterDataProvider>
       <ProfileInner />
     </MasterDataProvider>
+  );
+}
+
+// =========================================================================
+// Profile photo uploader (header avatar)
+// =========================================================================
+
+function PhotoUploader({
+  profile,
+  setProfile,
+  setError,
+  setSuccess,
+}: {
+  profile: ProfileData;
+  setProfile: (p: ProfileData) => void;
+  setError: (s: string) => void;
+  setSuccess: (s: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset input immediately so selecting the same file twice still fires
+    e.target.value = '';
+    if (!file) return;
+
+    setError('');
+    setSuccess('');
+
+    if (!/^image\/(jpe?g|png)$/i.test(file.type)) {
+      setError('Photo must be a JPG or PNG image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Photo must be 5MB or less.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const pre = await api.post<{ upload_url: string; s3_key: string }>(
+        '/uploads/presigned',
+        {
+          mime_type: file.type,
+          file_size_bytes: file.size,
+          context: 'profile_photo',
+        },
+      );
+      const putRes = await fetch(pre.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('S3 upload failed');
+
+      const updated = await api.patch<ProfileData>('/users/me', {
+        photo_s3_key: pre.s3_key,
+      });
+      setProfile(updated);
+      setSuccess('Profile photo updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Photo upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {profile.photo_url ? (
+        <img
+          src={profile.photo_url}
+          alt={profile.name}
+          className="h-24 w-24 rounded-full object-cover shadow-sm"
+        />
+      ) : (
+        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-accent text-2xl font-bold text-white">
+          {getInitials(profile.name)}
+        </div>
+      )}
+      <label className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-accent hover:underline">
+        <input
+          type="file"
+          accept="image/jpeg,image/jpg,image/png"
+          className="hidden"
+          onChange={onPick}
+          disabled={uploading}
+        />
+        {uploading
+          ? 'Uploading…'
+          : profile.photo_url
+            ? 'Change photo'
+            : 'Upload photo'}
+      </label>
+    </div>
   );
 }
 

@@ -159,6 +159,8 @@ export class UsersAdminController {
       // Extended profile (editable by admin AND employee)
       'marital_status_id', 'current_address', 'permanent_address',
       'emergency_phone', 'pf_uan_no', 'esic_no',
+      // Uploaded assets — admin may set/clear on behalf of employee
+      'photo_s3_key', 'resume_s3_key',
     ];
     const payrollFields = ['gross', 'incentive', 'pf_applicable'];
 

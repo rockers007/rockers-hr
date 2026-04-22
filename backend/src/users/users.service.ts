@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -27,7 +28,22 @@ export class UsersService {
     private readonly leaveTypeRepo: Repository<MasterLeaveType>,
     @InjectRepository(MasterSlaConfig)
     private readonly slaConfigRepo: Repository<MasterSlaConfig>,
+    private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Convert an S3 key stored on the user row into a CloudFront URL that the
+   * browser can render directly. Returns null when either the key or the
+   * CloudFront base URL is missing — the frontend falls back to initials.
+   */
+  private buildPhotoUrl(s3Key: string | null | undefined): string | null {
+    if (!s3Key) return null;
+    const base = this.configService.get<string>('AWS_CLOUDFRONT_URL', '');
+    if (!base) return null;
+    const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const trimmedKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
+    return `${trimmedBase}/${trimmedKey}`;
+  }
 
   async register(
     gmail: string,
@@ -115,6 +131,7 @@ export class UsersService {
         ? { id: user.qualification.id, label: user.qualification.label }
         : null,
       photo_s3_key: user.photo_s3_key,
+      photo_url: this.buildPhotoUrl(user.photo_s3_key),
       resume_s3_key: user.resume_s3_key,
       manager: user.manager
         ? { id: user.manager.id, name: user.manager.name }
@@ -179,7 +196,7 @@ export class UsersService {
     'bank_ifsc',
   ];
 
-  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<User> {
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.findById(userId);
     const incoming = dto as unknown as Record<string, unknown>;
     for (const key of this.SELF_ALLOWED_FIELDS) {
@@ -189,7 +206,10 @@ export class UsersService {
           incoming[key] === '' ? null : incoming[key];
       }
     }
-    return this.userRepo.save(user);
+    await this.userRepo.save(user);
+    // Return the same shape as getProfile so the frontend has photo_url +
+    // expanded relations without a second round-trip.
+    return this.getProfile(userId);
   }
 
   async updateFcmToken(userId: string, fcmToken: string): Promise<void> {
@@ -303,8 +323,15 @@ export class UsersService {
 
     const [data, total] = await qb.getManyAndCount();
 
+    // Attach a resolved CloudFront URL so the admin list can render the
+    // employee's photo without each client knowing the CDN host.
+    const decorated = data.map((u) => ({
+      ...u,
+      photo_url: this.buildPhotoUrl(u.photo_s3_key),
+    }));
+
     return {
-      data,
+      data: decorated,
       meta: {
         total,
         page,
