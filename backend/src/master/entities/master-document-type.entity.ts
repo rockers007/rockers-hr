@@ -1,0 +1,28 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+@Entity('master_document_types')
+export class MasterDocumentType {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'text', unique: true })
+  label: string;
+
+  @Column({ type: 'int', default: 0 })
+  sort_order: number;
+
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  created_at: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updated_at: Date;
+}

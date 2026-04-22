@@ -123,6 +123,25 @@ export class User {
   @Column({ type: 'boolean', default: false })
   first_login_required: boolean;
 
+  // --- Extended profile ---
+  @Column({ type: 'uuid', nullable: true })
+  marital_status_id: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  current_address: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  permanent_address: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  emergency_phone: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  pf_uan_no: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  esic_no: string | null;
+
   // --- Payroll fields (PAYROLL_DATABASE_SCHEMA.md §1) ---
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
   gross: string;
