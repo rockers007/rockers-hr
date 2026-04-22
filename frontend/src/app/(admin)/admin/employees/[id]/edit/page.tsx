@@ -37,6 +37,13 @@ interface EmployeeData {
   bank_name: string | null;
   bank_account_no: string | null;
   bank_ifsc: string | null;
+  // Extended profile
+  marital_status_id: string | null;
+  current_address: string | null;
+  permanent_address: string | null;
+  emergency_phone: string | null;
+  pf_uan_no: string | null;
+  esic_no: string | null;
 }
 
 interface ManagerOption {
@@ -82,6 +89,17 @@ export default function EditEmployeePage() {
   const [bankName, setBankName] = useState('');
   const [bankAccountNo, setBankAccountNo] = useState('');
   const [bankIfsc, setBankIfsc] = useState('');
+
+  // Extended profile state
+  const [maritalStatusId, setMaritalStatusId] = useState('');
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [permanentAddress, setPermanentAddress] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [pfUanNo, setPfUanNo] = useState('');
+  const [esicNo, setEsicNo] = useState('');
+  const [maritalStatuses, setMaritalStatuses] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [statutory, setStatutory] = useState<{
     pf_cap_amount: string;
     pf_fixed_at_cap: string;
@@ -118,7 +136,21 @@ export default function EditEmployeePage() {
         setBankName(emp.bank_name ?? '');
         setBankAccountNo(emp.bank_account_no ?? '');
         setBankIfsc(emp.bank_ifsc ?? '');
+        // Extended profile fields
+        setMaritalStatusId(emp.marital_status_id ?? '');
+        setCurrentAddress(emp.current_address ?? '');
+        setPermanentAddress(emp.permanent_address ?? '');
+        setEmergencyPhone(emp.emergency_phone ?? '');
+        setPfUanNo(emp.pf_uan_no ?? '');
+        setEsicNo(emp.esic_no ?? '');
         setManagers(Array.isArray(mgrs) ? mgrs : []);
+
+        // Fetch marital statuses for the dropdown (ignore failures — the field
+        // simply becomes empty if the master table endpoint is unreachable)
+        api
+          .get<Array<{ id: string; label: string }>>('/master/marital_statuses')
+          .then((list) => setMaritalStatuses(Array.isArray(list) ? list : []))
+          .catch(() => setMaritalStatuses([]));
 
         // Fetch statutory config for live CTC preview (ignore failures — the
         // preview silently hides if the endpoint isn't reachable)
@@ -166,6 +198,13 @@ export default function EditEmployeePage() {
         bank_name: bankName.trim() || null,
         bank_account_no: bankAccountNo.trim() || null,
         bank_ifsc: bankIfsc.trim().toUpperCase() || null,
+        // Extended profile
+        marital_status_id: maritalStatusId || null,
+        current_address: currentAddress.trim() || null,
+        permanent_address: permanentAddress.trim() || null,
+        emergency_phone: emergencyPhone.trim() || null,
+        pf_uan_no: pfUanNo.trim() || null,
+        esic_no: esicNo.trim() || null,
       };
 
       await api.patch(`/admin/users/${id}`, updates);
@@ -494,6 +533,106 @@ export default function EditEmployeePage() {
                   className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono uppercase text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   value={bankIfsc}
                   onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personal / Extended Profile Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Personal Details
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Employees can also edit these fields from their own profile page.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              {/* Marital Status */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Marital Status
+                </label>
+                <select
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={maritalStatusId}
+                  onChange={(e) => setMaritalStatusId(e.target.value)}
+                >
+                  <option value="">Select marital status</option>
+                  {maritalStatuses.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Emergency Phone */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Emergency Contact Phone
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. +91 98765 43210"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
+                />
+              </div>
+
+              {/* PF UAN No */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  PF UAN Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="12-digit UAN"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={pfUanNo}
+                  onChange={(e) => setPfUanNo(e.target.value)}
+                />
+              </div>
+
+              {/* ESIC No */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  ESIC Insurance Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="ESIC IP number"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={esicNo}
+                  onChange={(e) => setEsicNo(e.target.value)}
+                />
+              </div>
+
+              {/* Current Address */}
+              <div className="sm:col-span-3">
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Current Address
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="House / flat, street, area, city, state, pincode"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={currentAddress}
+                  onChange={(e) => setCurrentAddress(e.target.value)}
+                />
+              </div>
+
+              {/* Permanent Address */}
+              <div className="sm:col-span-3">
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Permanent Address
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="House / flat, street, area, city, state, pincode"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={permanentAddress}
+                  onChange={(e) => setPermanentAddress(e.target.value)}
                 />
               </div>
             </div>
