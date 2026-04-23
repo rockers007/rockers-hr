@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,6 +25,12 @@ const BCRYPT_COST = 10;
 const INVITE_TTL_DAYS = 7;
 const RANDOM_PASSWORD_LEN = 12;
 const PASSWORD_MIN_LEN = 8;
+
+// Login lockout policy — shared with AuthService.adminLogin.
+// After this many consecutive wrong-password attempts, the account is
+// locked for LOGIN_LOCK_DURATION_MS. Counter resets on any successful login.
+export const LOGIN_MAX_FAILED_ATTEMPTS = 5;
+export const LOGIN_LOCK_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export interface InviteDto {
   name: string;
@@ -309,6 +317,23 @@ export class InviteAuthService {
   }
 
   // ----------------------------------------------------------------------
+  // Admin action: release an employee's login lockout early
+  // ----------------------------------------------------------------------
+  async unlockAccount(userId: string): Promise<{ unlocked_at: Date }> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+    user.failed_login_count = 0;
+    user.locked_until = null;
+    await this.userRepo.save(user);
+    return { unlocked_at: new Date() };
+  }
+
+  // ----------------------------------------------------------------------
   // Employee email + password login
   // ----------------------------------------------------------------------
   async loginWithEmail(
@@ -335,11 +360,48 @@ export class InviteAuthService {
         message: 'Invalid credentials.',
       });
     }
+
+    // --- Account-lockout pre-check -----------------------------------------
+    // If a previous burst of failures set locked_until to a future moment,
+    // reject immediately with a clear "try again later" payload. Once that
+    // moment passes the account automatically becomes usable again.
+    if (user.locked_until && user.locked_until.getTime() > Date.now()) {
+      const minutesLeft = Math.max(
+        1,
+        Math.ceil((user.locked_until.getTime() - Date.now()) / 60000),
+      );
+      throw new HttpException(
+        {
+          code: 'ACCOUNT_LOCKED',
+          message: `Account is locked due to too many failed login attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} or ask an admin to unlock it.`,
+          locked_until: user.locked_until.toISOString(),
+        },
+        HttpStatus.LOCKED,
+      );
+    }
+
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
+      // --- Record the failure and possibly lock ----------------------------
+      user.failed_login_count = (user.failed_login_count || 0) + 1;
+      if (user.failed_login_count >= LOGIN_MAX_FAILED_ATTEMPTS) {
+        user.locked_until = new Date(Date.now() + LOGIN_LOCK_DURATION_MS);
+        await this.userRepo.save(user);
+        const hoursLeft = Math.ceil(LOGIN_LOCK_DURATION_MS / 3600000);
+        throw new HttpException(
+          {
+            code: 'ACCOUNT_LOCKED',
+            message: `Too many failed login attempts. Account has been locked for ${hoursLeft} hour${hoursLeft === 1 ? '' : 's'}.`,
+            locked_until: user.locked_until.toISOString(),
+          },
+          HttpStatus.LOCKED,
+        );
+      }
+      await this.userRepo.save(user);
+      const remaining = LOGIN_MAX_FAILED_ATTEMPTS - user.failed_login_count;
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
-        message: 'Invalid credentials.',
+        message: `Invalid credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before the account is locked.`,
       });
     }
     if (!user.is_active && !user.first_login_required) {
@@ -348,6 +410,13 @@ export class InviteAuthService {
         code: 'ACCOUNT_INACTIVE',
         message: 'Account is inactive. Contact your admin.',
       });
+    }
+
+    // --- Reset lockout state on successful login ---------------------------
+    if ((user.failed_login_count || 0) > 0 || user.locked_until) {
+      user.failed_login_count = 0;
+      user.locked_until = null;
+      await this.userRepo.save(user);
     }
 
     const token = this.signUserToken(user);

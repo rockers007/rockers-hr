@@ -55,6 +55,12 @@ function LoginInner() {
       const err = e as ApiError;
       if (err.code === 'ACCOUNT_INACTIVE') {
         setError('Your account is inactive. Please contact HR.');
+      } else if (err.code === 'ACCOUNT_LOCKED') {
+        // Backend includes the minutes-remaining message verbatim.
+        setError(err.message);
+      } else if (err.code === 'INVALID_CREDENTIALS') {
+        // Backend message includes the remaining-attempts hint.
+        setError(err.message || 'Invalid email or password.');
       } else {
         setError('Invalid email or password.');
       }

@@ -73,6 +73,19 @@ export class UsersAdminController {
   }
 
   /**
+   * POST /api/v1/admin/users/:id/unlock
+   * Clears the account-lockout counter and `locked_until` so the employee
+   * can retry login immediately. Used when HR wants to release a user
+   * before the 2-hour auto-unlock window expires.
+   */
+  @Post('users/:id/unlock')
+  @AdminPermissions('employees.add_direct')
+  async unlockAccount(@Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.inviteAuth.unlockAccount(id);
+    return { data: result };
+  }
+
+  /**
    * Block salary edits while an active payroll run exists for the current month.
    * Mirrors the guard in SalaryService.patchSalary so both edit surfaces behave
    * identically.

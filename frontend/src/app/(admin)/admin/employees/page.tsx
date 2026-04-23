@@ -20,6 +20,8 @@ interface EmployeeRow {
   roleType: { label: string } | null;
   is_active: boolean;
   join_date: string;
+  locked_until: string | null;
+  failed_login_count: number;
 }
 
 
@@ -40,6 +42,7 @@ export default function EmployeesPage() {
   const [inviteError, setInviteError] = useState('');
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
   const [resetBusyId, setResetBusyId] = useState<string | null>(null);
+  const [unlockBusyId, setUnlockBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
   const fetchEmployees = useCallback(async () => {
@@ -225,8 +228,49 @@ export default function EmployeesPage() {
                         >
                           {emp.is_active ? 'Active' : 'Inactive'}
                         </span>
+                        {emp.locked_until &&
+                          new Date(emp.locked_until).getTime() > Date.now() && (
+                            <span
+                              className="ml-2 inline-flex items-center rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-xs font-medium text-[#991b1b]"
+                              title={`Locked until ${new Date(emp.locked_until).toLocaleString()}`}
+                            >
+                              🔒 Locked
+                            </span>
+                          )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right space-x-2">
+                        {emp.locked_until &&
+                          new Date(emp.locked_until).getTime() > Date.now() && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              isLoading={unlockBusyId === emp.id}
+                              disabled={unlockBusyId !== null}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setUnlockBusyId(emp.id);
+                                setToast('');
+                                try {
+                                  await api.post(
+                                    `/admin/users/${emp.id}/unlock`,
+                                  );
+                                  setToast(
+                                    `Account unlocked for ${emp.gmail}. They can log in immediately.`,
+                                  );
+                                  fetchEmployees();
+                                } catch (err) {
+                                  setToast(
+                                    `Unlock failed: ${(err as ApiError).message}`,
+                                  );
+                                } finally {
+                                  setUnlockBusyId(null);
+                                }
+                              }}
+                            >
+                              Unlock
+                            </Button>
+                          )}
                         {!emp.is_active && (
                           <Button
                             size="sm"

@@ -34,6 +34,13 @@ export class AdminUser {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
+  // --- Login lockout tracking (see migration 1712000000040) ---
+  @Column({ type: 'int', default: 0 })
+  failed_login_count: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  locked_until: Date | null;
+
   @Column({ type: 'uuid', nullable: true })
   created_by: string | null;
 

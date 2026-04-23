@@ -123,6 +123,13 @@ export class User {
   @Column({ type: 'boolean', default: false })
   first_login_required: boolean;
 
+  // --- Login lockout tracking (see migration 1712000000040) ---
+  @Column({ type: 'int', default: 0 })
+  failed_login_count: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  locked_until: Date | null;
+
   // --- Extended profile ---
   @Column({ type: 'uuid', nullable: true })
   marital_status_id: string | null;
