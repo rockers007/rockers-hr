@@ -28,7 +28,27 @@ function LoginInner() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace('/dashboard');
+      // Check the token for first_login_required — if the user still needs
+      // to complete activation, send them to /complete-profile instead of
+      // bouncing straight to /dashboard. Without this guard, the submit()
+      // handler's /complete-profile redirect races with this effect and the
+      // effect wins, so new invitees end up at /dashboard despite having
+      // an unactivated account.
+      const token =
+        typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      let firstLoginRequired = false;
+      if (token) {
+        try {
+          const part = token.split('.')[1];
+          const payload = JSON.parse(
+            atob(part.replace(/-/g, '+').replace(/_/g, '/')),
+          );
+          firstLoginRequired = payload?.first_login_required === true;
+        } catch {
+          /* ignore parse errors, fall through to /dashboard */
+        }
+      }
+      router.replace(firstLoginRequired ? '/complete-profile' : '/dashboard');
     }
   }, [isLoading, isAuthenticated, router]);
 
