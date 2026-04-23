@@ -39,6 +39,7 @@ export default function EmployeesPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
+  const [resetBusyId, setResetBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
 
   const fetchEmployees = useCallback(async () => {
@@ -256,6 +257,42 @@ export default function EmployeesPage() {
                             }}
                           >
                             Resend Invite
+                          </Button>
+                        )}
+                        {emp.is_active && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            isLoading={resetBusyId === emp.id}
+                            disabled={resetBusyId !== null}
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const ok = window.confirm(
+                                `Send a password reset email to ${emp.gmail}?\n\nA random temporary password will be generated and emailed. The user will be asked to set a new password on their next login.`,
+                              );
+                              if (!ok) return;
+                              setResetBusyId(emp.id);
+                              setToast('');
+                              try {
+                                await api.post(
+                                  `/admin/users/${emp.id}/reset-password`,
+                                );
+                                setToast(
+                                  `Password reset email sent to ${emp.gmail}.`,
+                                );
+                              } catch (err) {
+                                setToast(
+                                  `Reset failed: ${
+                                    (err as ApiError).message
+                                  }`,
+                                );
+                              } finally {
+                                setResetBusyId(null);
+                              }
+                            }}
+                          >
+                            Reset Password
                           </Button>
                         )}
                       </td>

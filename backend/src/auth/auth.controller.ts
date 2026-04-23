@@ -109,6 +109,28 @@ export class AuthController {
   }
 
   /**
+   * POST /api/v1/auth/change-password
+   * Employee self-service — rotate own password.
+   * Body: { current_password, new_password, confirm_password }
+   */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async changePassword(
+    @Body()
+    dto: {
+      current_password: string;
+      new_password: string;
+      confirm_password: string;
+    },
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.inviteAuth.changeMyPassword(user.sub, dto);
+    return { data: result };
+  }
+
+  /**
    * POST /api/v1/auth/logout
    * Clears session (stateless JWT — client discards token).
    */

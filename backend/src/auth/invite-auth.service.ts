@@ -43,6 +43,12 @@ export interface ActivateAccountDto {
   confirm_password: string;
 }
 
+export interface ChangePasswordDto {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
 /**
  * v2.0 admin-invite + email/password auth flow.
  * See planning/AUTH_REGISTRATION.md for the canonical design.
@@ -176,6 +182,130 @@ export class InviteAuthService {
       sent_at: new Date(),
       expires_at: user.invite_token_expires_at,
     };
+  }
+
+  // ----------------------------------------------------------------------
+  // Employee self-service password change
+  // Used by the logged-in employee from /profile to rotate their password.
+  // ----------------------------------------------------------------------
+  async changeMyPassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ changed_at: Date }> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || !user.password_hash) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+
+    // 1. current_password must match
+    const ok = await bcrypt.compare(dto.current_password || '', user.password_hash);
+    if (!ok) {
+      throw new UnauthorizedException({
+        code: 'CURRENT_PASSWORD_INVALID',
+        message: 'Current password is incorrect.',
+      });
+    }
+
+    // 2. strength + confirmation
+    if (
+      !dto.new_password ||
+      dto.new_password.length < PASSWORD_MIN_LEN ||
+      !/[A-Za-z]/.test(dto.new_password) ||
+      !/\d/.test(dto.new_password)
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_TOO_WEAK',
+        message:
+          'Password must be at least 8 characters and include a letter and a digit.',
+      });
+    }
+    if (dto.new_password !== dto.confirm_password) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_MISMATCH',
+        message: 'New password and confirmation do not match.',
+      });
+    }
+
+    // 3. must differ from the current one
+    const reused = await bcrypt.compare(dto.new_password, user.password_hash);
+    if (reused) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_REUSE',
+        message: 'New password must differ from the current password.',
+      });
+    }
+
+    user.password_hash = await bcrypt.hash(dto.new_password, BCRYPT_COST);
+    // Once the user successfully rotates their own password they're no longer
+    // considered "first-login required" (relevant if this is called before
+    // activation; harmless otherwise).
+    user.first_login_required = false;
+    user.invite_token = null;
+    user.invite_token_expires_at = null;
+    await this.userRepo.save(user);
+
+    return { changed_at: new Date() };
+  }
+
+  // ----------------------------------------------------------------------
+  // Admin-triggered password reset
+  // For active employees who forgot their password. Generates a random
+  // temporary password, stores its hash, forces first_login_required=true
+  // so the user is bounced into /complete-profile on next sign-in, and
+  // emails the temp credentials using the user.password_reset template.
+  // ----------------------------------------------------------------------
+  async sendPasswordReset(
+    userId: string,
+  ): Promise<{ sent_at: Date; email: string }> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+
+    const plainPassword = this.generateRandomPassword(RANDOM_PASSWORD_LEN);
+    user.password_hash = await bcrypt.hash(plainPassword, BCRYPT_COST);
+    // Force the user to pick a new password on next login
+    user.first_login_required = true;
+    user.invite_token = crypto.randomUUID();
+    user.invite_token_expires_at = new Date(
+      Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
+    await this.userRepo.save(user);
+
+    const frontendUrl = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
+    const loginUrl = `${frontendUrl}/login?email=${encodeURIComponent(
+      user.gmail,
+    )}`;
+
+    try {
+      await this.notifications.dispatch(
+        'user.password_reset',
+        [{ userId: user.id, email: user.gmail }],
+        {
+          name: user.name,
+          email: user.gmail,
+          plain_password: plainPassword,
+          login_url: loginUrl,
+          expires_in_days: String(INVITE_TTL_DAYS),
+        },
+      );
+    } catch (e) {
+      this.logger.error(
+        `Failed to send user.password_reset to ${user.gmail}: ${String(e)}`,
+      );
+      // Row is already persisted — admin can retry via the same button.
+    }
+
+    return { sent_at: new Date(), email: user.gmail };
   }
 
   // ----------------------------------------------------------------------

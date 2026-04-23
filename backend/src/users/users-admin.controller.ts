@@ -58,6 +58,21 @@ export class UsersAdminController {
   }
 
   /**
+   * POST /api/v1/admin/users/:id/reset-password
+   * HR-initiated password reset for an already-active employee. Generates a
+   * fresh random password, stores its bcrypt hash, forces first_login_required
+   * so the employee is bounced into the password-change flow on next login,
+   * and emails them the temp credentials using the user.password_reset
+   * template. Unlike resend-invite, this works on ACTIVE users.
+   */
+  @Post('users/:id/reset-password')
+  @AdminPermissions('employees.add_direct')
+  async resetPassword(@Param('id', ParseUUIDPipe) id: string) {
+    const result = await this.inviteAuth.sendPasswordReset(id);
+    return { data: result };
+  }
+
+  /**
    * Block salary edits while an active payroll run exists for the current month.
    * Mirrors the guard in SalaryService.patchSalary so both edit surfaces behave
    * identically.

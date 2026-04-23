@@ -185,6 +185,11 @@ function ProfileInner() {
         setError={setError}
         setSuccess={setSuccess}
       />
+
+      <ChangePasswordSection
+        setError={setError}
+        setSuccess={setSuccess}
+      />
     </div>
   );
 }
@@ -194,6 +199,143 @@ export default function ProfilePage() {
     <MasterDataProvider>
       <ProfileInner />
     </MasterDataProvider>
+  );
+}
+
+// =========================================================================
+// Change Password — employee self-service
+// =========================================================================
+
+function ChangePasswordSection({
+  setError,
+  setSuccess,
+}: {
+  setError: (s: string) => void;
+  setSuccess: (s: string) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLocalError('');
+
+    if (!currentPassword) {
+      setLocalError('Current password is required.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setLocalError('New password must be at least 8 characters.');
+      return;
+    }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setLocalError('New password must include a letter and a digit.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setLocalError('New password and confirmation do not match.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setLocalError('New password must differ from the current password.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.post('/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      });
+      setSuccess('Password updated successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to change password.';
+      setLocalError(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-text-primary">Change Password</h2>
+      <p className="mt-1 text-sm text-text-secondary">
+        Use a new password you haven't used here before. Minimum 8 characters
+        with at least one letter and one digit.
+      </p>
+
+      {localError && (
+        <div className="mt-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+          {localError}
+        </div>
+      )}
+
+      <form onSubmit={submit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text-primary">
+            Current Password
+          </label>
+          <input
+            type="password"
+            autoComplete="current-password"
+            className={inputCls}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text-primary">
+            New Password
+          </label>
+          <input
+            type="password"
+            autoComplete="new-password"
+            className={inputCls}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text-primary">
+            Confirm New Password
+          </label>
+          <input
+            type="password"
+            autoComplete="new-password"
+            className={inputCls}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
+        <div className="sm:col-span-3 flex">
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={saving}
+            disabled={
+              saving ||
+              !currentPassword ||
+              !newPassword ||
+              !confirmPassword
+            }
+          >
+            Update Password
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 
