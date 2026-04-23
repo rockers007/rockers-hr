@@ -4,6 +4,10 @@ import { PayrollItem } from '../entities/payroll-item.entity';
 import { User } from '../../users/entities/user.entity';
 import { CompanyProfile } from '../entities/company-profile.entity';
 
+// Local aliases instead of the global PDFKit namespace (not always available).
+type PDFDoc = InstanceType<typeof PDFDocument>;
+type PDFDocOptions = ConstructorParameters<typeof PDFDocument>[0];
+
 export interface PayslipRenderContext {
   item: PayrollItem;
   user: User;
@@ -33,7 +37,7 @@ export interface PayslipRenderContext {
 @Injectable()
 export class PayslipPdfService {
   async render(ctx: PayslipRenderContext): Promise<Buffer> {
-    const options: PDFKit.PDFDocumentOptions = {
+    const options: PDFDocOptions = {
       size: 'A4',
       margin: 36,
       info: {
@@ -79,7 +83,7 @@ export class PayslipPdfService {
   // ==========================================================================
   // Zone 1 — Company header
   // ==========================================================================
-  private drawZone1(doc: PDFKit.PDFDocument, ctx: PayslipRenderContext): void {
+  private drawZone1(doc: PDFDoc, ctx: PayslipRenderContext): void {
     doc.font('Helvetica-Bold').fontSize(14)
       .text(ctx.company.company_name.toUpperCase(), { align: 'center' });
 
@@ -100,7 +104,7 @@ export class PayslipPdfService {
   // ==========================================================================
   // Zone 2 — Employee meta (two-column KV grid)
   // ==========================================================================
-  private drawZone2(doc: PDFKit.PDFDocument, ctx: PayslipRenderContext): void {
+  private drawZone2(doc: PDFDoc, ctx: PayslipRenderContext): void {
     doc.moveDown(0.3);
     const startY = doc.y;
     const colWidth = 250;
@@ -135,7 +139,7 @@ export class PayslipPdfService {
   // ==========================================================================
   // Zone 3 — Three columns: Working | Earnings | Deductions
   // ==========================================================================
-  private drawZone3(doc: PDFKit.PDFDocument, ctx: PayslipRenderContext): void {
+  private drawZone3(doc: PDFDoc, ctx: PayslipRenderContext): void {
     doc.moveDown(0.3);
     const topY = doc.y;
     const colX = [40, 180, 400];
@@ -247,7 +251,7 @@ export class PayslipPdfService {
   // ==========================================================================
   // Zone 4 — Net payable + footer
   // ==========================================================================
-  private drawZone4(doc: PDFKit.PDFDocument, ctx: PayslipRenderContext): void {
+  private drawZone4(doc: PDFDoc, ctx: PayslipRenderContext): void {
     doc.moveDown(0.5);
     doc.font('Helvetica-Bold').fontSize(11);
     doc.text(
@@ -261,7 +265,7 @@ export class PayslipPdfService {
     doc.text(ctx.company.payslip_footer_text, { align: 'center' });
   }
 
-  private drawWatermark(doc: PDFKit.PDFDocument, text: string): void {
+  private drawWatermark(doc: PDFDoc, text: string): void {
     doc.save();
     doc.fillColor('#d1d5db');
     doc.font('Helvetica-Bold').fontSize(48);
@@ -285,7 +289,7 @@ export class PayslipPdfService {
     return `${day}-${m}-${y}`;
   }
 
-  private hr(doc: PDFKit.PDFDocument): void {
+  private hr(doc: PDFDoc): void {
     const y = doc.y;
     doc.moveTo(40, y).lineTo(555, y).strokeColor('#d1d5db').lineWidth(0.5).stroke();
     doc.strokeColor('#000');
@@ -293,9 +297,14 @@ export class PayslipPdfService {
   }
 }
 
-export function passwordFromDob(dob: string | null): string | null {
+export function passwordFromDob(
+  dob: string | Date | null | undefined,
+): string | null {
   if (!dob) return null;
-  const [y, m, day] = dob.split('-');
+  // pg may return DATE columns as Date objects depending on type parsers.
+  const iso =
+    typeof dob === 'string' ? dob : new Date(dob).toISOString().slice(0, 10);
+  const [y, m, day] = iso.split('-');
   if (!y || !m || !day) return null;
   return `${day}${m}`;
 }

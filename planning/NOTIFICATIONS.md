@@ -452,3 +452,37 @@ Response: { "data": { "unread": 3 } }
 ```
 
 Used by web header bell icon and mobile tab badge. Cached for 30 seconds per user.
+
+---
+
+## v2.0 — Admin-invite flow templates
+
+Two notification templates are added by the v2.0 auth migration (see `AUTH_REGISTRATION.md`). Both are seeded into `master_notification_templates`.
+
+### `user.invited`
+
+- **Channel:** `email`
+- **Recipient:** the newly invited employee
+- **Tokens:** `{{name}}`, `{{email}}`, `{{plain_password}}`, `{{login_url}}`, `{{expires_in_days}}`
+
+**Subject:**
+```
+You've been invited to Rockers HR
+```
+
+**Body (HTML):** welcome message + login link, username (the user's email), and the randomly-generated plain-text password. The password is sent in the body and never stored — only its bcrypt hash is persisted. Resending the invite regenerates the password.
+
+### `user.activated`
+
+- **Channel:** `email`
+- **Recipient:** the employee who just completed first-login profile setup
+- **Tokens:** `{{name}}`
+
+**Subject:**
+```
+Your Rockers HR account is active
+```
+
+**Body (HTML):** "Verification done — you can now log in and start managing your leave."
+
+Dispatch happens inside `POST /auth/activate-account` after the user's `is_active` flag flips to `true`.

@@ -18,7 +18,7 @@ import { RunsService } from './runs.service';
 import { PayrollRunState } from '../entities/payroll-run.entity';
 import { PayslipDeliveryService } from '../payslip/payslip-delivery.service';
 
-@Controller('api/v1/payroll/runs')
+@Controller('payroll/runs')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class RunsController {
   constructor(

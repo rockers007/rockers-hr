@@ -1,0 +1,222 @@
+<testsuites id="" name="" tests="96" failures="0" skipped="0" errors="0" time="2.576658">
+<testsuite name="11-payroll-master.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="10" failures="0" skipped="0" time="0.991" errors="0">
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /payroll/master/components returns 7 rows (or 401/403)" classname="11-payroll-master.spec.ts" time="0.219">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /payroll/master/statutory returns single config" classname="11-payroll-master.spec.ts" time="0.091">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] ESIC activation requires confirmation phrase" classname="11-payroll-master.spec.ts" time="0.095">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] PUT /components rejects sum != 100" classname="11-payroll-master.spec.ts" time="0.102">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /earning-types returns BONUS seeded" classname="11-payroll-master.spec.ts" time="0.085">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /deduction-types returns ESIC with is_active_by_default FALSE" classname="11-payroll-master.spec.ts" time="0.093">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /company-profile returns Rockers Technologies" classname="11-payroll-master.spec.ts" time="0.09">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] GET /bank-formats returns DEFAULT_NEFT" classname="11-payroll-master.spec.ts" time="0.075">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] Unauthenticated PATCH /statutory rejected" classname="11-payroll-master.spec.ts" time="0.074">
+</testcase>
+<testcase name="Payroll — Master Data › [Payroll-Master] Bad request body on PUT /components returns 4xx" classname="11-payroll-master.spec.ts" time="0.067">
+</testcase>
+</testsuite>
+<testsuite name="12-payroll-salary.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="8" failures="0" skipped="0" time="0.831" errors="0">
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] GET /employees/:id/salary returns fields + preview" classname="12-payroll-salary.spec.ts" time="0.212">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] PATCH /employees/:id/salary rejects unauth" classname="12-payroll-salary.spec.ts" time="0.089">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] PATCH /admin/users/:id accepts gross + dob + emp_number" classname="12-payroll-salary.spec.ts" time="0.11">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] Bank fields accepted on /admin/users PATCH" classname="12-payroll-salary.spec.ts" time="0.07">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] Invalid IFSC rejected" classname="12-payroll-salary.spec.ts" time="0.088">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] Non-digit account number rejected" classname="12-payroll-salary.spec.ts" time="0.094">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] GET /me/salary returns own" classname="12-payroll-salary.spec.ts" time="0.075">
+</testcase>
+<testcase name="Payroll — Salary Configuration › [Payroll-Salary] GET /me/salary-preview returns computed fields" classname="12-payroll-salary.spec.ts" time="0.093">
+</testcase>
+</testsuite>
+<testsuite name="13-payroll-run.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="13" failures="0" skipped="0" time="1.158" errors="0">
+<testcase name="Payroll — Run Workflow › [Payroll-Run] GET /runs list" classname="13-payroll-run.spec.ts" time="0.205">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs requires month + year" classname="13-payroll-run.spec.ts" time="0.084">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs creates DRAFT for new month" classname="13-payroll-run.spec.ts" time="0.108">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs/:id/import on missing run → 404" classname="13-payroll-run.spec.ts" time="0.084">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs/:id/calculate on missing run → 404" classname="13-payroll-run.spec.ts" time="0.071">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] GET /runs/:id 404 for unknown" classname="13-payroll-run.spec.ts" time="0.09">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] GET /runs/:id/items 404 for unknown" classname="13-payroll-run.spec.ts" time="0.079">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] PATCH /runs/:id/employees/:userId rejects bad state" classname="13-payroll-run.spec.ts" time="0.085">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] PATCH /runs/:id/items/:userId rejects bad state" classname="13-payroll-run.spec.ts" time="0.079">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs/:id/lock requires confirmation phrase" classname="13-payroll-run.spec.ts" time="0.083">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs/:id/release requires release_date" classname="13-payroll-run.spec.ts" time="0.057">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] POST /runs/:id/cancel" classname="13-payroll-run.spec.ts" time="0.06">
+</testcase>
+<testcase name="Payroll — Run Workflow › [Payroll-Run] GET /runs/:id/release-progress" classname="13-payroll-run.spec.ts" time="0.073">
+</testcase>
+</testsuite>
+<testsuite name="14-payroll-payslip.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="6" failures="0" skipped="0" time="0.713" errors="0">
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] GET /payslips/:user/:year/:month admin" classname="14-payroll-payslip.spec.ts" time="0.22">
+</testcase>
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] GET /payslips/:user/:year/:month/preview streams PDF" classname="14-payroll-payslip.spec.ts" time="0.127">
+</testcase>
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] POST /payslips/:user/:year/:month/retry-email" classname="14-payroll-payslip.spec.ts" time="0.1">
+</testcase>
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] GET /me/payslips returns list" classname="14-payroll-payslip.spec.ts" time="0.077">
+</testcase>
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] GET /me/payslips?year=2026" classname="14-payroll-payslip.spec.ts" time="0.092">
+</testcase>
+<testcase name="Payroll — Payslip PDF › [Payroll-PDF] GET /me/payslips/:year/:month/download" classname="14-payroll-payslip.spec.ts" time="0.097">
+</testcase>
+</testsuite>
+<testsuite name="15-payroll-bankfile.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="4" failures="0" skipped="0" time="0.514" errors="0">
+<testcase name="Payroll — Bank Transfer File › [Payroll-BankFile] GET preview requires RELEASED state" classname="15-payroll-bankfile.spec.ts" time="0.231">
+</testcase>
+<testcase name="Payroll — Bank Transfer File › [Payroll-BankFile] POST approve requires confirmation phrase" classname="15-payroll-bankfile.spec.ts" time="0.1">
+</testcase>
+<testcase name="Payroll — Bank Transfer File › [Payroll-BankFile] POST approve requires Super Admin permission" classname="15-payroll-bankfile.spec.ts" time="0.074">
+</testcase>
+<testcase name="Payroll — Bank Transfer File › [Payroll-BankFile] POST generate requires approved state" classname="15-payroll-bankfile.spec.ts" time="0.109">
+</testcase>
+</testsuite>
+<testsuite name="16-payroll-bankchange.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="9" failures="0" skipped="0" time="0.891" errors="0">
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] POST submit rejects without auth" classname="16-payroll-bankchange.spec.ts" time="0.21">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] POST rejects invalid IFSC" classname="16-payroll-bankchange.spec.ts" time="0.083">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] POST rejects non-digit account number" classname="16-payroll-bankchange.spec.ts" time="0.112">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] POST rejects account &lt; 9 digits" classname="16-payroll-bankchange.spec.ts" time="0.103">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] GET /bank-change/mine" classname="16-payroll-bankchange.spec.ts" time="0.075">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] GET /bank-change admin list" classname="16-payroll-bankchange.spec.ts" time="0.078">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] GET /bank-change?status=PENDING" classname="16-payroll-bankchange.spec.ts" time="0.069">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] approve unknown id → 404" classname="16-payroll-bankchange.spec.ts" time="0.094">
+</testcase>
+<testcase name="Payroll — Bank Change Workflow › [Payroll-BankChange] reject requires reason" classname="16-payroll-bankchange.spec.ts" time="0.067">
+</testcase>
+</testsuite>
+<testsuite name="17-payroll-investments.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="5" failures="0" skipped="0" time="0.636" errors="0">
+<testcase name="Payroll — Investment Proofs › [Payroll-Proofs] POST rejects bad FY format" classname="17-payroll-investments.spec.ts" time="0.24">
+</testcase>
+<testcase name="Payroll — Investment Proofs › [Payroll-Proofs] POST requires category" classname="17-payroll-investments.spec.ts" time="0.117">
+</testcase>
+<testcase name="Payroll — Investment Proofs › [Payroll-Proofs] GET /investment-proofs/mine" classname="17-payroll-investments.spec.ts" time="0.117">
+</testcase>
+<testcase name="Payroll — Investment Proofs › [Payroll-Proofs] GET /investment-proofs admin view" classname="17-payroll-investments.spec.ts" time="0.078">
+</testcase>
+<testcase name="Payroll — Investment Proofs › [Payroll-Proofs] DELETE unknown id → 404" classname="17-payroll-investments.spec.ts" time="0.084">
+</testcase>
+</testsuite>
+<testsuite name="18-payroll-reports.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="7" failures="0" skipped="0" time="0.75" errors="0">
+<testcase name="Payroll — Reports › [Payroll-Reports] salary-register JSON" classname="18-payroll-reports.spec.ts" time="0.212">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] salary-register CSV" classname="18-payroll-reports.spec.ts" time="0.092">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] department-cost JSON" classname="18-payroll-reports.spec.ts" time="0.085">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] payroll-summary monthly" classname="18-payroll-reports.spec.ts" time="0.105">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] payroll-summary yearly" classname="18-payroll-reports.spec.ts" time="0.081">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] compliance JSON" classname="18-payroll-reports.spec.ts" time="0.087">
+</testcase>
+<testcase name="Payroll — Reports › [Payroll-Reports] compliance CSV" classname="18-payroll-reports.spec.ts" time="0.088">
+</testcase>
+</testsuite>
+<testsuite name="19-payroll-rbac.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="8" failures="0" skipped="0" time="0.858" errors="0">
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth request to /payroll/runs → 401" classname="19-payroll-rbac.spec.ts" time="0.219">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth /payroll/master/components → 401" classname="19-payroll-rbac.spec.ts" time="0.118">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth /payroll/bank-change/mine → 401" classname="19-payroll-rbac.spec.ts" time="0.105">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth /payroll/investment-proofs/mine → 401" classname="19-payroll-rbac.spec.ts" time="0.092">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth /payroll/me/salary → 401" classname="19-payroll-rbac.spec.ts" time="0.085">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Unauth /payroll/reports/salary-register → 401" classname="19-payroll-rbac.spec.ts" time="0.077">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] ESIC toggle endpoint exists" classname="19-payroll-rbac.spec.ts" time="0.096">
+</testcase>
+<testcase name="Payroll — RBAC › [Payroll-RBAC] Bank file approve is super-admin gated" classname="19-payroll-rbac.spec.ts" time="0.066">
+</testcase>
+</testsuite>
+<testsuite name="20-payroll-me.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="9" failures="0" skipped="0" time="0.931" errors="0">
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/salary" classname="20-payroll-me.spec.ts" time="0.216">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/salary-preview" classname="20-payroll-me.spec.ts" time="0.1">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/payslips" classname="20-payroll-me.spec.ts" time="0.083">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/payslips?year=2026" classname="20-payroll-me.spec.ts" time="0.101">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/ytd" classname="20-payroll-me.spec.ts" time="0.094">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/ytd?fy=2025-2026" classname="20-payroll-me.spec.ts" time="0.075">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/ot-tracker rejects bad params" classname="20-payroll-me.spec.ts" time="0.084">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/ot-tracker with year+month" classname="20-payroll-me.spec.ts" time="0.096">
+</testcase>
+<testcase name="Payroll — Employee Portal › [Payroll-Me] GET /me/ot-tracker rejects month=13" classname="20-payroll-me.spec.ts" time="0.082">
+</testcase>
+</testsuite>
+<testsuite name="21-payroll-review.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="5" failures="0" skipped="0" time="0.414" errors="0">
+<testcase name="Payroll — Review Screen › [Payroll-Review] GET items returns paginated rows" classname="21-payroll-review.spec.ts" time="0.09">
+</testcase>
+<testcase name="Payroll — Review Screen › [Payroll-Review] Search query parameter accepted" classname="21-payroll-review.spec.ts" time="0.074">
+</testcase>
+<testcase name="Payroll — Review Screen › [Payroll-Review] PATCH items editable fields only" classname="21-payroll-review.spec.ts" time="0.083">
+</testcase>
+<testcase name="Payroll — Review Screen › [Payroll-Review] Gross edit NOT allowed via item edit" classname="21-payroll-review.spec.ts" time="0.084">
+</testcase>
+<testcase name="Payroll — Review Screen › [Payroll-Review] Negative numbers on editable fields" classname="21-payroll-review.spec.ts" time="0.083">
+</testcase>
+</testsuite>
+<testsuite name="22-payroll-mobile.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="7" failures="0" skipped="0" time="0.517" errors="0">
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /me/salary returns JSON content-type" classname="22-payroll-mobile.spec.ts" time="0.076">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /me/payslips returns JSON array" classname="22-payroll-mobile.spec.ts" time="0.086">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /me/ytd returns JSON array" classname="22-payroll-mobile.spec.ts" time="0.08">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /bank-change/mine returns JSON" classname="22-payroll-mobile.spec.ts" time="0.082">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /investment-proofs/mine returns JSON" classname="22-payroll-mobile.spec.ts" time="0.06">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /me/salary-preview has consistent shape" classname="22-payroll-mobile.spec.ts" time="0.06">
+</testcase>
+<testcase name="Payroll — Mobile (Flutter) › [Payroll-Mobile] /me/ot-tracker accepts year+month" classname="22-payroll-mobile.spec.ts" time="0.073">
+</testcase>
+</testsuite>
+<testsuite name="23-payroll-notifications.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="3" failures="0" skipped="0" time="0.234" errors="0">
+<testcase name="Payroll — Notifications › [Payroll-Notif] master_notification_templates endpoint reachable" classname="23-payroll-notifications.spec.ts" time="0.083">
+</testcase>
+<testcase name="Payroll — Notifications › [Payroll-Notif] payslip_released template present (if admin auth)" classname="23-payroll-notifications.spec.ts" time="0.086">
+</testcase>
+<testcase name="Payroll — Notifications › [Payroll-Notif] template channel in allowed enum" classname="23-payroll-notifications.spec.ts" time="0.065">
+</testcase>
+</testsuite>
+<testsuite name="24-payroll-engine-api.spec.ts" timestamp="2026-04-18T09:34:00.333Z" hostname="" tests="2" failures="0" skipped="0" time="0.177" errors="0">
+<testcase name="Payroll — Calculation Engine (via API) › [Payroll-Engine-API] /me/salary-preview output includes CTC fields" classname="24-payroll-engine-api.spec.ts" time="0.096">
+</testcase>
+<testcase name="Payroll — Calculation Engine (via API) › [Payroll-Engine-API] /me/salary includes computed_preview" classname="24-payroll-engine-api.spec.ts" time="0.081">
+</testcase>
+</testsuite>
+</testsuites>

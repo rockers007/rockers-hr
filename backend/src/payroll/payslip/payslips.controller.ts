@@ -21,7 +21,7 @@ import { PayrollItem } from '../entities/payroll-item.entity';
 import { User } from '../../users/entities/user.entity';
 import { NotFoundException } from '@nestjs/common';
 
-@Controller('api/v1/payroll/payslips')
+@Controller('payroll/payslips')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class PayslipsController {
   constructor(

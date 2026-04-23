@@ -14,7 +14,7 @@ import { RequirePayrollPermission } from '../rbac/require-payroll-permission.dec
 import { PAYROLL_PERMISSIONS } from '../rbac/payroll-permissions';
 import { BankFileService } from './bank-file.service';
 
-@Controller('api/v1/payroll/runs/:runId/bank-file')
+@Controller('payroll/runs/:runId/bank-file')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class BankFileController {
   constructor(private readonly svc: BankFileService) {}

@@ -1,0 +1,176 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { UserFamilyMember } from './entities/user-family-member.entity';
+import { UserDocument } from './entities/user-document.entity';
+import { MasterDocumentType } from '../master/entities/master-document-type.entity';
+
+export interface FamilyMemberDto {
+  name: string;
+  relation: string;
+  occupation?: string | null;
+  dob?: string | null;
+  contact_no?: string | null;
+}
+
+export interface DocumentRegisterDto {
+  document_type_id: string;
+  s3_key: string;
+  label?: string | null;
+  file_size_bytes?: number | null;
+  mime_type?: string | null;
+}
+
+/**
+ * Family members + document uploads for employees.
+ * Both tables are scoped per-user; the controllers decide whose data to touch
+ * (self vs admin-driven) and pass the target `userId` through.
+ */
+@Injectable()
+export class ProfileExtrasService {
+  constructor(
+    @InjectRepository(UserFamilyMember)
+    private readonly familyRepo: Repository<UserFamilyMember>,
+    @InjectRepository(UserDocument)
+    private readonly docRepo: Repository<UserDocument>,
+    @InjectRepository(MasterDocumentType)
+    private readonly docTypeRepo: Repository<MasterDocumentType>,
+  ) {}
+
+  // -------------------- family members --------------------
+
+  listFamily(userId: string): Promise<UserFamilyMember[]> {
+    return this.familyRepo.find({
+      where: { user_id: userId },
+      order: { created_at: 'ASC' },
+    });
+  }
+
+  async addFamily(
+    userId: string,
+    dto: FamilyMemberDto,
+  ): Promise<UserFamilyMember> {
+    this.assertFamilyDto(dto);
+    const row = this.familyRepo.create({
+      user_id: userId,
+      name: dto.name.trim(),
+      relation: dto.relation.trim(),
+      occupation: dto.occupation?.trim() || null,
+      dob: dto.dob || null,
+      contact_no: dto.contact_no?.trim() || null,
+    });
+    return this.familyRepo.save(row);
+  }
+
+  async updateFamily(
+    userId: string,
+    id: string,
+    dto: FamilyMemberDto,
+  ): Promise<UserFamilyMember> {
+    this.assertFamilyDto(dto);
+    const row = await this.familyRepo.findOne({
+      where: { id, user_id: userId },
+    });
+    if (!row) throw new NotFoundException('Family member not found');
+    row.name = dto.name.trim();
+    row.relation = dto.relation.trim();
+    row.occupation = dto.occupation?.trim() || null;
+    row.dob = dto.dob || null;
+    row.contact_no = dto.contact_no?.trim() || null;
+    return this.familyRepo.save(row);
+  }
+
+  async deleteFamily(userId: string, id: string): Promise<void> {
+    const res = await this.familyRepo.delete({ id, user_id: userId });
+    if (!res.affected) throw new NotFoundException('Family member not found');
+  }
+
+  // -------------------- documents --------------------
+
+  listDocuments(
+    userId: string,
+  ): Promise<Array<UserDocument & { document_type_label?: string }>> {
+    return this.docRepo
+      .createQueryBuilder('d')
+      .leftJoin(MasterDocumentType, 'dt', 'dt.id = d.document_type_id')
+      .addSelect('dt.label', 'document_type_label')
+      .where('d.user_id = :uid', { uid: userId })
+      .andWhere('d.deleted_at IS NULL')
+      .orderBy('d.uploaded_at', 'DESC')
+      .getRawAndEntities()
+      .then(({ entities, raw }) =>
+        entities.map((e, i) => ({
+          ...e,
+          document_type_label: raw[i]?.document_type_label ?? null,
+        })),
+      );
+  }
+
+  async registerDocument(
+    userId: string,
+    dto: DocumentRegisterDto,
+  ): Promise<UserDocument> {
+    if (!dto.document_type_id || !dto.s3_key) {
+      throw new BadRequestException('document_type_id and s3_key are required');
+    }
+    const type = await this.docTypeRepo.findOne({
+      where: { id: dto.document_type_id, is_active: true },
+    });
+    if (!type) throw new BadRequestException('Invalid document_type_id');
+    const row = this.docRepo.create({
+      user_id: userId,
+      document_type_id: dto.document_type_id,
+      s3_key: dto.s3_key,
+      label: dto.label?.trim() || null,
+      file_size_bytes: dto.file_size_bytes ?? null,
+      mime_type: dto.mime_type ?? null,
+    });
+    return this.docRepo.save(row);
+  }
+
+  async deleteDocument(userId: string, id: string): Promise<void> {
+    const row = await this.docRepo.findOne({
+      where: { id, user_id: userId, deleted_at: IsNull() },
+    });
+    if (!row) throw new NotFoundException('Document not found');
+    row.deleted_at = new Date();
+    await this.docRepo.save(row);
+  }
+
+  // -------------------- helpers --------------------
+
+  private assertFamilyDto(dto: FamilyMemberDto): void {
+    if (!dto.name?.trim()) {
+      throw new BadRequestException('Name is required.');
+    }
+    if (!dto.relation?.trim()) {
+      throw new BadRequestException('Relation is required.');
+    }
+    if (
+      dto.contact_no &&
+      !/^\+?\d[\d\s-]{7,19}\d$/.test(dto.contact_no.trim())
+    ) {
+      throw new BadRequestException(
+        'Contact number looks invalid (expected 9–20 digits, optional + prefix).',
+      );
+    }
+    if (dto.dob) {
+      const chosen = new Date(
+        dto.dob.length === 10 ? dto.dob + 'T00:00:00Z' : dto.dob,
+      );
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (Number.isNaN(chosen.getTime())) {
+        throw new BadRequestException('Family member DOB is not a valid date.');
+      }
+      if (chosen.getTime() >= today.getTime()) {
+        throw new BadRequestException('Family member DOB must be in the past.');
+      }
+    }
+  }
+}

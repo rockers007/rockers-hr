@@ -13,8 +13,19 @@ export class UpdateProfileDto {
   phone?: string;
 
   @IsOptional()
+  @IsString()
+  dob?: string;
+
+  @IsOptional()
   @IsUUID()
-  department_id?: string;
+  gender_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  qualification_id?: string;
+
+  // department_id intentionally excluded — admin-only field.
+  // emp_number, join_date, gmail — also admin-only.
 
   @IsOptional()
   @IsString()
@@ -27,4 +38,42 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   resume_s3_key?: string;
+
+  // --- Extended profile ---
+  @IsOptional()
+  @IsUUID()
+  marital_status_id?: string;
+
+  @IsOptional()
+  @IsString()
+  current_address?: string;
+
+  @IsOptional()
+  @IsString()
+  permanent_address?: string;
+
+  @IsOptional()
+  @IsString()
+  emergency_phone?: string;
+
+  @IsOptional()
+  @IsString()
+  pf_uan_no?: string;
+
+  @IsOptional()
+  @IsString()
+  esic_no?: string;
+
+  // --- Bank ---
+  @IsOptional()
+  @IsString()
+  bank_name?: string;
+
+  @IsOptional()
+  @IsString()
+  bank_account_no?: string;
+
+  @IsOptional()
+  @IsString()
+  bank_ifsc?: string;
 }

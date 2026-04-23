@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useMasterData } from '@/lib/master-data';
+import { maxDobDate, validateDob } from '@/lib/utils';
 
 interface EmployeeData {
   id: string;
@@ -26,6 +27,24 @@ interface EmployeeData {
   resignation_date: string | null;
   last_working_day: string | null;
   employment_status: string;
+  // Payroll fields
+  emp_number: string | null;
+  designation: string | null;
+  gross: string;
+  incentive: string;
+  pf_applicable: boolean;
+  dob: string | null;
+  // Bank
+  bank_name: string | null;
+  bank_account_no: string | null;
+  bank_ifsc: string | null;
+  // Extended profile
+  marital_status_id: string | null;
+  current_address: string | null;
+  permanent_address: string | null;
+  emergency_phone: string | null;
+  pf_uan_no: string | null;
+  esic_no: string | null;
 }
 
 interface ManagerOption {
@@ -59,6 +78,35 @@ export default function EditEmployeePage() {
   const [lastWorkingDay, setLastWorkingDay] = useState('');
   const [employmentStatus, setEmploymentStatus] = useState('active');
 
+  // Payroll form state
+  const [empNumber, setEmpNumber] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [gross, setGross] = useState('');
+  const [incentive, setIncentive] = useState('');
+  const [pfApplicable, setPfApplicable] = useState(true);
+  const [dob, setDob] = useState('');
+
+  // Bank state
+  const [bankName, setBankName] = useState('');
+  const [bankAccountNo, setBankAccountNo] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
+
+  // Extended profile state
+  const [maritalStatusId, setMaritalStatusId] = useState('');
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [permanentAddress, setPermanentAddress] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [pfUanNo, setPfUanNo] = useState('');
+  const [esicNo, setEsicNo] = useState('');
+  const [maritalStatuses, setMaritalStatuses] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
+  const [statutory, setStatutory] = useState<{
+    pf_cap_amount: string;
+    pf_fixed_at_cap: string;
+    pf_rate_below_cap: string;
+  } | null>(null);
+
   useEffect(() => {
     async function load() {
       try {
@@ -80,7 +128,39 @@ export default function EditEmployeePage() {
         setResignationDate(emp.resignation_date ? emp.resignation_date.split('T')[0] : '');
         setLastWorkingDay(emp.last_working_day ? emp.last_working_day.split('T')[0] : '');
         setEmploymentStatus(emp.employment_status || 'active');
+        setEmpNumber(emp.emp_number ?? '');
+        setDesignation(emp.designation ?? '');
+        setGross(emp.gross ?? '');
+        setIncentive(emp.incentive ?? '');
+        setPfApplicable(emp.pf_applicable ?? true);
+        setDob(emp.dob ? emp.dob.split('T')[0] : '');
+        setBankName(emp.bank_name ?? '');
+        setBankAccountNo(emp.bank_account_no ?? '');
+        setBankIfsc(emp.bank_ifsc ?? '');
+        // Extended profile fields
+        setMaritalStatusId(emp.marital_status_id ?? '');
+        setCurrentAddress(emp.current_address ?? '');
+        setPermanentAddress(emp.permanent_address ?? '');
+        setEmergencyPhone(emp.emergency_phone ?? '');
+        setPfUanNo(emp.pf_uan_no ?? '');
+        setEsicNo(emp.esic_no ?? '');
         setManagers(Array.isArray(mgrs) ? mgrs : []);
+
+        // Fetch marital statuses for the dropdown (ignore failures — the field
+        // simply becomes empty if the master table endpoint is unreachable)
+        api
+          .get<Array<{ id: string; label: string }>>('/master/marital_statuses')
+          .then((list) => setMaritalStatuses(Array.isArray(list) ? list : []))
+          .catch(() => setMaritalStatuses([]));
+
+        // Fetch statutory config for live CTC preview (ignore failures — the
+        // preview silently hides if the endpoint isn't reachable)
+        api
+          .get<{ pf_cap_amount: string; pf_fixed_at_cap: string; pf_rate_below_cap: string }>(
+            '/payroll/master/statutory',
+          )
+          .then((s) => setStatutory(s))
+          .catch(() => setStatutory(null));
       } catch {
         setError('Failed to load employee data.');
       } finally {
@@ -91,6 +171,12 @@ export default function EditEmployeePage() {
   }, [id]);
 
   const handleSave = async () => {
+    const dobErr = validateDob(dob);
+    if (dobErr) {
+      setError(dobErr);
+      toast(dobErr, 'error');
+      return;
+    }
     try {
       setSaving(true);
       setError('');
@@ -108,6 +194,24 @@ export default function EditEmployeePage() {
         resignation_date: resignationDate || null,
         last_working_day: lastWorkingDay || null,
         employment_status: employmentStatus,
+        // Payroll fields
+        emp_number: empNumber.trim() || null,
+        designation: designation.trim() || null,
+        gross: gross === '' ? 0 : Number(gross),
+        incentive: incentive === '' ? 0 : Number(incentive),
+        pf_applicable: pfApplicable,
+        dob: dob || null,
+        // Bank details
+        bank_name: bankName.trim() || null,
+        bank_account_no: bankAccountNo.trim() || null,
+        bank_ifsc: bankIfsc.trim().toUpperCase() || null,
+        // Extended profile
+        marital_status_id: maritalStatusId || null,
+        current_address: currentAddress.trim() || null,
+        permanent_address: permanentAddress.trim() || null,
+        emergency_phone: emergencyPhone.trim() || null,
+        pf_uan_no: pfUanNo.trim() || null,
+        esic_no: esicNo.trim() || null,
       };
 
       await api.patch(`/admin/users/${id}`, updates);
@@ -271,6 +375,277 @@ export default function EditEmployeePage() {
             </label>
           </div>
 
+          {/* Payroll Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Payroll
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Required fields for payroll processing; employees without Gross will be skipped in runs.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              {/* Emp Number */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Employee Number{' '}
+                  <span className="text-xs font-normal text-text-secondary">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. RT-DEV-153"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={empNumber}
+                  onChange={(e) => setEmpNumber(e.target.value)}
+                />
+              </div>
+
+              {/* Designation */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Designation
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Full Stack Developer"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                />
+              </div>
+
+              {/* DOB */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Date of Birth{' '}
+                  <span className="text-xs font-normal text-text-secondary">(payslip PDF password = DDMM)</span>
+                </label>
+                <input
+                  type="date"
+                  max={maxDobDate()}
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                />
+              </div>
+
+              {/* Gross Salary */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Gross Salary (Monthly, ₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={gross}
+                  onChange={(e) => setGross(e.target.value)}
+                />
+              </div>
+
+              {/* Incentive */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Incentive / Fix Variable (Monthly, ₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={incentive}
+                  onChange={(e) => setIncentive(e.target.value)}
+                />
+              </div>
+
+              {/* PF Applicable */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  PF Applicable
+                </label>
+                <label className="mt-2 inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    checked={pfApplicable}
+                    onChange={(e) => setPfApplicable(e.target.checked)}
+                  />
+                  <span className="text-sm text-text-primary">
+                    Deduct Employee PF + include Employer PF in CTC
+                  </span>
+                </label>
+              </div>
+
+              {/* Monthly CTC preview */}
+              <div className="sm:col-span-3 rounded-lg bg-[#f0f9ff] px-4 py-3 border border-[#bae6fd]">
+                <CtcPreview
+                  userId={id}
+                  gross={gross}
+                  incentive={incentive}
+                  pfApplicable={pfApplicable}
+                  statutory={statutory}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bank Details Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Bank Details
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Used by the payroll bank transfer file. Employees can also submit change requests via self-service — once approved, these fields update automatically.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. HDFC Bank"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Account Number{' '}
+                  <span className="text-xs font-normal text-text-secondary">(9–18 digits)</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{9,18}"
+                  placeholder="e.g. 12830100028299"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankAccountNo}
+                  onChange={(e) => setBankAccountNo(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  IFSC Code{' '}
+                  <span className="text-xs font-normal text-text-secondary">(ABCD0123456)</span>
+                </label>
+                <input
+                  type="text"
+                  pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+                  placeholder="e.g. HDFC0001234"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono uppercase text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={bankIfsc}
+                  onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Personal / Extended Profile Section */}
+          <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">
+              Personal Details
+              <span className="ml-2 text-xs font-normal text-text-secondary">
+                · Employees can also edit these fields from their own profile page.
+              </span>
+            </h3>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              {/* Marital Status */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Marital Status
+                </label>
+                <select
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={maritalStatusId}
+                  onChange={(e) => setMaritalStatusId(e.target.value)}
+                >
+                  <option value="">Select marital status</option>
+                  {maritalStatuses.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Emergency Phone */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Emergency Contact Phone
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. +91 98765 43210"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={emergencyPhone}
+                  onChange={(e) => setEmergencyPhone(e.target.value)}
+                />
+              </div>
+
+              {/* PF UAN No */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  PF UAN Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="12-digit UAN"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={pfUanNo}
+                  onChange={(e) => setPfUanNo(e.target.value)}
+                />
+              </div>
+
+              {/* ESIC No */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  ESIC Insurance Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="ESIC IP number"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm font-mono text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={esicNo}
+                  onChange={(e) => setEsicNo(e.target.value)}
+                />
+              </div>
+
+              {/* Current Address */}
+              <div className="sm:col-span-3">
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Current Address
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="House / flat, street, area, city, state, pincode"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={currentAddress}
+                  onChange={(e) => setCurrentAddress(e.target.value)}
+                />
+              </div>
+
+              {/* Permanent Address */}
+              <div className="sm:col-span-3">
+                <label className="mb-1 block text-sm font-medium text-text-primary">
+                  Permanent Address
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="House / flat, street, area, city, state, pincode"
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={permanentAddress}
+                  onChange={(e) => setPermanentAddress(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Separation / Resignation Section */}
           <div className="sm:col-span-2 border-t border-border pt-5 mt-2">
             <h3 className="text-sm font-semibold text-text-primary mb-4">Separation Details</h3>
@@ -330,6 +705,83 @@ export default function EditEmployeePage() {
           </Link>
         </div>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Live-computed Monthly CTC display. CTC = Gross + Employer PF + Incentive
+ * (PAYROLL_CALCULATION_ENGINE.md §4.7 / D5). Employer PF uses the conditional
+ * rule from D4: basic >= 15,000 → 1,800 else round(basic * 0.12). Basic is
+ * assumed 50% of Gross (the BASIC component default in payroll_salary_components).
+ */
+function CtcPreview({
+  userId,
+  gross,
+  incentive,
+  pfApplicable,
+  statutory,
+}: {
+  userId: string;
+  gross: string;
+  incentive: string;
+  pfApplicable: boolean;
+  statutory: {
+    pf_cap_amount: string;
+    pf_fixed_at_cap: string;
+    pf_rate_below_cap: string;
+  } | null;
+}) {
+  const grossN = Number(gross) || 0;
+  const incentiveN = Number(incentive) || 0;
+
+  const cap = Number(statutory?.pf_cap_amount) || 15000;
+  const fixedCap = Number(statutory?.pf_fixed_at_cap) || 1800;
+  const rate = Number(statutory?.pf_rate_below_cap) || 0.12;
+
+  const basic = grossN * 0.5;
+  const employerPf =
+    !pfApplicable || grossN === 0
+      ? 0
+      : basic >= cap
+      ? fixedCap
+      : Math.round(basic * rate);
+
+  const monthlyCtc = grossN + employerPf + incentiveN;
+  const annualCtc = monthlyCtc * 12;
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(n);
+
+  return (
+    <div className="text-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold text-text-primary">Monthly CTC</span>
+        <span className="font-semibold text-text-primary">{fmt(monthlyCtc)}</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs text-text-secondary">
+        <span>Annual CTC (×12)</span>
+        <span>{fmt(annualCtc)}</span>
+      </div>
+      <div className="mt-2 text-xs text-text-secondary">
+        = Gross {fmt(grossN)} + Employer PF {fmt(employerPf)} + Incentive {fmt(incentiveN)}
+        {!pfApplicable && <span className="ml-2 italic">(PF exempt)</span>}
+      </div>
+      <p className="mt-2 text-xs text-text-secondary">
+        CTC is computed from Gross + statutory employer PF + Incentive. For
+        detailed per-component setup (TDS, loan, salary deduction), open the{' '}
+        <Link
+          href={`/admin/payroll/employees/${userId}/salary`}
+          className="underline text-accent"
+        >
+          full salary configuration page
+        </Link>
+        .
+      </p>
     </div>
   );
 }

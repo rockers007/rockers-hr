@@ -87,13 +87,29 @@ export class RunsService {
       });
     }
 
-    const activeEmployees = await this.userRepo.count({
-      where: { is_active: true },
-    });
-    if (activeEmployees === 0) {
+    // Only employees with gross > 0 are processable by the engine; others are
+    // skipped at import. Count eligibles here so the create response + audit
+    // show the meaningful number (total_employees on payroll_runs is finalised
+    // at import time when the snapshot rows are actually written).
+    const [activeCount, eligibleCount] = await Promise.all([
+      this.userRepo.count({ where: { is_active: true } }),
+      this.userRepo
+        .createQueryBuilder('u')
+        .where('u.is_active = TRUE')
+        .andWhere('u.gross > 0')
+        .getCount(),
+    ]);
+    if (activeCount === 0) {
       throw new UnprocessableEntityException({
         code: 'PR_NO_ACTIVE_EMPLOYEES',
         message: 'No active employees to snapshot',
+      });
+    }
+    if (eligibleCount === 0) {
+      throw new UnprocessableEntityException({
+        code: 'PR_NO_ELIGIBLE_EMPLOYEES',
+        message:
+          'No employees have a Gross Salary configured. Set Gross on at least one employee before starting a payroll run.',
       });
     }
 
@@ -101,7 +117,7 @@ export class RunsService {
       month,
       year,
       state: 'DRAFT' as PayrollRunState,
-      total_employees: activeEmployees,
+      total_employees: eligibleCount,
       created_by: actorId,
       payroll_cycle_days: 30,
     });
@@ -112,7 +128,12 @@ export class RunsService {
       action: 'payroll.run.created',
       entityType: 'payroll_runs',
       entityId: saved.id,
-      after: { month, year, employee_count: activeEmployees },
+      after: {
+        month,
+        year,
+        eligible_count: eligibleCount,
+        skipped_no_gross: activeCount - eligibleCount,
+      },
     });
 
     return saved;
@@ -180,10 +201,14 @@ export class RunsService {
 
       // Iterate over active employees. Do one INSERT per employee so leave
       // aggregates stay readable; count is modest (<500 for a typical org).
+      // Only employees with gross > 0 are snapshotted. Others are implicitly
+      // skipped — the run's total_employees reflects the eligible count only.
+      // Admins fix missing salaries from /admin/employees/:id/edit then retry.
       const employees = await m.query(
         `SELECT id, gross, incentive, tds, loan_emi, sal_deduction,
                 security_return, pf_applicable
-         FROM users WHERE is_active = TRUE`,
+         FROM users
+         WHERE is_active = TRUE AND gross > 0`,
       );
 
       const leaveAggQuery = `
@@ -820,35 +845,41 @@ export class RunsService {
     const page = filters.page ?? 1;
     const pageSize = Math.min(filters.pageSize ?? 50, 200);
 
-    const qb = this.itemRepo
-      .createQueryBuilder('pi')
-      .leftJoin(User, 'u', 'u.id = pi.user_id')
-      .addSelect([
-        'u.name AS user_name',
-        'u.emp_number AS emp_number',
-        'u.designation AS designation',
-      ])
-      .where('pi.run_id = :rid', { rid: runId })
-      .andWhere('pi.is_current = TRUE')
-      .orderBy('u.name', 'ASC')
-      .take(pageSize)
-      .skip((page - 1) * pageSize);
+    const searchFilter = filters.search
+      ? `AND (u.name ILIKE $${2} OR u.emp_number ILIKE $${2})`
+      : '';
+    const params: unknown[] = [runId];
+    if (filters.search) params.push(`%${filters.search}%`);
 
-    if (filters.search) {
-      qb.andWhere('(u.name ILIKE :q OR u.emp_number ILIKE :q)', {
-        q: `%${filters.search}%`,
-      });
-    }
+    // Avoid TypeORM's DISTINCT-wrapped pagination by using a raw query.
+    // SELECTs payroll_items fields + denormalized user display fields.
+    const rows = await this.dataSource.query(
+      `SELECT pi.*,
+              u.name      AS user_name,
+              u.emp_number AS emp_number,
+              u.designation AS designation
+         FROM payroll_items pi
+         LEFT JOIN users u ON u.id = pi.user_id
+         WHERE pi.run_id = $1
+           AND pi.is_current = TRUE
+           ${searchFilter}
+         ORDER BY u.name ASC NULLS LAST
+         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`,
+      params,
+    );
 
-    const raw = await qb.getRawAndEntities();
-    const items = raw.entities.map((e, i) => ({
-      ...e,
-      user_name: raw.raw[i].user_name,
-      emp_number: raw.raw[i].emp_number,
-      designation: raw.raw[i].designation,
-    }));
-    const total = await qb.getCount();
-    return { items, total, page, pageSize };
+    const totalRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS count
+         FROM payroll_items pi
+         LEFT JOIN users u ON u.id = pi.user_id
+         WHERE pi.run_id = $1
+           AND pi.is_current = TRUE
+           ${searchFilter}`,
+      params,
+    );
+    const total = totalRows[0]?.count ?? 0;
+
+    return { items: rows, total, page, pageSize };
   }
 
   // ==========================================================================

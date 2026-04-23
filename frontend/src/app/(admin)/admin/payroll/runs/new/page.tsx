@@ -77,7 +77,9 @@ export default function NewRunPage() {
 
         <div className="flex items-center justify-between pt-2">
           <p className="text-xs text-text-secondary">
-            Creates a DRAFT run. Active employees will be snapshotted on import.
+            Creates a DRAFT run. Only active employees with a configured Gross
+            Salary are included. Employees without Gross are skipped — set it
+            via Edit Employee → Payroll.
           </p>
           <Button onClick={submit} disabled={submitting}>
             {submitting ? 'Creating…' : 'Create Run'}

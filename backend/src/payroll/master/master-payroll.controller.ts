@@ -23,7 +23,7 @@ import { PayrollDeductionType } from '../entities/payroll-deduction-type.entity'
 import { CompanyProfile } from '../entities/company-profile.entity';
 import { PayrollBankFileFormat } from '../entities/payroll-bank-file-format.entity';
 
-@Controller('api/v1/payroll/master')
+@Controller('payroll/master')
 @UseGuards(JwtAuthGuard, PayrollPermissionGuard)
 export class MasterPayrollController {
   constructor(
@@ -146,6 +146,16 @@ export class MasterPayrollController {
     const rows = await this.companyRepo.find();
     const row = rows[0];
     if (!row) {
+      if (!body.company_name?.trim()) {
+        return {
+          success: false,
+          error: {
+            code: 'COMPANY_NAME_REQUIRED',
+            message:
+              'company_name is required when creating the first company profile row.',
+          },
+        };
+      }
       const created = await this.companyRepo.save(
         this.companyRepo.create(body as CompanyProfile),
       );

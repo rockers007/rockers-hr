@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -27,7 +28,22 @@ export class UsersService {
     private readonly leaveTypeRepo: Repository<MasterLeaveType>,
     @InjectRepository(MasterSlaConfig)
     private readonly slaConfigRepo: Repository<MasterSlaConfig>,
+    private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Convert an S3 key stored on the user row into a CloudFront URL that the
+   * browser can render directly. Returns null when either the key or the
+   * CloudFront base URL is missing — the frontend falls back to initials.
+   */
+  private buildPhotoUrl(s3Key: string | null | undefined): string | null {
+    if (!s3Key) return null;
+    const base = this.configService.get<string>('AWS_CLOUDFRONT_URL', '');
+    if (!base) return null;
+    const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const trimmedKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
+    return `${trimmedBase}/${trimmedKey}`;
+  }
 
   async register(
     gmail: string,
@@ -115,6 +131,7 @@ export class UsersService {
         ? { id: user.qualification.id, label: user.qualification.label }
         : null,
       photo_s3_key: user.photo_s3_key,
+      photo_url: this.buildPhotoUrl(user.photo_s3_key),
       resume_s3_key: user.resume_s3_key,
       manager: user.manager
         ? { id: user.manager.id, name: user.manager.name }
@@ -127,13 +144,97 @@ export class UsersService {
       resignation_date: user.resignation_date,
       last_working_day: user.last_working_day,
       employment_status: user.employment_status || 'active',
+      // Payroll fields (editable on /admin/employees/[id]/edit)
+      emp_number: user.emp_number ?? null,
+      designation: user.designation ?? null,
+      gross: user.gross ?? '0',
+      incentive: user.incentive ?? '0',
+      pf_applicable: user.pf_applicable ?? true,
+      dob: user.dob ?? null,
+      // Bank details (editable by admin on same page)
+      bank_name: user.bank_name ?? null,
+      bank_account_no: user.bank_account_no ?? null,
+      bank_ifsc: user.bank_ifsc ?? null,
+      // Extended profile
+      marital_status_id: user.marital_status_id ?? null,
+      current_address: user.current_address ?? null,
+      permanent_address: user.permanent_address ?? null,
+      emergency_phone: user.emergency_phone ?? null,
+      pf_uan_no: user.pf_uan_no ?? null,
+      esic_no: user.esic_no ?? null,
     };
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<User> {
+  /**
+   * Fields an employee may edit about themselves via PATCH /users/me.
+   * NOT editable by the employee: gmail, emp_number, role_type_id, manager_id,
+   * is_active, is_manager, employment_status, and anything payroll-related
+   * (gross / incentive / pf_applicable etc.). Admin can still edit those via
+   * PATCH /admin/users/:id.
+   */
+  // Fields the employee can PATCH on themselves via /users/me.
+  // Explicitly excluded (admin-only): gmail, emp_number, join_date,
+  // confirmation_date, department_id, manager_id, is_manager,
+  // role_type_id, employment_status, resignation_date, last_working_day,
+  // gross/incentive/tds/loan_emi/sal_deduction/security_return/pf_applicable.
+  private readonly SELF_ALLOWED_FIELDS: Array<keyof User> = [
+    'name',
+    'phone',
+    'dob',
+    'gender_id',
+    'qualification_id',
+    'photo_s3_key',
+    'resume_s3_key',
+    'extra_info',
+    // Extended profile
+    'marital_status_id',
+    'current_address',
+    'permanent_address',
+    'emergency_phone',
+    'pf_uan_no',
+    'esic_no',
+    // Bank — self-serve write allowed (employee can also use the bank-change
+    // workflow, but the profile page accepts direct edits for onboarding use).
+    'bank_name',
+    'bank_account_no',
+    'bank_ifsc',
+  ];
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    // DOB must be strictly past (no today, no future)
+    if (dto.dob) {
+      this.assertPastDate(dto.dob, 'Date of birth');
+    }
     const user = await this.findById(userId);
-    Object.assign(user, dto);
-    return this.userRepo.save(user);
+    const incoming = dto as unknown as Record<string, unknown>;
+    for (const key of this.SELF_ALLOWED_FIELDS) {
+      if (incoming[key] !== undefined) {
+        // Normalize empty strings to null for nullable text columns
+        (user as unknown as Record<string, unknown>)[key] =
+          incoming[key] === '' ? null : incoming[key];
+      }
+    }
+    await this.userRepo.save(user);
+    // Return the same shape as getProfile so the frontend has photo_url +
+    // expanded relations without a second round-trip.
+    return this.getProfile(userId);
+  }
+
+  /**
+   * Throw BadRequestException if `value` (yyyy-MM-dd or ISO) is today or in
+   * the future. Used for date-of-birth fields that must lie strictly in the
+   * past.
+   */
+  assertPastDate(value: string, label = 'Date'): void {
+    const chosen = new Date(value.length === 10 ? value + 'T00:00:00Z' : value);
+    if (Number.isNaN(chosen.getTime())) {
+      throw new BadRequestException(`${label} is not a valid date.`);
+    }
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (chosen.getTime() >= today.getTime()) {
+      throw new BadRequestException(`${label} must be in the past.`);
+    }
   }
 
   async updateFcmToken(userId: string, fcmToken: string): Promise<void> {
@@ -247,8 +348,15 @@ export class UsersService {
 
     const [data, total] = await qb.getManyAndCount();
 
+    // Attach a resolved CloudFront URL so the admin list can render the
+    // employee's photo without each client knowing the CDN host.
+    const decorated = data.map((u) => ({
+      ...u,
+      photo_url: this.buildPhotoUrl(u.photo_s3_key),
+    }));
+
     return {
-      data,
+      data: decorated,
       meta: {
         total,
         page,

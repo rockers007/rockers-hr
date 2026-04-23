@@ -157,7 +157,14 @@ export class BankFileService {
   async generate(
     runId: string,
     actorId: string,
-  ): Promise<{ signed_url?: string; file_id: string; size: number }> {
+  ): Promise<{
+    signed_url?: string;
+    file_id: string;
+    size: number;
+    filename: string;
+    content: string;
+    mime_type: string;
+  }> {
     const run = await this.mustRun(runId);
     if (run.state !== 'BANK_FILE_APPROVED' && run.state !== 'BANK_FILE_GENERATED') {
       throw new ConflictException({
@@ -169,9 +176,19 @@ export class BankFileService {
     const latest = await this.fileRepo.findOne({
       where: { run_id: runId, is_latest: true },
     });
-    const format = await this.formatRepo.findOne({
-      where: { is_active: true },
-    });
+    // Prefer the format used by the most recent generation for this run; else
+    // pick the first active format by code (deterministic). Phase 2: persist
+    // the approved format code on payroll_runs so approve→generate are linked
+    // in multi-format setups (v2.3 audit item #3).
+    const format = latest?.file_format
+      ? await this.formatRepo.findOne({
+          where: { code: latest.file_format, is_active: true },
+        })
+      : await this.formatRepo
+          .createQueryBuilder('f')
+          .where('f.is_active = TRUE')
+          .orderBy('f.code', 'ASC')
+          .getOne();
     if (!format) {
       throw new NotFoundException('No active bank file format');
     }
@@ -222,6 +239,8 @@ export class BankFileService {
       await this.runRepo.save(run);
     }
 
+    const filename = `bank_transfer_${run.year}_${String(run.month).padStart(2, '0')}.${format.file_extension}`;
+
     await this.audit.log({
       actorId,
       action: 'payroll.bank_file.downloaded',
@@ -230,7 +249,14 @@ export class BankFileService {
       after: { size: body.length, regenerated: !!latest },
     });
 
-    return { signed_url: signedUrl, file_id: saved.id, size: body.length };
+    return {
+      signed_url: signedUrl,
+      file_id: saved.id,
+      size: body.length,
+      filename,
+      content: body,
+      mime_type: 'text/plain',
+    };
   }
 
   private renderFile(

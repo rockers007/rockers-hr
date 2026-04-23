@@ -295,57 +295,184 @@ export default function RunDetailPage() {
           </Card>
 
           <Card>
+            <div className="px-4 pt-4 pb-2 text-xs text-text-secondary">
+              Scroll horizontally to see every column. Incentive, TDS, Loan,
+              Sal Deduction and Security Return are editable — click a value
+              to edit.
+              <span className="ml-2">
+                <strong>Net Payable = Total Earnings − Total Deductions</strong>
+              </span>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
+              <table className="w-full text-xs whitespace-nowrap">
+                <thead className="bg-gray-50 text-left font-semibold uppercase tracking-wider text-text-secondary">
+                  {/* Group header row */}
+                  <tr className="border-b border-border">
+                    <th className="px-3 py-2 text-left" colSpan={2}>
+                      Identity
+                    </th>
+                    <th className="px-3 py-2 text-right bg-blue-50" colSpan={2}>
+                      Salary
+                    </th>
+                    <th className="px-3 py-2 text-right bg-emerald-50" colSpan={7}>
+                      Earning Components (Payable)
+                    </th>
+                    <th className="px-3 py-2 text-right bg-teal-50" colSpan={3}>
+                      Additions
+                    </th>
+                    <th className="px-3 py-2 text-right bg-rose-50" colSpan={6}>
+                      Deductions
+                    </th>
+                    <th className="px-3 py-2 text-right bg-indigo-50" colSpan={5}>
+                      Totals
+                    </th>
+                  </tr>
                   <tr>
-                    <th className="px-4 py-3">Emp No</th>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3 text-right">Gross</th>
-                    <th className="px-4 py-3 text-right">SFC</th>
-                    <th className="px-4 py-3 text-right">Incentive</th>
-                    <th className="px-4 py-3 text-right">OT Pay</th>
-                    <th className="px-4 py-3 text-right">PF (Emp)</th>
-                    <th className="px-4 py-3 text-right">TDS</th>
-                    <th className="px-4 py-3 text-right">Loan</th>
-                    <th className="px-4 py-3 text-right">Net Payable</th>
+                    <th className="px-3 py-2">Emp No</th>
+                    <th className="px-3 py-2">Name</th>
+                    {/* Salary */}
+                    <th className="px-3 py-2 text-right">Gross</th>
+                    <th className="px-3 py-2 text-right">SFC</th>
+                    {/* 7 components */}
+                    <th className="px-3 py-2 text-right">Basic</th>
+                    <th className="px-3 py-2 text-right">HRA</th>
+                    <th className="px-3 py-2 text-right">SP</th>
+                    <th className="px-3 py-2 text-right">Conv</th>
+                    <th className="px-3 py-2 text-right">LTC</th>
+                    <th className="px-3 py-2 text-right">Med</th>
+                    <th className="px-3 py-2 text-right">Edu</th>
+                    {/* Additions */}
+                    <th className="px-3 py-2 text-right">Incentive</th>
+                    <th className="px-3 py-2 text-right">OT Pay</th>
+                    <th className="px-3 py-2 text-right">Security</th>
+                    {/* Deductions */}
+                    <th className="px-3 py-2 text-right">PF (Emp)</th>
+                    <th className="px-3 py-2 text-right">ESIC</th>
+                    <th className="px-3 py-2 text-right">P.Tax</th>
+                    <th className="px-3 py-2 text-right">TDS</th>
+                    <th className="px-3 py-2 text-right">Loan</th>
+                    <th className="px-3 py-2 text-right">Sal Ded</th>
+                    {/* Totals */}
+                    <th className="px-3 py-2 text-right">Total Earn (A)</th>
+                    <th className="px-3 py-2 text-right">Total Ded (B)</th>
+                    <th className="px-3 py-2 text-right">Net (A−B)</th>
+                    <th className="px-3 py-2 text-right">CTC</th>
+                    <th className="px-3 py-2 text-right">CTC/IT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {items.map((it) => (
-                    <tr key={it.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2">{it.emp_number ?? '—'}</td>
-                      <td className="px-4 py-2">{it.user_name ?? '—'}</td>
-                      <td className="px-4 py-2 text-right">{formatINR(Number(it.basic_actual) * 2)}</td>
-                      <td className="px-4 py-2 text-right">{formatINR(it.sal_for_calc)}</td>
-                      <td className="px-4 py-2 text-right">
-                        <EditableCell
-                          value={it.fix_variable}
-                          onSave={(v) => editItem(it.user_id, 'incentive', v)}
-                          disabled={busy !== null}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right">{formatINR(it.ot_pay)}</td>
-                      <td className="px-4 py-2 text-right">{formatINR(it.employee_pf)}</td>
-                      <td className="px-4 py-2 text-right">
-                        <EditableCell
-                          value={it.tds}
-                          onSave={(v) => editItem(it.user_id, 'tds', v)}
-                          disabled={busy !== null}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <EditableCell
-                          value={it.loan_emi}
-                          onSave={(v) => editItem(it.user_id, 'loan_emi', v)}
-                          disabled={busy !== null}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right font-semibold">
-                        {formatINR(it.net_payable)}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((it) => {
+                    const gross =
+                      Number(it.sal_for_calc) + Number(it.lwp_deduction);
+                    return (
+                      <tr key={it.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-mono">
+                          {it.emp_number ?? '—'}
+                        </td>
+                        <td className="px-3 py-2">{it.user_name ?? '—'}</td>
+                        {/* Salary */}
+                        <td className="px-3 py-2 text-right bg-blue-50/40">
+                          {formatINR(gross)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-blue-50/40">
+                          {formatINR(it.sal_for_calc)}
+                        </td>
+                        {/* 7 payable components */}
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.basic_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.hra_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.sp_allow_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.conveyance_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.ltc_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.re_medical_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {formatINR(it.education_payable)}
+                        </td>
+                        {/* Additions */}
+                        <td className="px-3 py-2 text-right bg-teal-50/40">
+                          <EditableCell
+                            value={it.fix_variable}
+                            onSave={(v) => editItem(it.user_id, 'incentive', v)}
+                            disabled={busy !== null}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right bg-teal-50/40">
+                          {formatINR(it.ot_pay)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-teal-50/40">
+                          <EditableCell
+                            value={it.security_return}
+                            onSave={(v) =>
+                              editItem(it.user_id, 'security_return', v)
+                            }
+                            disabled={busy !== null}
+                          />
+                        </td>
+                        {/* Deductions */}
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          {formatINR(it.employee_pf)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          {it.esic_applied
+                            ? formatINR(it.employee_esic)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          {formatINR(it.professional_tax)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          <EditableCell
+                            value={it.tds}
+                            onSave={(v) => editItem(it.user_id, 'tds', v)}
+                            disabled={busy !== null}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          <EditableCell
+                            value={it.loan_emi}
+                            onSave={(v) => editItem(it.user_id, 'loan_emi', v)}
+                            disabled={busy !== null}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right bg-rose-50/40">
+                          <EditableCell
+                            value={it.sal_deduction}
+                            onSave={(v) =>
+                              editItem(it.user_id, 'sal_deduction', v)
+                            }
+                            disabled={busy !== null}
+                          />
+                        </td>
+                        {/* Totals */}
+                        <td className="px-3 py-2 text-right bg-indigo-50/40 font-semibold">
+                          {formatINR(it.total_earnings)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-indigo-50/40 font-semibold">
+                          {formatINR(it.total_deductions)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-indigo-50/40 font-bold text-text-primary">
+                          {formatINR(it.net_payable)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-indigo-50/40">
+                          {formatINR(it.ctc)}
+                        </td>
+                        <td className="px-3 py-2 text-right bg-indigo-50/40">
+                          {formatINR(it.ctc_as_per_it)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -437,12 +564,31 @@ function BankFileSection({ runId, state }: { runId: string; state: string }) {
 
   const generate = async () => {
     setBusy('generate');
+    setError('');
     try {
-      const data = await api.post<{ signed_url?: string; file_id: string }>(
-        `/payroll/runs/${runId}/bank-file/generate`,
-      );
+      const data = await api.post<{
+        signed_url?: string;
+        file_id: string;
+        size: number;
+        filename: string;
+        content: string;
+        mime_type: string;
+      }>(`/payroll/runs/${runId}/bank-file/generate`);
+
+      // Always trigger a local download from the response content — works
+      // regardless of whether S3 is configured.
+      const blob = new Blob([data.content], { type: data.mime_type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      // If S3 returned a signed URL, keep it available as a backup link too.
       if (data.signed_url) setDownloadUrl(data.signed_url);
-      else window.location.reload();
     } catch (e) {
       setError((e as ApiError).message);
     } finally {

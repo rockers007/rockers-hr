@@ -110,6 +110,45 @@ export class User {
   @Column({ type: 'text', nullable: true })
   google_refresh_token: string | null;
 
+  // --- v2.0 admin-invite auth (AUTH_REGISTRATION.md) ---
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  password_hash: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  invite_token: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  invite_token_expires_at: Date | null;
+
+  @Column({ type: 'boolean', default: false })
+  first_login_required: boolean;
+
+  // --- Login lockout tracking (see migration 1712000000040) ---
+  @Column({ type: 'int', default: 0 })
+  failed_login_count: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  locked_until: Date | null;
+
+  // --- Extended profile ---
+  @Column({ type: 'uuid', nullable: true })
+  marital_status_id: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  current_address: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  permanent_address: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  emergency_phone: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  pf_uan_no: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  esic_no: string | null;
+
   // --- Payroll fields (PAYROLL_DATABASE_SCHEMA.md §1) ---
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
   gross: string;

@@ -19,6 +19,8 @@ import {
   MasterPublicHoliday,
   MasterAdminRole,
 } from './entities';
+import { MasterMaritalStatus } from './entities/master-marital-status.entity';
+import { MasterDocumentType } from './entities/master-document-type.entity';
 
 // Maps URL table param to actual DB table name prefix
 const ALLOWED_TABLES = [
@@ -33,6 +35,8 @@ const ALLOWED_TABLES = [
   'sla_config',
   'public_holidays',
   'admin_roles',
+  'marital_statuses',
+  'document_types',
 ] as const;
 
 export type MasterTableName = (typeof ALLOWED_TABLES)[number];
@@ -64,6 +68,10 @@ export class MasterService {
     private publicHolidaysRepo: Repository<MasterPublicHoliday>,
     @InjectRepository(MasterAdminRole)
     private adminRolesRepo: Repository<MasterAdminRole>,
+    @InjectRepository(MasterMaritalStatus)
+    private maritalStatusesRepo: Repository<MasterMaritalStatus>,
+    @InjectRepository(MasterDocumentType)
+    private documentTypesRepo: Repository<MasterDocumentType>,
   ) {
     this.repoMap = {
       qualifications: this.qualificationsRepo,
@@ -77,6 +85,8 @@ export class MasterService {
       sla_config: this.slaConfigRepo,
       public_holidays: this.publicHolidaysRepo,
       admin_roles: this.adminRolesRepo,
+      marital_statuses: this.maritalStatusesRepo,
+      document_types: this.documentTypesRepo,
     };
   }
 

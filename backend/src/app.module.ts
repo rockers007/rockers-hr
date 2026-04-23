@@ -23,7 +23,7 @@ import { PayrollModule } from './payroll/payroll.module';
 
 @Module({
   imports: [
-    // Environment config — loads .env at project root
+    // Environment config — loads backend/.env
     ConfigModule.forRoot({ isGlobal: true }),
 
     // PostgreSQL via TypeORM

@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +13,10 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { AdminUser } from '../users/entities/admin-user.entity';
 import { JwtPayload } from './auth.dto';
+import {
+  LOGIN_MAX_FAILED_ATTEMPTS,
+  LOGIN_LOCK_DURATION_MS,
+} from './invite-auth.service';
 
 @Injectable()
 export class AuthService {
@@ -127,9 +133,55 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // --- Account-lockout pre-check ---------------------------------------
+    // Mirrors the employee flow in InviteAuthService.loginWithEmail.
+    if (
+      adminUser.locked_until &&
+      adminUser.locked_until.getTime() > Date.now()
+    ) {
+      const minutesLeft = Math.max(
+        1,
+        Math.ceil((adminUser.locked_until.getTime() - Date.now()) / 60000),
+      );
+      throw new HttpException(
+        {
+          code: 'ACCOUNT_LOCKED',
+          message: `Admin account is locked due to too many failed login attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
+          locked_until: adminUser.locked_until.toISOString(),
+        },
+        HttpStatus.LOCKED,
+      );
+    }
+
     const passwordValid = await bcrypt.compare(password, adminUser.password_hash);
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      adminUser.failed_login_count = (adminUser.failed_login_count || 0) + 1;
+      if (adminUser.failed_login_count >= LOGIN_MAX_FAILED_ATTEMPTS) {
+        adminUser.locked_until = new Date(Date.now() + LOGIN_LOCK_DURATION_MS);
+        await this.adminUserRepo.save(adminUser);
+        const hoursLeft = Math.ceil(LOGIN_LOCK_DURATION_MS / 3600000);
+        throw new HttpException(
+          {
+            code: 'ACCOUNT_LOCKED',
+            message: `Too many failed login attempts. Admin account has been locked for ${hoursLeft} hour${hoursLeft === 1 ? '' : 's'}.`,
+            locked_until: adminUser.locked_until.toISOString(),
+          },
+          HttpStatus.LOCKED,
+        );
+      }
+      await this.adminUserRepo.save(adminUser);
+      const remaining = LOGIN_MAX_FAILED_ATTEMPTS - adminUser.failed_login_count;
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: `Invalid credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before the account is locked.`,
+      });
+    }
+
+    // Successful login — clear any prior lockout state
+    if ((adminUser.failed_login_count || 0) > 0 || adminUser.locked_until) {
+      adminUser.failed_login_count = 0;
+      adminUser.locked_until = null;
+      await this.adminUserRepo.save(adminUser);
     }
 
     const token = this.jwtService.sign({
@@ -148,7 +200,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.gmail,
-        role: adminUser.role.name,
+        role: adminUser.role.name.toLowerCase().replace(/\s+/g, '_'),
+        role_display: adminUser.role.name,
       },
     };
   }
