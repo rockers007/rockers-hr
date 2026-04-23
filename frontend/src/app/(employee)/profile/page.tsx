@@ -626,6 +626,24 @@ function PersonalSection({
           />
         </Field>
         <Field label="Permanent Address" span>
+          <label className="mb-2 inline-flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              checked={
+                form.permanent_address.trim().length > 0 &&
+                form.permanent_address === form.current_address
+              }
+              onChange={(e) => {
+                if (e.target.checked) {
+                  set('permanent_address', form.current_address);
+                } else {
+                  set('permanent_address', '');
+                }
+              }}
+            />
+            Same as current address
+          </label>
           <textarea
             rows={3}
             value={form.permanent_address}
@@ -984,7 +1002,6 @@ function DocumentsSection({
   setSuccess: (s: string) => void;
 }) {
   const [docTypeId, setDocTypeId] = useState('');
-  const [label, setLabel] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -1000,6 +1017,14 @@ function DocumentsSection({
       setError('Please select a file.');
       return;
     }
+    // Only PDF allowed per the documents policy.
+    const isPdf =
+      file.type === 'application/pdf' ||
+      /\.pdf$/i.test(file.name || '');
+    if (!isPdf) {
+      setError('Only PDF files are allowed for documents.');
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       setError('File must be 10MB or less.');
       return;
@@ -1010,28 +1035,27 @@ function DocumentsSection({
       const pre = await api.post<{ upload_url: string; s3_key: string }>(
         '/uploads/presigned',
         {
-          mime_type: file.type || 'application/octet-stream',
+          mime_type: 'application/pdf',
           file_size_bytes: file.size,
           context: 'user_document',
         },
       );
       const putRes = await fetch(pre.upload_url, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        headers: { 'Content-Type': 'application/pdf' },
         body: file,
       });
       if (!putRes.ok) throw new Error('S3 upload failed');
       const row = await api.post<UserDoc>('/users/me/documents', {
         document_type_id: docTypeId,
         s3_key: pre.s3_key,
-        label: label.trim() || null,
+        label: null,
         file_size_bytes: file.size,
-        mime_type: file.type,
+        mime_type: 'application/pdf',
       });
       setDocs([row, ...docs]);
       setSuccess('Document uploaded.');
       setDocTypeId('');
-      setLabel('');
       setFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -1054,12 +1078,13 @@ function DocumentsSection({
     <Card>
       <h2 className="text-lg font-semibold text-text-primary">Documents</h2>
       <p className="mt-1 text-xs text-text-secondary">
-        Upload Aadhaar, PAN, or other identity / verification documents. Max 10MB per file (PDF, JPG, PNG).
+        Upload Aadhaar, PAN, or other identity / verification documents.
+        PDF files only · Max 10MB per file.
       </p>
 
       <form
         onSubmit={upload}
-        className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-lg bg-neutral-bg p-4"
+        className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg bg-neutral-bg p-4"
       >
         <Field label="Document Type *">
           <select
@@ -1075,18 +1100,10 @@ function DocumentsSection({
             ))}
           </select>
         </Field>
-        <Field label="Label (optional)">
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className={inputCls}
-            placeholder="e.g. Aadhaar front side"
-          />
-        </Field>
-        <Field label="File *">
+        <Field label="PDF File *">
           <input
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
+            accept="application/pdf,.pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
         </Field>
@@ -1107,7 +1124,6 @@ function DocumentsSection({
           <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
             <tr>
               <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Label</th>
               <th className="px-3 py-2">Uploaded</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
@@ -1116,7 +1132,7 @@ function DocumentsSection({
             {docs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={3}
                   className="px-3 py-4 text-center text-text-secondary"
                 >
                   No documents uploaded yet.
@@ -1127,9 +1143,6 @@ function DocumentsSection({
                 <tr key={d.id}>
                   <td className="px-3 py-2 font-medium">
                     {d.document_type_label ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-text-secondary">
-                    {d.label ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-text-secondary">
                     {new Date(d.uploaded_at).toLocaleDateString('en-IN')}
