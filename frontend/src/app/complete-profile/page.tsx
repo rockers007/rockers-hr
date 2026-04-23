@@ -6,7 +6,13 @@ import { api, ApiError } from '@/lib/api';
 import { useMasterData, MasterDataProvider } from '@/lib/master-data';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
+import { maxDobDate, validateDob } from '@/lib/utils';
 import type { User } from '@/lib/types';
+
+interface PrefillProfile {
+  department: { id: string; label: string } | null;
+  join_date: string | null;
+}
 
 function CompleteProfileForm() {
   const router = useRouter();
@@ -15,13 +21,15 @@ function CompleteProfileForm() {
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  // Department + join_date are admin-controlled and shown read-only. They
+  // come from /users/me after the first login (admin sets them at invite
+  // time, employees can never edit them).
+  const [prefill, setPrefill] = useState<PrefillProfile | null>(null);
   const [form, setForm] = useState({
     phone: '',
     dob: '',
     gender_id: '',
     qualification_id: '',
-    department_id: '',
-    join_date: new Date().toISOString().slice(0, 10),
     new_password: '',
     confirm_password: '',
   });
@@ -51,6 +59,13 @@ function CompleteProfileForm() {
     } catch {
       router.replace('/login');
     }
+
+    // Pull the admin-set department + join_date so we can display them
+    // read-only below. Silent failure is fine — the fields just stay blank.
+    api
+      .get<PrefillProfile>('/users/me')
+      .then((p) => setPrefill(p))
+      .catch(() => setPrefill(null));
   }, [router]);
 
   function update(field: keyof typeof form, value: string) {
@@ -66,11 +81,14 @@ function CompleteProfileForm() {
       !form.phone.trim() ||
       !form.dob ||
       !form.gender_id ||
-      !form.qualification_id ||
-      !form.department_id ||
-      !form.join_date
+      !form.qualification_id
     ) {
       setError('Please fill in all required fields.');
+      return;
+    }
+    const dobErr = validateDob(form.dob);
+    if (dobErr) {
+      setError(dobErr);
       return;
     }
     if (!/^(\+?\d{10,15})$/.test(form.phone.replace(/\s/g, ''))) {
@@ -95,6 +113,8 @@ function CompleteProfileForm() {
 
     setSubmitting(true);
     try {
+      // department_id and join_date are intentionally omitted — admin sets
+      // them at invite time and employees cannot edit.
       const result = await api.post<{
         token: string;
         user: User & { first_login_required: boolean };
@@ -103,8 +123,6 @@ function CompleteProfileForm() {
         dob: form.dob,
         gender_id: form.gender_id,
         qualification_id: form.qualification_id,
-        department_id: form.department_id,
-        join_date: form.join_date,
         new_password: form.new_password,
         confirm_password: form.confirm_password,
       });
@@ -170,6 +188,7 @@ function CompleteProfileForm() {
                 type="date"
                 required
                 value={form.dob}
+                max={maxDobDate()}
                 onChange={(e) => update('dob', e.target.value)}
                 className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
               />
@@ -211,34 +230,28 @@ function CompleteProfileForm() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary">
-                Department *
+              <label className="block text-sm font-medium text-text-secondary">
+                Department
               </label>
-              <select
-                required
-                value={form.department_id}
-                onChange={(e) => update('department_id', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Select…</option>
-                {master.departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.label}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 w-full rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-text-primary">
+                {prefill?.department?.label ?? '— not assigned —'}
+              </div>
+              <p className="mt-1 text-xs text-text-secondary">
+                Set by HR. Contact HR for changes.
+              </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary">
-                Joining Date *
+              <label className="block text-sm font-medium text-text-secondary">
+                Joining Date
               </label>
-              <input
-                type="date"
-                required
-                value={form.join_date}
-                onChange={(e) => update('join_date', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
-              />
+              <div className="mt-1 w-full rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-text-primary">
+                {prefill?.join_date
+                  ? new Date(prefill.join_date).toLocaleDateString()
+                  : '— not set —'}
+              </div>
+              <p className="mt-1 text-xs text-text-secondary">
+                Set by HR. Contact HR for changes.
+              </p>
             </div>
           </div>
 

@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { MasterDataProvider, useMasterData } from '@/lib/master-data';
-import { getInitials } from '@/lib/utils';
+import { getInitials, maxDobDate, validateDob } from '@/lib/utils';
 import type { MasterRecord } from '@/lib/types';
 
 interface ProfileData {
@@ -155,7 +155,6 @@ function ProfileInner() {
         maritalStatuses={maritalStatuses}
         genders={master.genders}
         qualifications={master.qualifications}
-        departments={master.departments}
         saving={saving}
         setSaving={setSaving}
         setError={setError}
@@ -444,7 +443,6 @@ function PersonalSection({
   maritalStatuses,
   genders,
   qualifications,
-  departments,
   saving,
   setSaving,
   setError,
@@ -455,18 +453,19 @@ function PersonalSection({
   maritalStatuses: MasterRecord[];
   genders: MasterRecord[];
   qualifications: MasterRecord[];
-  departments: MasterRecord[];
   saving: boolean;
   setSaving: (v: boolean) => void;
   setError: (e: string) => void;
   setSuccess: (s: string) => void;
 }) {
+  // Note: department_id and join_date are deliberately NOT in this form —
+  // they are admin-only fields and rendered read-only below. The backend
+  // also strips them from PATCH /users/me.
   const [form, setForm] = useState({
     phone: profile.phone ?? '',
     dob: profile.dob ?? '',
     gender_id: profile.gender?.id ?? '',
     qualification_id: profile.qualification?.id ?? '',
-    department_id: profile.department?.id ?? '',
     marital_status_id: profile.marital_status_id ?? '',
     current_address: profile.current_address ?? '',
     permanent_address: profile.permanent_address ?? '',
@@ -482,6 +481,11 @@ function PersonalSection({
     e.preventDefault();
     setError('');
     setSuccess('');
+    const dobErr = validateDob(form.dob);
+    if (dobErr) {
+      setError(dobErr);
+      return;
+    }
     setSaving(true);
     try {
       await api.patch('/users/me', {
@@ -489,7 +493,6 @@ function PersonalSection({
         dob: form.dob || null,
         gender_id: form.gender_id || null,
         qualification_id: form.qualification_id || null,
-        department_id: form.department_id || null,
         marital_status_id: form.marital_status_id || null,
         current_address: form.current_address || null,
         permanent_address: form.permanent_address || null,
@@ -537,6 +540,7 @@ function PersonalSection({
           <input
             type="date"
             value={form.dob}
+            max={maxDobDate()}
             onChange={(e) => set('dob', e.target.value)}
             className={inputCls}
           />
@@ -585,20 +589,15 @@ function PersonalSection({
           </select>
         </Field>
 
-        <Field label="Department">
-          <select
-            value={form.department_id}
-            onChange={(e) => set('department_id', e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Select…</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <ReadOnly label="Department" value={profile.department?.label ?? '—'} />
+        <ReadOnly
+          label="Date of Joining"
+          value={
+            profile.join_date
+              ? new Date(profile.join_date).toLocaleDateString()
+              : '—'
+          }
+        />
         <Field label="PF UAN No">
           <input
             type="text"
@@ -874,6 +873,7 @@ function FamilySection({
             <input
               type="date"
               value={draft.dob}
+              max={maxDobDate()}
               onChange={(e) => setDraft({ ...draft, dob: e.target.value })}
               className={inputCls}
             />

@@ -159,5 +159,18 @@ export class ProfileExtrasService {
         'Contact number looks invalid (expected 9–20 digits, optional + prefix).',
       );
     }
+    if (dto.dob) {
+      const chosen = new Date(
+        dto.dob.length === 10 ? dto.dob + 'T00:00:00Z' : dto.dob,
+      );
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (Number.isNaN(chosen.getTime())) {
+        throw new BadRequestException('Family member DOB is not a valid date.');
+      }
+      if (chosen.getTime() >= today.getTime()) {
+        throw new BadRequestException('Family member DOB must be in the past.');
+      }
+    }
   }
 }

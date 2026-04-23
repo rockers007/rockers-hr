@@ -172,13 +172,17 @@ export class UsersService {
    * (gross / incentive / pf_applicable etc.). Admin can still edit those via
    * PATCH /admin/users/:id.
    */
+  // Fields the employee can PATCH on themselves via /users/me.
+  // Explicitly excluded (admin-only): gmail, emp_number, join_date,
+  // confirmation_date, department_id, manager_id, is_manager,
+  // role_type_id, employment_status, resignation_date, last_working_day,
+  // gross/incentive/tds/loan_emi/sal_deduction/security_return/pf_applicable.
   private readonly SELF_ALLOWED_FIELDS: Array<keyof User> = [
     'name',
     'phone',
     'dob',
     'gender_id',
     'qualification_id',
-    'department_id',
     'photo_s3_key',
     'resume_s3_key',
     'extra_info',
@@ -197,6 +201,10 @@ export class UsersService {
   ];
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
+    // DOB must be strictly past (no today, no future)
+    if (dto.dob) {
+      this.assertPastDate(dto.dob, 'Date of birth');
+    }
     const user = await this.findById(userId);
     const incoming = dto as unknown as Record<string, unknown>;
     for (const key of this.SELF_ALLOWED_FIELDS) {
@@ -210,6 +218,23 @@ export class UsersService {
     // Return the same shape as getProfile so the frontend has photo_url +
     // expanded relations without a second round-trip.
     return this.getProfile(userId);
+  }
+
+  /**
+   * Throw BadRequestException if `value` (yyyy-MM-dd or ISO) is today or in
+   * the future. Used for date-of-birth fields that must lie strictly in the
+   * past.
+   */
+  assertPastDate(value: string, label = 'Date'): void {
+    const chosen = new Date(value.length === 10 ? value + 'T00:00:00Z' : value);
+    if (Number.isNaN(chosen.getTime())) {
+      throw new BadRequestException(`${label} is not a valid date.`);
+    }
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (chosen.getTime() >= today.getTime()) {
+      throw new BadRequestException(`${label} must be in the past.`);
+    }
   }
 
   async updateFcmToken(userId: string, fcmToken: string): Promise<void> {

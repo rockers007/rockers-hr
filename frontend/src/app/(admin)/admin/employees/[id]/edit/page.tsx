@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useMasterData } from '@/lib/master-data';
+import { maxDobDate, validateDob } from '@/lib/utils';
 
 interface EmployeeData {
   id: string;
@@ -170,6 +171,12 @@ export default function EditEmployeePage() {
   }, [id]);
 
   const handleSave = async () => {
+    const dobErr = validateDob(dob);
+    if (dobErr) {
+      setError(dobErr);
+      toast(dobErr, 'error');
+      return;
+    }
     try {
       setSaving(true);
       setError('');
@@ -414,6 +421,7 @@ export default function EditEmployeePage() {
                 </label>
                 <input
                   type="date"
+                  max={maxDobDate()}
                   className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   value={dob}
                   onChange={(e) => setDob(e.target.value)}

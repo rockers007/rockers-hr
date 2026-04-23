@@ -24,9 +24,8 @@ export class UpdateProfileDto {
   @IsUUID()
   qualification_id?: string;
 
-  @IsOptional()
-  @IsUUID()
-  department_id?: string;
+  // department_id intentionally excluded — admin-only field.
+  // emp_number, join_date, gmail — also admin-only.
 
   @IsOptional()
   @IsString()

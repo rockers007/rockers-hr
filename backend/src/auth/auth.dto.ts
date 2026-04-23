@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsEmail, MinLength, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEmail,
+  MinLength,
+  IsOptional,
+  IsUUID,
+  IsDateString,
+} from 'class-validator';
 
 export class AdminLoginDto {
   @IsEmail()
@@ -46,6 +54,14 @@ export class InviteUserDto {
   @IsOptional()
   @IsString()
   emp_number?: string;
+
+  @IsOptional()
+  @IsUUID()
+  department_id?: string;
+
+  @IsOptional()
+  @IsDateString()
+  join_date?: string;
 }
 
 export class ActivateAccountHttpDto {

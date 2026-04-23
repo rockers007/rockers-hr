@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { useMasterData, MasterDataProvider } from '@/lib/master-data';
 import { Button } from '@/components/ui/button';
+import { maxDobDate, validateDob } from '@/lib/utils';
 import type { MasterRecord } from '@/lib/types';
 
 function RegistrationForm() {
@@ -68,6 +69,11 @@ function RegistrationForm() {
       return;
     }
 
+    const dobErr = validateDob(form.dob);
+    if (dobErr) {
+      setError(dobErr);
+      return;
+    }
     const dobDate = new Date(form.dob);
     const age = (Date.now() - dobDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
     if (age < 18) {
@@ -159,6 +165,7 @@ function RegistrationForm() {
             <input
               type="date"
               value={form.dob}
+              max={maxDobDate()}
               onChange={(e) => update('dob', e.target.value)}
               className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:border-accent focus:ring-1 focus:ring-accent outline-none"
             />

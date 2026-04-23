@@ -36,6 +36,8 @@ export interface InviteDto {
   name: string;
   email: string;
   emp_number?: string;
+  department_id?: string;
+  join_date?: string;
 }
 
 export interface ActivateAccountDto {
@@ -120,6 +122,9 @@ export class InviteAuthService {
       gmail: email,
       name: dto.name.trim(),
       emp_number: dto.emp_number?.trim() || null,
+      // Admin-provided defaults — employees cannot change these later.
+      department_id: dto.department_id || null,
+      join_date: dto.join_date || null,
       role_type_id: employeeRole.id,
       is_active: false,
       registration_method: 'admin_invite',
@@ -481,15 +486,37 @@ export class InviteAuthService {
       }
     }
 
-    // Apply profile fields
+    // DOB must be strictly in the past
+    if (dto.dob) {
+      const chosen = new Date(dto.dob + 'T00:00:00Z');
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (
+        Number.isNaN(chosen.getTime()) ||
+        chosen.getTime() >= today.getTime()
+      ) {
+        throw new UnprocessableEntityException({
+          code: 'DOB_MUST_BE_PAST',
+          message: 'Date of birth must be in the past.',
+        });
+      }
+    }
+
+    // Apply profile fields. Department + join_date are admin-controlled
+    // (set at invite time) and employees cannot change them. Values from
+    // the DTO are only applied when the admin didn't seed them — protects
+    // legacy invite rows that pre-date the admin-set flow.
     if (dto.phone !== undefined) user.phone = dto.phone || null;
     if (dto.dob !== undefined) user.dob = dto.dob || null;
     if (dto.gender_id !== undefined) user.gender_id = dto.gender_id || null;
     if (dto.qualification_id !== undefined)
       user.qualification_id = dto.qualification_id || null;
-    if (dto.department_id !== undefined)
+    if (!user.department_id && dto.department_id !== undefined) {
       user.department_id = dto.department_id || null;
-    if (dto.join_date !== undefined) user.join_date = dto.join_date || null;
+    }
+    if (!user.join_date && dto.join_date !== undefined) {
+      user.join_date = dto.join_date || null;
+    }
     if (dto.photo_s3_key !== undefined)
       user.photo_s3_key = dto.photo_s3_key || null;
     if (dto.resume_s3_key !== undefined)

@@ -210,6 +210,11 @@ export class UsersAdminController {
       });
     }
 
+    // DOB must be strictly in the past (no today, no future)
+    if (updates.dob) {
+      this.usersService.assertPastDate(String(updates.dob), 'Date of birth');
+    }
+
     const filtered: Record<string, any> = {};
     let touchingPayroll = false;
     for (const key of allowedFields) {

@@ -37,7 +37,13 @@ export default function EmployeesPage() {
   const limit = 20;
 
   const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ name: '', email: '', emp_number: '' });
+  const [inviteForm, setInviteForm] = useState({
+    name: '',
+    email: '',
+    emp_number: '',
+    department_id: '',
+    join_date: new Date().toISOString().slice(0, 10),
+  });
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
@@ -425,9 +431,17 @@ export default function EmployeesPage() {
                     email: inviteForm.email.trim(),
                     emp_number:
                       inviteForm.emp_number.trim() || undefined,
+                    department_id: inviteForm.department_id || undefined,
+                    join_date: inviteForm.join_date || undefined,
                   });
                   setShowInvite(false);
-                  setInviteForm({ name: '', email: '', emp_number: '' });
+                  setInviteForm({
+                    name: '',
+                    email: '',
+                    emp_number: '',
+                    department_id: '',
+                    join_date: new Date().toISOString().slice(0, 10),
+                  });
                   setToast(
                     `Invite sent to ${inviteForm.email}. Employee will appear in the list as Inactive until they activate.`,
                   );
@@ -488,6 +502,49 @@ export default function EmployeesPage() {
                   className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
                   placeholder="e.g. RT-HR-050"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Department
+                </label>
+                <select
+                  value={inviteForm.department_id}
+                  onChange={(e) =>
+                    setInviteForm((f) => ({
+                      ...f,
+                      department_id: e.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                >
+                  <option value="">Select department…</option>
+                  {master.departments.map((d: MasterRecord) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-text-secondary">
+                  Employee cannot change this later.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary">
+                  Date of Joining
+                </label>
+                <input
+                  type="date"
+                  value={inviteForm.join_date}
+                  onChange={(e) =>
+                    setInviteForm((f) => ({ ...f, join_date: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-text-secondary">
+                  Employee cannot change this later.
+                </p>
               </div>
 
               {inviteError && (
