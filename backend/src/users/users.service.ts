@@ -173,6 +173,9 @@ export class UsersService {
       emergency_phone: user.emergency_phone ?? null,
       pf_uan_no: user.pf_uan_no ?? null,
       esic_no: user.esic_no ?? null,
+      // Surfaced for admin auto-refresh: used by the edit page to decide
+      // whether server data is newer than what the form originally loaded.
+      updated_at: user.updated_at,
     };
   }
 

@@ -10,6 +10,7 @@ import { PageLoader } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useMasterData } from '@/lib/master-data';
 import { formatDate, maxDobDate, validateDob } from '@/lib/utils';
+import { useAutoRefresh } from '@/lib/use-auto-refresh';
 import type { MasterRecord } from '@/lib/types';
 
 interface FamilyMember {
@@ -65,6 +66,7 @@ interface EmployeeData {
   emergency_phone: string | null;
   pf_uan_no: string | null;
   esic_no: string | null;
+  updated_at: string;
 }
 
 interface ManagerOption {
@@ -130,6 +132,56 @@ export default function EditEmployeePage() {
     pf_rate_below_cap: string;
   } | null>(null);
 
+  // Tracks the updated_at of the snapshot currently populating the form
+  // and the most recent updated_at observed by the silent auto-refresh
+  // poll. When they diverge we show a "Reload latest" banner so the admin
+  // decides whether to pull fresh data — we never silently overwrite an
+  // in-progress edit.
+  const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(null);
+  const [remoteUpdatedAt, setRemoteUpdatedAt] = useState<string | null>(null);
+
+  const applyEmployee = useCallback((emp: EmployeeData) => {
+    setName(emp.name || '');
+    setPhone(emp.phone || '');
+    setDepartmentId(emp.department?.id || '');
+    setManagerId(emp.manager?.id || '');
+    setIsManager(emp.is_manager || false);
+    setQualificationId(emp.qualification?.id || '');
+    setGenderId(emp.gender?.id || '');
+    setJoinDate(emp.join_date ? emp.join_date.split('T')[0] : '');
+    setConfirmationDate(emp.confirmation_date ? emp.confirmation_date.split('T')[0] : '');
+    setResignationDate(emp.resignation_date ? emp.resignation_date.split('T')[0] : '');
+    setLastWorkingDay(emp.last_working_day ? emp.last_working_day.split('T')[0] : '');
+    setEmploymentStatus(emp.employment_status || 'active');
+    setEmpNumber(emp.emp_number ?? '');
+    setDesignationId(emp.designation_id ?? '');
+    setGross(emp.gross ?? '');
+    setIncentive(emp.incentive ?? '');
+    setPfApplicable(emp.pf_applicable ?? true);
+    setDob(emp.dob ? emp.dob.split('T')[0] : '');
+    setBankName(emp.bank_name ?? '');
+    setBankAccountNo(emp.bank_account_no ?? '');
+    setBankIfsc(emp.bank_ifsc ?? '');
+    // Extended profile fields
+    setMaritalStatusId(emp.marital_status_id ?? '');
+    setCurrentAddress(emp.current_address ?? '');
+    setPermanentAddress(emp.permanent_address ?? '');
+    setEmergencyPhone(emp.emergency_phone ?? '');
+    setPfUanNo(emp.pf_uan_no ?? '');
+    setEsicNo(emp.esic_no ?? '');
+    setLoadedUpdatedAt(emp.updated_at);
+    setRemoteUpdatedAt(emp.updated_at);
+  }, []);
+
+  const reloadLatest = useCallback(async () => {
+    try {
+      const emp = await api.get<EmployeeData>(`/admin/users/${id}`);
+      applyEmployee(emp);
+    } catch {
+      // keep current form state on failure
+    }
+  }, [id, applyEmployee]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -138,35 +190,7 @@ export default function EditEmployeePage() {
           api.get<EmployeeData>(`/admin/users/${id}`),
           api.get<ManagerOption[]>('/admin/users/managers').catch(() => []),
         ]);
-
-        setName(emp.name || '');
-        setPhone(emp.phone || '');
-        setDepartmentId(emp.department?.id || '');
-        setManagerId(emp.manager?.id || '');
-        setIsManager(emp.is_manager || false);
-        setQualificationId(emp.qualification?.id || '');
-        setGenderId(emp.gender?.id || '');
-        setJoinDate(emp.join_date ? emp.join_date.split('T')[0] : '');
-        setConfirmationDate(emp.confirmation_date ? emp.confirmation_date.split('T')[0] : '');
-        setResignationDate(emp.resignation_date ? emp.resignation_date.split('T')[0] : '');
-        setLastWorkingDay(emp.last_working_day ? emp.last_working_day.split('T')[0] : '');
-        setEmploymentStatus(emp.employment_status || 'active');
-        setEmpNumber(emp.emp_number ?? '');
-        setDesignationId(emp.designation_id ?? '');
-        setGross(emp.gross ?? '');
-        setIncentive(emp.incentive ?? '');
-        setPfApplicable(emp.pf_applicable ?? true);
-        setDob(emp.dob ? emp.dob.split('T')[0] : '');
-        setBankName(emp.bank_name ?? '');
-        setBankAccountNo(emp.bank_account_no ?? '');
-        setBankIfsc(emp.bank_ifsc ?? '');
-        // Extended profile fields
-        setMaritalStatusId(emp.marital_status_id ?? '');
-        setCurrentAddress(emp.current_address ?? '');
-        setPermanentAddress(emp.permanent_address ?? '');
-        setEmergencyPhone(emp.emergency_phone ?? '');
-        setPfUanNo(emp.pf_uan_no ?? '');
-        setEsicNo(emp.esic_no ?? '');
+        applyEmployee(emp);
         setManagers(Array.isArray(mgrs) ? mgrs : []);
 
         // Fetch marital statuses for the dropdown (ignore failures — the field
@@ -191,7 +215,27 @@ export default function EditEmployeePage() {
       }
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Silent auto-poll: fetches the employee every 30s (and on tab focus)
+  // just to read the server-side updated_at. We deliberately do NOT
+  // overwrite the form state — the admin might be mid-edit. When the
+  // server timestamp is newer than what we loaded, the banner below
+  // appears so the admin can explicitly pull the new values.
+  useAutoRefresh(async () => {
+    try {
+      const emp = await api.get<EmployeeData>(`/admin/users/${id}`);
+      if (emp?.updated_at) setRemoteUpdatedAt(emp.updated_at);
+    } catch {
+      /* ignore transient errors */
+    }
+  });
+
+  const hasNewerData =
+    !!loadedUpdatedAt &&
+    !!remoteUpdatedAt &&
+    new Date(remoteUpdatedAt).getTime() > new Date(loadedUpdatedAt).getTime();
 
   // Fetch designations scoped to the currently-selected department.
   // Runs on first load (once department is populated) AND whenever the
@@ -292,6 +336,25 @@ export default function EditEmployeePage() {
 
       <Card>
         <CardTitle>Edit Employee Profile</CardTitle>
+
+        {hasNewerData && (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-4 py-2 text-sm text-[#92400e]">
+            <span>
+              The employee has updated their profile since you opened this page.
+              Your current edits will be kept — click <strong>Reload latest</strong>
+              {' '}to pull the new values into the form (unsaved changes will be
+              overwritten).
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={reloadLatest}
+              disabled={saving}
+            >
+              Reload latest
+            </Button>
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -803,23 +866,32 @@ function AdminFamilySection({ userId }: { userId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.get<FamilyMember[]>(
-        `/admin/users/${userId}/family`,
-      );
-      setRows(data);
-    } catch (err) {
-      setError((err as ApiError).message || 'Failed to load family');
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const data = await api.get<FamilyMember[]>(
+          `/admin/users/${userId}/family`,
+        );
+        setRows(data);
+      } catch (err) {
+        if (!opts?.silent) setError((err as ApiError).message || 'Failed to load family');
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [userId],
+  );
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Pause silent polling while the admin is filling the inline add/edit
+  // form so we don't refresh `rows` in the background — the form itself
+  // is still safe (it's in `draft`, not bound to rows), but the list
+  // jumping around mid-edit is distracting.
+  useAutoRefresh(() => load({ silent: true }), { enabled: !showForm });
 
   function resetForm() {
     setDraft({ name: '', relation: '', occupation: '', dob: '', contact_no: '' });
@@ -1026,22 +1098,37 @@ function AdminDocumentsSection({ userId }: { userId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  const loadDocs = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      try {
+        const d = await api.get<EmployeeDoc[]>(
+          `/admin/users/${userId}/documents`,
+        );
+        setDocs(d);
+      } catch (err) {
+        if (!opts?.silent) setError((err as ApiError).message || 'Failed to load documents');
+      }
+    },
+    [userId],
+  );
+
   useEffect(() => {
     (async () => {
       try {
-        const [d, t] = await Promise.all([
-          api.get<EmployeeDoc[]>(`/admin/users/${userId}/documents`),
-          api.get<MasterRecord[]>('/master/document_types'),
-        ]);
-        setDocs(d);
+        const t = await api.get<MasterRecord[]>('/master/document_types');
         setDocTypes(t);
-      } catch (err) {
-        setError((err as ApiError).message || 'Failed to load documents');
-      } finally {
-        setLoading(false);
+      } catch {
+        /* ignore — form still usable, just without type dropdown */
       }
+      await loadDocs();
+      setLoading(false);
     })();
-  }, [userId]);
+  }, [userId, loadDocs]);
+
+  // Silent poll — refresh the doc list when the employee uploads or
+  // removes something, without interrupting the admin's current upload
+  // form state (file picker + doc type selection live in local state).
+  useAutoRefresh(() => loadDocs({ silent: true }));
 
   async function upload(e: FormEvent) {
     e.preventDefault();
