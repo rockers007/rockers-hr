@@ -40,7 +40,12 @@ export class AuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(async (responseData) => {
         try {
-          const actorId = request.user?.id;
+          // request.user is the JWT payload (see JwtStrategy.validate).
+          // Payload carries the user id under `sub`, admins include
+          // admin_role_id. Fall back to `id` for any callers that populate
+          // request.user directly.
+          const actorId =
+            request.user?.sub ?? request.user?.id ?? null;
           if (!actorId) return;
 
           const entityId =
@@ -56,7 +61,11 @@ export class AuditInterceptor implements NestInterceptor {
             entity_id: entityId,
             on_behalf_of: request.body?.on_behalf_of,
             before_state: beforeState ?? null,
-            after_state: responseData?.data ?? request.body ?? null,
+            // Redact sensitive fields from after_state and body so we don't
+            // persist passwords / tokens / bank secrets in the audit log.
+            after_state: redactSensitive(
+              responseData?.data ?? request.body ?? null,
+            ),
             ip_address: request.ip || request.connection?.remoteAddress,
           });
         } catch {
@@ -65,4 +74,38 @@ export class AuditInterceptor implements NestInterceptor {
       }),
     );
   }
+}
+
+/**
+ * Recursively scrub sensitive keys from an object before it lands in the
+ * audit log. We keep the shape so diffs remain useful, but replace
+ * secret-like values with the literal string "[REDACTED]".
+ */
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'new_password',
+  'confirm_password',
+  'current_password',
+  'password_hash',
+  'token',
+  'invite_token',
+  'fcm_token',
+  'google_access_token',
+  'google_refresh_token',
+  'secret',
+]);
+
+function redactSensitive(value: any): any {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map(redactSensitive);
+  if (typeof value !== 'object') return value;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (SENSITIVE_KEYS.has(k)) {
+      out[k] = '[REDACTED]';
+    } else {
+      out[k] = redactSensitive(v);
+    }
+  }
+  return out;
 }

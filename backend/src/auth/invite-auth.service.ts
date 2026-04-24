@@ -32,6 +32,19 @@ const PASSWORD_MIN_LEN = 8;
 export const LOGIN_MAX_FAILED_ATTEMPTS = 5;
 export const LOGIN_LOCK_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+/**
+ * JWT iat claims are stored in seconds (Unix timestamp) while our DB
+ * timestamps are millisecond-precision. If we write `new Date()` straight
+ * into `tokens_valid_from` and immediately sign a new JWT, the signed
+ * token's iat can fall *before* the DB value by up to 999ms (the current
+ * second rounded down), which would immediately invalidate the just-issued
+ * token. Back off by one second so that tokens signed within the same
+ * second still validate.
+ */
+export function sessionCutoff(): Date {
+  return new Date(Date.now() - 1000);
+}
+
 export interface InviteDto {
   name: string;
   email: string;
@@ -182,6 +195,8 @@ export class InviteAuthService {
     );
     user.first_login_required = true;
     user.registration_method = 'admin_invite';
+    // Invalidate any prior tokens — the old password no longer works.
+    user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
     await this.sendInviteEmail({
@@ -258,6 +273,8 @@ export class InviteAuthService {
     user.first_login_required = false;
     user.invite_token = null;
     user.invite_token_expires_at = null;
+    // Invalidate any previously-issued tokens (other tabs, mobile app, etc).
+    user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
     return { changed_at: new Date() };
@@ -289,6 +306,8 @@ export class InviteAuthService {
     user.invite_token_expires_at = new Date(
       Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
+    // Invalidate any previously-issued tokens belonging to this employee.
+    user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
     const frontendUrl = this.config.get<string>(
@@ -527,6 +546,10 @@ export class InviteAuthService {
     user.is_active = true;
     user.invite_token = null;
     user.invite_token_expires_at = null;
+    // Invalidate the initial temp-password JWT; frontend will replace its
+    // stored token with the freshly-signed one returned below, and any other
+    // devices that still hold the pre-activation token are kicked out.
+    user.tokens_valid_from = sessionCutoff();
 
     const saved = await this.userRepo.save(user);
 

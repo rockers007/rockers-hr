@@ -23,6 +23,7 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
+import { AuditLog } from '../audit/audit.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -57,6 +58,7 @@ export class AuthController {
    */
   @Post('activate-account')
   @UseGuards(JwtAuthGuard)
+  @AuditLog({ action: 'activate_account', entityType: 'user', method: 'POST' })
   async activateAccount(
     @Body() dto: ActivateAccountHttpDto,
     @CurrentUser() user: JwtPayload,
@@ -117,6 +119,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'change_password', entityType: 'user', method: 'POST' })
   async changePassword(
     @Body()
     dto: {

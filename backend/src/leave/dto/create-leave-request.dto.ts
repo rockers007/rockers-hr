@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsString,
   MinLength,
+  MaxLength,
   IsOptional,
   IsBoolean,
   IsNumber,
@@ -30,10 +31,12 @@ export class CreateLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(10)
+  @MaxLength(2000)
   reason: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   doc_s3_key?: string | null;
 
   @IsOptional()
@@ -64,5 +67,6 @@ export class AdminCreateLeaveRequestDto extends CreateLeaveRequestDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   admin_notes?: string;
 }

@@ -130,6 +130,12 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   locked_until: Date | null;
 
+  // --- Session invalidation cutoff (see migration 1712000000050) ---
+  // JwtStrategy.validate rejects tokens whose `iat` is earlier than this.
+  // Bumped on password change / admin password reset / admin unlock.
+  @Column({ type: 'timestamptz', default: () => 'now()' })
+  tokens_valid_from: Date;
+
   // --- Extended profile ---
   @Column({ type: 'uuid', nullable: true })
   marital_status_id: string | null;
