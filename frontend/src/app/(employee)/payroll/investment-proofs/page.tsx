@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { formatINR } from '@/lib/payroll-types';
+import { formatDate } from '@/lib/utils';
 
 interface InvestmentProof {
   id: string;
@@ -238,7 +239,7 @@ export default function InvestmentProofsPage() {
                     {r.amount ? formatINR(r.amount) : '—'}
                   </td>
                   <td className="px-4 py-3 text-xs text-text-secondary">
-                    {new Date(r.uploaded_at).toLocaleDateString('en-IN')}
+                    {formatDate(r.uploaded_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button

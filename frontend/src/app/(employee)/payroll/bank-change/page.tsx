@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
 import {
   BankChangeRequest,
   PayrollSalary,
@@ -178,7 +179,7 @@ export default function BankChangePage() {
               {history.map((h) => (
                 <tr key={h.id}>
                   <td className="px-4 py-3">
-                    {new Date(h.submitted_at).toLocaleDateString('en-IN')}
+                    {formatDate(h.submitted_at)}
                   </td>
                   <td className="px-4 py-3">
                     {h.new_bank_name} · {h.new_ifsc}
@@ -203,7 +204,7 @@ export default function BankChangePage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-text-secondary">
                     {h.reviewed_at
-                      ? new Date(h.reviewed_at).toLocaleDateString('en-IN')
+                      ? formatDate(h.reviewed_at)
                       : '—'}
                   </td>
                 </tr>

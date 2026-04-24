@@ -8,7 +8,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { MasterDataProvider, useMasterData } from '@/lib/master-data';
-import { getInitials, maxDobDate, validateDob } from '@/lib/utils';
+import {
+  formatDate,
+  getInitials,
+  maxDobDate,
+  validateDob,
+} from '@/lib/utils';
 import type { MasterRecord } from '@/lib/types';
 
 interface ProfileData {
@@ -592,11 +597,7 @@ function PersonalSection({
         <ReadOnly label="Department" value={profile.department?.label ?? '—'} />
         <ReadOnly
           label="Date of Joining"
-          value={
-            profile.join_date
-              ? new Date(profile.join_date).toLocaleDateString()
-              : '—'
-          }
+          value={profile.join_date ? formatDate(profile.join_date) : '—'}
         />
         <Field label="PF UAN No">
           <input
@@ -1145,7 +1146,7 @@ function DocumentsSection({
                     {d.document_type_label ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-text-secondary">
-                    {new Date(d.uploaded_at).toLocaleDateString('en-IN')}
+                    {formatDate(d.uploaded_at)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button size="sm" variant="danger" onClick={() => remove(d.id)}>

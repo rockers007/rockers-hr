@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
-import { formatDate } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 
 interface AuditEntry {
   id: string;
@@ -102,7 +102,7 @@ export default function AuditLogPage() {
                   <>
                     <tr key={e.id} className="border-b border-border hover:bg-neutral-bg/30">
                       <td className="px-4 py-3 text-text-secondary whitespace-nowrap text-xs">
-                        {formatDate(e.created_at)}
+                        {formatDateTime(e.created_at)}
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">

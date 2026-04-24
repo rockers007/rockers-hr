@@ -1,8 +1,27 @@
 import { format, parseISO } from 'date-fns';
 
+// Canonical display format across the whole product: dd/MM/yyyy.
+// Dates stored in the DB and transferred over the wire remain ISO
+// (yyyy-MM-dd) — this only affects user-facing rendering.
+const DISPLAY_DATE_FORMAT = 'dd/MM/yyyy';
+const DISPLAY_DATETIME_FORMAT = 'dd/MM/yyyy HH:mm';
+
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return format(parseISO(dateStr), 'MMM d, yyyy');
+  const d = parseISO(dateStr);
+  if (isNaN(d.getTime())) return '-';
+  return format(d, DISPLAY_DATE_FORMAT);
+}
+
+/**
+ * Date + time in dd/MM/yyyy HH:mm. Use for audit log timestamps, uploaded_at
+ * columns, created_at columns — anything where the user wants the hour.
+ */
+export function formatDateTime(value: string | Date | null | undefined): string {
+  if (!value) return '-';
+  const d = typeof value === 'string' ? parseISO(value) : value;
+  if (isNaN(d.getTime())) return '-';
+  return format(d, DISPLAY_DATETIME_FORMAT);
 }
 
 export function formatDateRange(start: string | null | undefined, end: string | null | undefined): string {
@@ -12,11 +31,8 @@ export function formatDateRange(start: string | null | undefined, end: string | 
   const s = parseISO(startStr);
   const e = parseISO(endStr);
   if (isNaN(s.getTime()) || isNaN(e.getTime())) return '-';
-  if (startStr === endStr) return format(s, 'MMM d, yyyy');
-  if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
-    return `${format(s, 'MMM d')}–${format(e, 'd, yyyy')}`;
-  }
-  return `${format(s, 'MMM d')} – ${format(e, 'MMM d, yyyy')}`;
+  if (startStr === endStr) return format(s, DISPLAY_DATE_FORMAT);
+  return `${format(s, DISPLAY_DATE_FORMAT)} – ${format(e, DISPLAY_DATE_FORMAT)}`;
 }
 
 export function getInitials(name: string): string {

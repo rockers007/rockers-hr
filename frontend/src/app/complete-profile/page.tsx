@@ -6,7 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { useMasterData, MasterDataProvider } from '@/lib/master-data';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
-import { maxDobDate, validateDob } from '@/lib/utils';
+import { formatDate, maxDobDate, validateDob } from '@/lib/utils';
 import type { User } from '@/lib/types';
 
 interface PrefillProfile {
@@ -246,7 +246,7 @@ function CompleteProfileForm() {
               </label>
               <div className="mt-1 w-full rounded-lg border border-border bg-gray-50 px-3 py-2 text-sm text-text-primary">
                 {prefill?.join_date
-                  ? new Date(prefill.join_date).toLocaleDateString()
+                  ? formatDate(prefill.join_date)
                   : '— not set —'}
               </div>
               <p className="mt-1 text-xs text-text-secondary">

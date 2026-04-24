@@ -14,6 +14,7 @@ import {
   formatINR,
   stateLabel,
 } from '@/lib/payroll-types';
+import { formatDateTime } from '@/lib/utils';
 
 interface ItemsResp {
   items: PayrollItem[];
@@ -488,7 +489,7 @@ export default function RunDetailPage() {
             payslips (Phase F) and emails them to employees.
           </p>
           <p className="text-xs text-text-secondary">
-            Locked at {run.locked_at && new Date(run.locked_at).toLocaleString('en-IN')}
+            Locked at {run.locked_at && formatDateTime(run.locked_at)}
           </p>
           <Button onClick={releaseRun} disabled={busy === 'release'}>
             {busy === 'release' ? 'Releasing…' : 'Release Payslips'}
