@@ -192,8 +192,9 @@ export class UsersAdminController {
       'is_manager', 'qualification_id', 'gender_id',
       'join_date', 'confirmation_date',
       'resignation_date', 'last_working_day', 'employment_status',
-      // Payroll fields
-      'emp_number', 'designation', 'gross', 'incentive', 'pf_applicable', 'dob',
+      // Payroll fields. designation kept as legacy free-text; designation_id
+      // is the canonical FK into master_designations (scoped per department).
+      'emp_number', 'designation', 'designation_id', 'gross', 'incentive', 'pf_applicable', 'dob',
       // Bank details — admin may set directly (onboarding / corrections).
       // Employees use the self-service bank-change workflow for subsequent
       // updates so there's an approval trail.

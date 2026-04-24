@@ -49,6 +49,7 @@ interface EmployeeData {
   // Payroll fields
   emp_number: string | null;
   designation: string | null;
+  designation_id: string | null;
   gross: string;
   incentive: string;
   pf_applicable: boolean;
@@ -99,7 +100,10 @@ export default function EditEmployeePage() {
 
   // Payroll form state
   const [empNumber, setEmpNumber] = useState('');
-  const [designation, setDesignation] = useState('');
+  const [designationId, setDesignationId] = useState('');
+  const [designations, setDesignations] = useState<
+    Array<{ id: string; label: string; department_id: string }>
+  >([]);
   const [gross, setGross] = useState('');
   const [incentive, setIncentive] = useState('');
   const [pfApplicable, setPfApplicable] = useState(true);
@@ -148,7 +152,7 @@ export default function EditEmployeePage() {
         setLastWorkingDay(emp.last_working_day ? emp.last_working_day.split('T')[0] : '');
         setEmploymentStatus(emp.employment_status || 'active');
         setEmpNumber(emp.emp_number ?? '');
-        setDesignation(emp.designation ?? '');
+        setDesignationId(emp.designation_id ?? '');
         setGross(emp.gross ?? '');
         setIncentive(emp.incentive ?? '');
         setPfApplicable(emp.pf_applicable ?? true);
@@ -189,6 +193,33 @@ export default function EditEmployeePage() {
     load();
   }, [id]);
 
+  // Fetch designations scoped to the currently-selected department.
+  // Runs on first load (once department is populated) AND whenever the
+  // admin changes the department dropdown so the designation dropdown
+  // always reflects the right list. If the employee's existing
+  // designation_id doesn't belong to the new department, we clear it so
+  // the form never saves a mismatched value.
+  useEffect(() => {
+    if (!departmentId) {
+      setDesignations([]);
+      return;
+    }
+    api
+      .get<
+        Array<{ id: string; label: string; department_id: string }>
+      >(`/master/designations?department_id=${departmentId}`)
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        setDesignations(arr);
+        // Keep current selection only if it belongs to the new department.
+        if (designationId && !arr.some((d) => d.id === designationId)) {
+          setDesignationId('');
+        }
+      })
+      .catch(() => setDesignations([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departmentId]);
+
   const handleSave = async () => {
     const dobErr = validateDob(dob);
     if (dobErr) {
@@ -215,7 +246,7 @@ export default function EditEmployeePage() {
         employment_status: employmentStatus,
         // Payroll fields
         emp_number: empNumber.trim() || null,
-        designation: designation.trim() || null,
+        designation_id: designationId || null,
         gross: gross === '' ? 0 : Number(gross),
         incentive: incentive === '' ? 0 : Number(incentive),
         pf_applicable: pfApplicable,
@@ -418,18 +449,32 @@ export default function EditEmployeePage() {
                 />
               </div>
 
-              {/* Designation */}
+              {/* Designation — sourced from master_designations filtered
+                  by the currently-selected department. Admin manages the
+                  per-department list from the master-data panel. */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-text-primary">
                   Designation
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Full Stack Developer"
-                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  value={designation}
-                  onChange={(e) => setDesignation(e.target.value)}
-                />
+                <select
+                  className="w-full rounded-lg border border-border bg-neutral-bg px-3 py-2 text-sm text-text-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                  value={designationId}
+                  onChange={(e) => setDesignationId(e.target.value)}
+                  disabled={!departmentId}
+                >
+                  <option value="">
+                    {departmentId
+                      ? designations.length
+                        ? 'Select designation…'
+                        : 'No designations configured for this department'
+                      : 'Select a department first'}
+                  </option>
+                  {designations.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* DOB */}

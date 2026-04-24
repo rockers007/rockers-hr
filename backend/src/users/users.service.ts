@@ -91,10 +91,17 @@ export class UsersService {
   async findById(id: string): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: ['gender', 'roleType', 'qualification', 'department', 'manager'],
+      relations: [
+        'gender',
+        'roleType',
+        'qualification',
+        'department',
+        'manager',
+        'designationMaster',
+      ],
     });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(`User with id ${id} not found`);
     }
     return user;
   }
@@ -146,7 +153,11 @@ export class UsersService {
       employment_status: user.employment_status || 'active',
       // Payroll fields (editable on /admin/employees/[id]/edit)
       emp_number: user.emp_number ?? null,
-      designation: user.designation ?? null,
+      // designation: if the new FK is set, prefer that label; otherwise fall
+      // back to the legacy free-text column. designation_id is always
+      // returned so the admin edit form can pre-select the dropdown.
+      designation_id: user.designation_id ?? null,
+      designation: user.designationMaster?.label ?? user.designation ?? null,
       gross: user.gross ?? '0',
       incentive: user.incentive ?? '0',
       pf_applicable: user.pf_applicable ?? true,
@@ -321,7 +332,8 @@ export class UsersService {
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.department', 'd')
       .leftJoinAndSelect('u.roleType', 'rt')
-      .leftJoinAndSelect('u.manager', 'm');
+      .leftJoinAndSelect('u.manager', 'm')
+      .leftJoinAndSelect('u.designationMaster', 'desig');
 
     if (query.department_id) {
       qb.andWhere('u.department_id = :departmentId', { departmentId: query.department_id });
@@ -349,10 +361,13 @@ export class UsersService {
     const [data, total] = await qb.getManyAndCount();
 
     // Attach a resolved CloudFront URL so the admin list can render the
-    // employee's photo without each client knowing the CDN host.
+    // employee's photo without each client knowing the CDN host, and
+    // promote the designation master label onto the top-level designation
+    // field (falling back to the legacy free-text column).
     const decorated = data.map((u) => ({
       ...u,
       photo_url: this.buildPhotoUrl(u.photo_s3_key),
+      designation: u.designationMaster?.label ?? u.designation ?? null,
     }));
 
     return {

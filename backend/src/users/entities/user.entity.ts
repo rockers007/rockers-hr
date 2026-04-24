@@ -12,6 +12,7 @@ import { MasterGender } from '../../master/entities/master-gender.entity';
 import { MasterRoleType } from '../../master/entities/master-role-type.entity';
 import { MasterQualification } from '../../master/entities/master-qualification.entity';
 import { MasterDepartment } from '../../master/entities/master-department.entity';
+import { MasterDesignation } from '../../master/entities/master-designation.entity';
 
 @Entity('users')
 export class User {
@@ -189,8 +190,18 @@ export class User {
   @Column({ type: 'varchar', length: 30, nullable: true })
   emp_number: string | null;
 
+  // Legacy free-text designation, kept for backward compat. Prefer
+  // designation_id / designation relation for new records — see the
+  // master_designations table.
   @Column({ type: 'varchar', length: 100, nullable: true })
   designation: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  designation_id: string | null;
+
+  @ManyToOne(() => MasterDesignation, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'designation_id' })
+  designationMaster: MasterDesignation | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
