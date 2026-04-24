@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api';
@@ -9,7 +9,26 @@ import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { useMasterData } from '@/lib/master-data';
-import { maxDobDate, validateDob } from '@/lib/utils';
+import { formatDate, maxDobDate, validateDob } from '@/lib/utils';
+import type { MasterRecord } from '@/lib/types';
+
+interface FamilyMember {
+  id: string;
+  name: string;
+  relation: string;
+  occupation: string | null;
+  dob: string | null;
+  contact_no: string | null;
+}
+
+interface EmployeeDoc {
+  id: string;
+  document_type_id: string;
+  document_type_label?: string | null;
+  s3_key: string;
+  uploaded_at: string;
+  mime_type: string | null;
+}
 
 interface EmployeeData {
   id: string;
@@ -705,7 +724,476 @@ export default function EditEmployeePage() {
           </Link>
         </div>
       </Card>
+
+      {/* Sections mirroring the employee /profile page so HR has the same
+          editing surface. Both are scoped to /admin/users/:userId so they
+          respect the existing admin permission guards. */}
+      <div className="mt-6">
+        <AdminFamilySection userId={id} />
+      </div>
+      <div className="mt-6">
+        <AdminDocumentsSection userId={id} />
+      </div>
     </div>
+  );
+}
+
+// =========================================================================
+// Admin — Family members CRUD mirroring employee-side FamilySection
+// =========================================================================
+
+function AdminFamilySection({ userId }: { userId: string }) {
+  const [rows, setRows] = useState<FamilyMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{
+    name: string;
+    relation: string;
+    occupation: string;
+    dob: string;
+    contact_no: string;
+  }>({ name: '', relation: '', occupation: '', dob: '', contact_no: '' });
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get<FamilyMember[]>(
+        `/admin/users/${userId}/family`,
+      );
+      setRows(data);
+    } catch (err) {
+      setError((err as ApiError).message || 'Failed to load family');
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function resetForm() {
+    setDraft({ name: '', relation: '', occupation: '', dob: '', contact_no: '' });
+    setEditingId(null);
+    setShowForm(false);
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!draft.name.trim() || !draft.relation.trim()) {
+      setError('Name and Relation are required.');
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      name: draft.name.trim(),
+      relation: draft.relation.trim(),
+      occupation: draft.occupation.trim() || null,
+      dob: draft.dob || null,
+      contact_no: draft.contact_no.trim() || null,
+    };
+    try {
+      if (editingId) {
+        await api.patch(
+          `/admin/users/${userId}/family/${editingId}`,
+          payload,
+        );
+        setSuccess('Family member updated.');
+      } else {
+        await api.post(`/admin/users/${userId}/family`, payload);
+        setSuccess('Family member added.');
+      }
+      resetForm();
+      await load();
+    } catch (err) {
+      setError((err as ApiError).message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function startEdit(row: FamilyMember) {
+    setEditingId(row.id);
+    setDraft({
+      name: row.name,
+      relation: row.relation,
+      occupation: row.occupation ?? '',
+      dob: row.dob ?? '',
+      contact_no: row.contact_no ?? '',
+    });
+    setShowForm(true);
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Remove this family member?')) return;
+    try {
+      await api.delete(`/admin/users/${userId}/family/${id}`);
+      setRows(rows.filter((r) => r.id !== id));
+    } catch (err) {
+      setError((err as ApiError).message || 'Delete failed');
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <CardTitle>Family Members</CardTitle>
+        {!showForm && (
+          <Button size="sm" onClick={() => setShowForm(true)}>
+            Add Member
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mt-3 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-800">
+          {success}
+        </div>
+      )}
+
+      {showForm && (
+        <form
+          onSubmit={submit}
+          className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-neutral-bg p-4"
+        >
+          <input
+            placeholder="Name *"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+          />
+          <input
+            placeholder="Relation * (e.g. Father, Spouse)"
+            value={draft.relation}
+            onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+          />
+          <input
+            placeholder="Occupation"
+            value={draft.occupation}
+            onChange={(e) => setDraft({ ...draft, occupation: e.target.value })}
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            max={maxDobDate()}
+            value={draft.dob}
+            onChange={(e) => setDraft({ ...draft, dob: e.target.value })}
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
+          />
+          <input
+            placeholder="Contact number"
+            value={draft.contact_no}
+            onChange={(e) => setDraft({ ...draft, contact_no: e.target.value })}
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm sm:col-span-2"
+          />
+          <div className="sm:col-span-2 flex gap-2">
+            <Button type="submit" isLoading={saving} disabled={saving}>
+              {editingId ? 'Save Changes' : 'Add'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving}
+              onClick={resetForm}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
+            <tr>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Relation</th>
+              <th className="px-3 py-2">Occupation</th>
+              <th className="px-3 py-2">DOB</th>
+              <th className="px-3 py-2">Contact</th>
+              <th className="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-4 text-text-secondary">
+                  Loading…
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-4 text-center text-text-secondary">
+                  No family members recorded.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="px-3 py-2 font-medium">{r.name}</td>
+                  <td className="px-3 py-2 text-text-secondary">{r.relation}</td>
+                  <td className="px-3 py-2 text-text-secondary">{r.occupation ?? '—'}</td>
+                  <td className="px-3 py-2 text-text-secondary">
+                    {r.dob ? formatDate(r.dob) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-text-secondary">{r.contact_no ?? '—'}</td>
+                  <td className="px-3 py-2 text-right space-x-2">
+                    <Button size="sm" variant="secondary" onClick={() => startEdit(r)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => remove(r.id)}>
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// =========================================================================
+// Admin — Documents upload/view/delete mirroring employee-side DocumentsSection
+// =========================================================================
+
+function AdminDocumentsSection({ userId }: { userId: string }) {
+  const [docs, setDocs] = useState<EmployeeDoc[]>([]);
+  const [docTypes, setDocTypes] = useState<MasterRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [docTypeId, setDocTypeId] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [d, t] = await Promise.all([
+          api.get<EmployeeDoc[]>(`/admin/users/${userId}/documents`),
+          api.get<MasterRecord[]>('/master/document_types'),
+        ]);
+        setDocs(d);
+        setDocTypes(t);
+      } catch (err) {
+        setError((err as ApiError).message || 'Failed to load documents');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userId]);
+
+  async function upload(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!docTypeId) {
+      setError('Please choose a document type.');
+      return;
+    }
+    if (!file) {
+      setError('Please select a file.');
+      return;
+    }
+    const isPdf =
+      file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+    if (!isPdf) {
+      setError('Only PDF files are allowed for documents.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File must be 10MB or less.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const pre = await api.post<{ upload_url: string; s3_key: string }>(
+        '/uploads/presigned',
+        {
+          mime_type: 'application/pdf',
+          file_size_bytes: file.size,
+          context: 'user_document',
+        },
+      );
+      const putRes = await fetch(pre.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('S3 upload failed');
+      const row = await api.post<EmployeeDoc>(
+        `/admin/users/${userId}/documents`,
+        {
+          document_type_id: docTypeId,
+          s3_key: pre.s3_key,
+          label: null,
+          file_size_bytes: file.size,
+          mime_type: 'application/pdf',
+        },
+      );
+      setDocs([row, ...docs]);
+      setSuccess('Document uploaded.');
+      setDocTypeId('');
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function view(id: string) {
+    setError('');
+    try {
+      const res = await api.get<{ url: string }>(
+        `/admin/users/${userId}/documents/${id}/view-url`,
+      );
+      window.open(res.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError((err as ApiError).message || 'Could not open document');
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Remove this document?')) return;
+    try {
+      await api.delete(`/admin/users/${userId}/documents/${id}`);
+      setDocs(docs.filter((d) => d.id !== id));
+    } catch (err) {
+      setError((err as ApiError).message || 'Delete failed');
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle>Documents</CardTitle>
+      <p className="mt-1 text-xs text-text-secondary">
+        Aadhaar, PAN, or other identity documents. PDF only · Max 10MB per file.
+      </p>
+
+      {error && (
+        <div className="mt-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mt-3 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-800">
+          {success}
+        </div>
+      )}
+
+      <form
+        onSubmit={upload}
+        className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg bg-neutral-bg p-4"
+      >
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondary">
+            Document Type *
+          </label>
+          <select
+            value={docTypeId}
+            onChange={(e) => setDocTypeId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+          >
+            <option value="">Select…</option>
+            {docTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondary">
+            PDF File *
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="mt-1 w-full text-sm"
+          />
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="submit"
+            isLoading={uploading}
+            disabled={uploading}
+            className="w-full"
+          >
+            Upload
+          </Button>
+        </div>
+      </form>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
+            <tr>
+              <th className="px-3 py-2">Document</th>
+              <th className="px-3 py-2">Uploaded</th>
+              <th className="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {loading ? (
+              <tr>
+                <td colSpan={3} className="px-3 py-4 text-text-secondary">
+                  Loading…
+                </td>
+              </tr>
+            ) : docs.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={3}
+                  className="px-3 py-4 text-center text-text-secondary"
+                >
+                  No documents uploaded yet.
+                </td>
+              </tr>
+            ) : (
+              docs.map((d) => (
+                <tr key={d.id}>
+                  <td className="px-3 py-2 font-medium">
+                    {d.document_type_label ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-text-secondary">
+                    {formatDate(d.uploaded_at)}
+                  </td>
+                  <td className="px-3 py-2 text-right space-x-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => view(d.id)}
+                    >
+                      View
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => remove(d.id)}>
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

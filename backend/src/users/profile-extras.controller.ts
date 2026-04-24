@@ -85,6 +85,14 @@ export class MyProfileExtrasController {
     return { data: await this.svc.registerDocument(userId, dto) };
   }
 
+  @Get('documents/:id/view-url')
+  async viewDoc(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return { data: await this.svc.getDocumentViewUrl(userId, id) };
+  }
+
   @Delete('documents/:id')
   @AuditLog({ action: 'delete_document', entityType: 'user_document', method: 'DELETE' })
   async deleteDoc(
@@ -157,6 +165,15 @@ export class AdminProfileExtrasController {
     @Body() dto: DocumentRegisterDto,
   ) {
     return { data: await this.svc.registerDocument(userId, dto) };
+  }
+
+  @Get('documents/:id/view-url')
+  @AdminPermissions('employees.view')
+  async viewDoc(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return { data: await this.svc.getDocumentViewUrl(userId, id) };
   }
 
   @Delete('documents/:id')

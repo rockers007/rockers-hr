@@ -1065,6 +1065,21 @@ function DocumentsSection({
     }
   }
 
+  async function view(id: string) {
+    setError('');
+    try {
+      const res = await api.get<{ url: string }>(
+        `/users/me/documents/${id}/view-url`,
+      );
+      // Open in a new tab — the presigned URL is short-lived and the
+      // browser will render the PDF inline (ResponseContentDisposition:
+      // inline on the signed GET).
+      window.open(res.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError((err as ApiError).message || 'Could not open document');
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm('Remove this document?')) return;
     try {
@@ -1124,7 +1139,7 @@ function DocumentsSection({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
             <tr>
-              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">Document</th>
               <th className="px-3 py-2">Uploaded</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
@@ -1148,7 +1163,14 @@ function DocumentsSection({
                   <td className="px-3 py-2 text-text-secondary">
                     {formatDate(d.uploaded_at)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right space-x-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => view(d.id)}
+                    >
+                      View
+                    </Button>
                     <Button size="sm" variant="danger" onClick={() => remove(d.id)}>
                       Remove
                     </Button>

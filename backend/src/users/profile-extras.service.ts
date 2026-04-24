@@ -3,9 +3,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { UserFamilyMember } from './entities/user-family-member.entity';
 import { UserDocument } from './entities/user-document.entity';
 import { MasterDocumentType } from '../master/entities/master-document-type.entity';
@@ -33,6 +37,9 @@ export interface DocumentRegisterDto {
  */
 @Injectable()
 export class ProfileExtrasService {
+  private readonly s3Client: S3Client | null;
+  private readonly bucket: string;
+
   constructor(
     @InjectRepository(UserFamilyMember)
     private readonly familyRepo: Repository<UserFamilyMember>,
@@ -40,7 +47,22 @@ export class ProfileExtrasService {
     private readonly docRepo: Repository<UserDocument>,
     @InjectRepository(MasterDocumentType)
     private readonly docTypeRepo: Repository<MasterDocumentType>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.get<string>(
+      'AWS_SECRET_ACCESS_KEY',
+    );
+    const region = this.configService.get<string>('AWS_REGION');
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET', '');
+    this.s3Client =
+      accessKeyId && secretAccessKey && region
+        ? new S3Client({
+            region,
+            credentials: { accessKeyId, secretAccessKey },
+          })
+        : null;
+  }
 
   // -------------------- family members --------------------
 
@@ -140,6 +162,48 @@ export class ProfileExtrasService {
     if (!row) throw new NotFoundException('Document not found');
     row.deleted_at = new Date();
     await this.docRepo.save(row);
+  }
+
+  /**
+   * Issues a short-lived presigned GET URL for a document so the browser
+   * can render it without exposing a permanently-public S3 URL.
+   *
+   * The bucket has all public access blocked (see SECURITY_TODO.md §6), so
+   * this is the only way to read a user document. URL is valid for 5 min —
+   * enough to click and open, short enough that a leaked URL is useless
+   * within minutes.
+   *
+   * Caller is trusted to have already authorized access to `userId`
+   * (employee self, or admin with employees.view permission).
+   */
+  async getDocumentViewUrl(
+    userId: string,
+    id: string,
+  ): Promise<{ url: string; expires_in_seconds: number; filename: string }> {
+    if (!this.s3Client) {
+      throw new ServiceUnavailableException(
+        'File storage is not configured. AWS credentials are missing.',
+      );
+    }
+    const row = await this.docRepo.findOne({
+      where: { id, user_id: userId, deleted_at: IsNull() },
+    });
+    if (!row) throw new NotFoundException('Document not found');
+
+    const expiresIn = 300; // 5 minutes
+    // The last path segment of s3_key is a UUID + extension. That makes a
+    // good default filename if the browser saves the PDF.
+    const filename = row.s3_key.split('/').pop() || 'document.pdf';
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: row.s3_key,
+      ResponseContentType: row.mime_type || 'application/pdf',
+      // Render inline so "View" opens the PDF in a new tab instead of
+      // forcing a download.
+      ResponseContentDisposition: `inline; filename="${filename}"`,
+    });
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    return { url, expires_in_seconds: expiresIn, filename };
   }
 
   // -------------------- helpers --------------------
