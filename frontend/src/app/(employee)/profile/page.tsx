@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { api, ApiError } from '@/lib/api';
@@ -166,14 +167,7 @@ function ProfileInner() {
         setSuccess={setSuccess}
       />
 
-      <BankSection
-        profile={profile}
-        setProfile={setProfile}
-        saving={saving}
-        setSaving={setSaving}
-        setError={setError}
-        setSuccess={setSuccess}
-      />
+      <BankSection profile={profile} />
 
       <FamilySection
         family={family}
@@ -252,11 +246,21 @@ function ChangePasswordSection({
 
     setSaving(true);
     try {
-      await api.post('/auth/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      });
+      // Backend rotates tokens_valid_from when the password changes, so
+      // it issues a fresh JWT in the response. We MUST swap the stored
+      // token immediately or the next request will 401 ("session
+      // expired") because the user's old token now predates the cutoff.
+      const res = await api.post<{ token: string }>(
+        '/auth/change-password',
+        {
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        },
+      );
+      if (res?.token) {
+        localStorage.setItem('token', res.token);
+      }
       setSuccess('Password updated successfully.');
       setCurrentPassword('');
       setNewPassword('');
@@ -669,96 +673,44 @@ function PersonalSection({
 
 function BankSection({
   profile,
-  setProfile,
-  saving,
-  setSaving,
-  setError,
-  setSuccess,
 }: {
   profile: ProfileData;
-  setProfile: (p: ProfileData) => void;
-  saving: boolean;
-  setSaving: (v: boolean) => void;
-  setError: (e: string) => void;
-  setSuccess: (s: string) => void;
 }) {
-  const [form, setForm] = useState({
-    bank_name: profile.bank_name ?? '',
-    bank_account_no: profile.bank_account_no ?? '',
-    bank_ifsc: profile.bank_ifsc ?? '',
-  });
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    if (form.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.bank_ifsc)) {
-      setError('IFSC must match the format ABCD0123456.');
-      return;
-    }
-    if (form.bank_account_no && !/^\d{9,18}$/.test(form.bank_account_no)) {
-      setError('Bank account number must be 9–18 digits.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.patch('/users/me', {
-        bank_name: form.bank_name || null,
-        bank_account_no: form.bank_account_no || null,
-        bank_ifsc: form.bank_ifsc.toUpperCase() || null,
-      });
-      const refreshed = await api.get<ProfileData>('/users/me');
-      setProfile(refreshed);
-      setSuccess('Bank details saved.');
-    } catch (err) {
-      setError((err as ApiError).message || 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Bank details are read-only on /profile by design. The only writable
+  // path for an employee is the bank-change request flow on
+  // /payroll/bank-change, where an admin reviews + approves before the
+  // values are written to the user row. Keeps payroll bank-transfer
+  // files trustworthy by enforcing a human approval step.
+  const masked = (v: string | null) =>
+    v && v.length > 4 ? `${'*'.repeat(v.length - 4)}${v.slice(-4)}` : v ?? '—';
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-text-primary">Bank Details</h2>
-      <form onSubmit={save} className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Field label="Bank Name">
-          <input
-            value={form.bank_name}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, bank_name: e.target.value }))
-            }
-            className={inputCls}
-            placeholder="HDFC Bank"
-          />
-        </Field>
-        <Field label="Account Number (9–18 digits)">
-          <input
-            inputMode="numeric"
-            value={form.bank_account_no}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, bank_account_no: e.target.value }))
-            }
-            className={`${inputCls} font-mono`}
-          />
-        </Field>
-        <Field label="IFSC (ABCD0123456)">
-          <input
-            value={form.bank_ifsc}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                bank_ifsc: e.target.value.toUpperCase(),
-              }))
-            }
-            className={`${inputCls} font-mono uppercase`}
-          />
-        </Field>
-        <div className="sm:col-span-3 flex justify-end">
-          <Button type="submit" isLoading={saving} disabled={saving}>
-            Save Bank Details
-          </Button>
-        </div>
-      </form>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Bank Details
+        </h2>
+        <Link
+          href="/payroll/bank-change"
+          className="text-sm font-medium text-accent hover:underline"
+        >
+          Request a change →
+        </Link>
+      </div>
+      <p className="mt-1 text-xs text-text-secondary">
+        Bank details on file are shown below. To change them, submit a
+        bank-change request — your HR admin will review and approve it,
+        and the new values will replace the ones below automatically.
+      </p>
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <ReadOnly label="Bank Name" value={profile.bank_name ?? '—'} />
+        <ReadOnly
+          label="Account Number"
+          value={masked(profile.bank_account_no)}
+        />
+        <ReadOnly label="IFSC" value={profile.bank_ifsc ?? '—'} />
+      </div>
     </Card>
   );
 }

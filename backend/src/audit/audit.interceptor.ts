@@ -104,8 +104,15 @@ const FULL_REDACT_KEYS = new Set([
 ]);
 
 const PARTIAL_MASK_KEYS = new Set([
+  // Current bank-on-file fields (users + payroll views).
   'bank_account_no',
   'bank_ifsc',
+  // Bank-change request fields — same secrets, different schema.
+  // Without these, every audited bank-change submission landed in
+  // after_state with the new account number in plaintext.
+  'new_account_no',
+  'new_ifsc',
+  // Statutory IDs.
   'pan',
   'pan_no',
   'aadhaar',
@@ -121,6 +128,11 @@ function maskTail(value: unknown): string {
 
 export function redactSensitive(value: any): any {
   if (value === null || value === undefined) return value;
+  // Date and other native object instances are typeof 'object' but
+  // Object.entries() returns [] on them, so the generic branch below
+  // would silently turn every Date into {} and corrupt every audited
+  // updated_at / locked_at / released_at timestamp. Bypass them.
+  if (value instanceof Date) return value;
   if (Array.isArray(value)) return value.map(redactSensitive);
   if (typeof value !== 'object') return value;
   const out: Record<string, any> = {};

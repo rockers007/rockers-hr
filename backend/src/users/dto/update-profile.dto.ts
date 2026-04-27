@@ -89,18 +89,10 @@ export class UpdateProfileDto {
   esic_no?: string;
 
   // --- Bank ---
-  @IsOptional()
-  @IsString()
-  @MaxLength(SHORT)
-  bank_name?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(SHORT)
-  bank_account_no?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(SHORT)
-  bank_ifsc?: string;
+  // Bank fields are intentionally NOT in this DTO. Employees can only
+  // change their bank details by submitting a bank-change request that
+  // an admin reviews and approves (see PayrollBankChangeService); the
+  // approval handler is the only path that writes the new IFSC / account
+  // number to users.bank_*. PATCH /users/me explicitly rejects these
+  // keys via forbidNonWhitelisted on the global ValidationPipe.
 }

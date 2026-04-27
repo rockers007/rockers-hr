@@ -17,6 +17,7 @@ import {
   AdminLoginDto,
   EmployeeLoginDto,
   ActivateAccountHttpDto,
+  ChangePasswordHttpDto,
   JwtPayload,
 } from './auth.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -121,14 +122,12 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @AuditLog({ action: 'change_password', entityType: 'user', method: 'POST' })
   async changePassword(
-    @Body()
-    dto: {
-      current_password: string;
-      new_password: string;
-      confirm_password: string;
-    },
+    @Body() dto: ChangePasswordHttpDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    // Service returns { changed_at, token, user } — frontend MUST swap
+    // its localStorage token because tokens_valid_from is bumped by the
+    // change, which would otherwise reject the next request with 401.
     const result = await this.inviteAuth.changeMyPassword(user.sub, dto);
     return { data: result };
   }

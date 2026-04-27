@@ -207,11 +207,11 @@ export class UsersService {
     'emergency_phone',
     'pf_uan_no',
     'esic_no',
-    // Bank — self-serve write allowed (employee can also use the bank-change
-    // workflow, but the profile page accepts direct edits for onboarding use).
-    'bank_name',
-    'bank_account_no',
-    'bank_ifsc',
+    // NOTE: bank_name / bank_account_no / bank_ifsc are intentionally
+    // excluded. Employees update bank details only through the
+    // bank-change request approval workflow; admins can still edit
+    // them directly via PATCH /admin/users/:id with full IFSC + account
+    // format validation (see UsersAdminController.adminUpdateUser).
   ];
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

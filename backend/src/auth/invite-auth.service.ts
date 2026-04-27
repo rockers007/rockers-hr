@@ -226,8 +226,11 @@ export class InviteAuthService {
   async changeMyPassword(
     userId: string,
     dto: ChangePasswordDto,
-  ): Promise<{ changed_at: Date }> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+  ): Promise<{ changed_at: Date; token: string; user: Partial<User> }> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roleType'],
+    });
     if (!user || !user.password_hash) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
@@ -282,9 +285,20 @@ export class InviteAuthService {
     user.invite_token_expires_at = null;
     // Invalidate any previously-issued tokens (other tabs, mobile app, etc).
     user.tokens_valid_from = sessionCutoff();
-    await this.userRepo.save(user);
+    const saved = await this.userRepo.save(user);
 
-    return { changed_at: new Date() };
+    // Issue a fresh JWT so the caller's current session survives. Without
+    // this the new tokens_valid_from cutoff would reject the request the
+    // moment the response lands and the next call would 401 ("session
+    // expired") — silently logging the user out right after they
+    // successfully changed their password. The frontend must replace its
+    // localStorage token with this one.
+    const token = this.signUserToken(saved);
+    return {
+      changed_at: new Date(),
+      token,
+      user: this.publicUser(saved),
+    };
   }
 
   // ----------------------------------------------------------------------

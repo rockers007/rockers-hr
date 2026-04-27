@@ -78,35 +78,52 @@ export class InviteUserDto {
   join_date?: string;
 }
 
+export class ChangePasswordHttpDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(PASSWORD_MAX)
+  current_password: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(PASSWORD_MAX)
+  new_password: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(PASSWORD_MAX)
+  confirm_password: string;
+}
+
 export class ActivateAccountHttpDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
   phone?: string;
 
+  // FK + date types are validated strictly: bad values bounce with a
+  // 422 from class-validator instead of slipping through to TypeORM
+  // and bubbling up as a 500 (Postgres invalid_text_representation).
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @IsDateString()
   dob?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(60)
+  @IsUUID()
   gender_id?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(60)
+  @IsUUID()
   qualification_id?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(60)
+  @IsUUID()
   department_id?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @IsDateString()
   join_date?: string;
 
   @IsOptional()

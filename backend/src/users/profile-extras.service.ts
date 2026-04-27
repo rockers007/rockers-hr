@@ -140,6 +140,26 @@ export class ProfileExtrasService {
     if (!dto.document_type_id || !dto.s3_key) {
       throw new BadRequestException('document_type_id and s3_key are required');
     }
+
+    // SECURITY: prevent IDOR. The s3_key in the request body comes from
+    // the client and could be ANY S3 path the caller knows about — for
+    // example the deterministic payslip key
+    //   payslips/{year}/{month}/{emp_number}.pdf
+    // — which would let an employee register a "document" pointing at a
+    // colleague's payslip and then call /documents/:id/view-url to get a
+    // presigned GET. The /uploads/presigned endpoint always emits keys of
+    // the form `${context}/${userId}/${uuid}${ext}` (see
+    // UploadsService.generatePresignedUrl), so any key that doesn't begin
+    // with `user_document/${userId}/` is either a different context or a
+    // different user — reject it.
+    const allowedPrefix = `user_document/${userId}/`;
+    if (!dto.s3_key.startsWith(allowedPrefix)) {
+      throw new ForbiddenException({
+        code: 'INVALID_S3_KEY',
+        message: 'Document s3_key must belong to the user_document upload context for this user.',
+      });
+    }
+
     const type = await this.docTypeRepo.findOne({
       where: { id: dto.document_type_id, is_active: true },
     });
