@@ -20,6 +20,9 @@ export class MasterDocumentType {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
+  @Column({ type: 'uuid', nullable: true })
+  created_by: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

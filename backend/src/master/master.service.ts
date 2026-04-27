@@ -133,7 +133,11 @@ export class MasterService {
       where.is_active = true;
     }
 
-    // Support context filter for file_types
+    // Per-table query parameters. Other master tables intentionally
+    // ignore `query` — extending it requires adding an explicit branch
+    // here, not a generic where-spread, so unknown filters can't leak
+    // through and a typo can't accidentally narrow another table's
+    // result set.
     if (table === 'file_types' && query?.context) {
       where.context = query.context;
     }

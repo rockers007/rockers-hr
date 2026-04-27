@@ -243,16 +243,24 @@ export default function EditEmployeePage() {
   // always reflects the right list. If the employee's existing
   // designation_id doesn't belong to the new department, we clear it so
   // the form never saves a mismatched value.
+  //
+  // Race-guard: when the admin changes department twice quickly, the
+  // first fetch may resolve AFTER the second. We bump `cancelled` on
+  // every effect cleanup so a late response cannot overwrite the result
+  // of a newer one. (api.get doesn't take an AbortSignal yet so a
+  // boolean flag is the practical guard here.)
   useEffect(() => {
     if (!departmentId) {
       setDesignations([]);
       return;
     }
+    let cancelled = false;
     api
       .get<
         Array<{ id: string; label: string; department_id: string }>
       >(`/master/designations?department_id=${departmentId}`)
       .then((list) => {
+        if (cancelled) return;
         const arr = Array.isArray(list) ? list : [];
         setDesignations(arr);
         // Keep current selection only if it belongs to the new department.
@@ -260,7 +268,12 @@ export default function EditEmployeePage() {
           setDesignationId('');
         }
       })
-      .catch(() => setDesignations([]));
+      .catch(() => {
+        if (!cancelled) setDesignations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departmentId]);
 
@@ -340,10 +353,11 @@ export default function EditEmployeePage() {
         {hasNewerData && (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-4 py-2 text-sm text-[#92400e]">
             <span>
-              The employee has updated their profile since you opened this page.
-              Your current edits will be kept — click <strong>Reload latest</strong>
-              {' '}to pull the new values into the form (unsaved changes will be
-              overwritten).
+              The employee has updated their profile since you opened this
+              page. Your form fields are unchanged for now. Click{' '}
+              <strong>Reload latest</strong> to replace them with the new
+              values from the server — any unsaved edits in this form will
+              be discarded.
             </span>
             <Button
               size="sm"

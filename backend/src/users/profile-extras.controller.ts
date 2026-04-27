@@ -167,6 +167,11 @@ export class AdminProfileExtrasController {
     return { data: await this.svc.registerDocument(userId, dto) };
   }
 
+  // Read-only access: gated by employees.view (also granted to the
+  // Reports Admin role per the RBAC matrix in ADMIN_RBAC.md). Admins
+  // who can see an employee can also read their uploaded ID documents
+  // — distinct from the higher employees.edit_profile required to add
+  // or remove a document.
   @Get('documents/:id/view-url')
   @AdminPermissions('employees.view')
   async viewDoc(

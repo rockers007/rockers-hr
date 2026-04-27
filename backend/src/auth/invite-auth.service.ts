@@ -40,6 +40,13 @@ export const LOGIN_LOCK_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
  * second rounded down), which would immediately invalidate the just-issued
  * token. Back off by one second so that tokens signed within the same
  * second still validate.
+ *
+ * Combined with the 2-second grace window in JwtStrategy.validate, this
+ * gives roughly 3 seconds of slack on freshly-issued tokens. That is
+ * intentional: the cost of a stolen token surviving 3 extra seconds after
+ * a forced rotation is negligible compared to the cost of legitimately
+ * issued tokens being rejected by their own rotation event. Do not tune
+ * either value without understanding the other.
  */
 export function sessionCutoff(): Date {
   return new Date(Date.now() - 1000);

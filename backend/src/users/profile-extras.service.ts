@@ -191,19 +191,24 @@ export class ProfileExtrasService {
     if (!row) throw new NotFoundException('Document not found');
 
     const expiresIn = 300; // 5 minutes
-    // The last path segment of s3_key is a UUID + extension. That makes a
-    // good default filename if the browser saves the PDF.
-    const filename = row.s3_key.split('/').pop() || 'document.pdf';
+    // The last path segment of s3_key is a UUID + extension — generally
+    // ASCII-safe today, but we sanitise + RFC 5987 encode it so any future
+    // change to the key format (or a quotation mark in the filename) can't
+    // break the Content-Disposition header.
+    const rawFilename = row.s3_key.split('/').pop() || 'document.pdf';
+    const safeAscii = rawFilename.replace(/[\\"\r\n]/g, '_');
+    const encodedUtf8 = encodeURIComponent(rawFilename);
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: row.s3_key,
       ResponseContentType: row.mime_type || 'application/pdf',
       // Render inline so "View" opens the PDF in a new tab instead of
-      // forcing a download.
-      ResponseContentDisposition: `inline; filename="${filename}"`,
+      // forcing a download. RFC 5987 dual-name lets browsers fall back
+      // to the ASCII form if they don't understand filename*.
+      ResponseContentDisposition: `inline; filename="${safeAscii}"; filename*=UTF-8''${encodedUtf8}`,
     });
     const url = await getSignedUrl(this.s3Client, command, { expiresIn });
-    return { url, expires_in_seconds: expiresIn, filename };
+    return { url, expires_in_seconds: expiresIn, filename: rawFilename };
   }
 
   // -------------------- helpers --------------------

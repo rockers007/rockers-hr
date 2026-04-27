@@ -80,8 +80,16 @@ export class AuditInterceptor implements NestInterceptor {
  * Recursively scrub sensitive keys from an object before it lands in the
  * audit log. We keep the shape so diffs remain useful, but replace
  * secret-like values with the literal string "[REDACTED]".
+ *
+ * Two flavours of redaction:
+ *   FULL_REDACT  — credentials / tokens. Replaced with "[REDACTED]".
+ *   PARTIAL_MASK — PII (bank, PAN, Aadhaar). The audit log is admin-
+ *                  readable so a leaked log shouldn't expose full
+ *                  account numbers; we keep just enough of the value
+ *                  for an admin to recognise which row was touched
+ *                  (last 4 chars of the account, masked otherwise).
  */
-const SENSITIVE_KEYS = new Set([
+const FULL_REDACT_KEYS = new Set([
   'password',
   'new_password',
   'confirm_password',
@@ -95,14 +103,32 @@ const SENSITIVE_KEYS = new Set([
   'secret',
 ]);
 
-function redactSensitive(value: any): any {
+const PARTIAL_MASK_KEYS = new Set([
+  'bank_account_no',
+  'bank_ifsc',
+  'pan',
+  'pan_no',
+  'aadhaar',
+  'aadhaar_no',
+  'pf_uan_no',
+  'esic_no',
+]);
+
+function maskTail(value: unknown): string {
+  if (typeof value !== 'string' || value.length <= 4) return '****';
+  return '*'.repeat(Math.max(0, value.length - 4)) + value.slice(-4);
+}
+
+export function redactSensitive(value: any): any {
   if (value === null || value === undefined) return value;
   if (Array.isArray(value)) return value.map(redactSensitive);
   if (typeof value !== 'object') return value;
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(value)) {
-    if (SENSITIVE_KEYS.has(k)) {
+    if (FULL_REDACT_KEYS.has(k)) {
       out[k] = '[REDACTED]';
+    } else if (PARTIAL_MASK_KEYS.has(k)) {
+      out[k] = v === null || v === undefined ? v : maskTail(v);
     } else {
       out[k] = redactSensitive(v);
     }

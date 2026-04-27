@@ -36,6 +36,11 @@ export class MasterDesignation {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
+  // Author of this row — admin_users(id) FK. Matches the convention used
+  // by other master tables (see PLAN.md §7).
+  @Column({ type: 'uuid', nullable: true })
+  created_by: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
