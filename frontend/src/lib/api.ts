@@ -18,6 +18,43 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Global in-flight request counter. Every call into this module
+ * increments before fetch and decrements in a `finally`, dispatching a
+ * `api:inflight` CustomEvent on `window` whenever the count changes.
+ *
+ * The TopProgressBar component listens for this event and renders a
+ * thin animated bar across the top of the viewport while count > 0.
+ * This is the cheapest way to give the user *something* on screen for
+ * every click that fires an API call without having to add per-button
+ * loading state to dozens of forms.
+ *
+ * Lives in this module (not a separate store) so any code path that
+ * already imports `api` picks up the instrumentation automatically.
+ * SSR-safe: guarded by `typeof window !== 'undefined'`.
+ */
+let inflightCount = 0;
+const INFLIGHT_EVENT = 'api:inflight';
+
+function notifyInflightChange() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent(INFLIGHT_EVENT, { detail: { count: inflightCount } }),
+  );
+}
+
+function startInflight() {
+  inflightCount++;
+  notifyInflightChange();
+}
+
+function endInflight() {
+  inflightCount = Math.max(0, inflightCount - 1);
+  notifyInflightChange();
+}
+
+export const API_INFLIGHT_EVENT = INFLIGHT_EVENT;
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -30,25 +67,30 @@ async function request<T>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string>),
-    },
-    ...options,
-  });
+  startInflight();
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string>),
+      },
+      ...options,
+    });
 
-  if (res.status === 204) return undefined as T;
+    if (res.status === 204) return undefined as T;
 
-  const json: ApiResponse<T> = await res.json();
+    const json: ApiResponse<T> = await res.json();
 
-  if (!res.ok || json.error) {
-    const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
-    throw new ApiError(err.code, err.message, err.statusCode);
+    if (!res.ok || json.error) {
+      const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
+      throw new ApiError(err.code, err.message, err.statusCode);
+    }
+
+    return json.data;
+  } finally {
+    endInflight();
   }
-
-  return json.data;
 }
 
 async function requestWithMeta<T>(
@@ -63,25 +105,30 @@ async function requestWithMeta<T>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string>),
-    },
-    ...options,
-  });
+  startInflight();
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string>),
+      },
+      ...options,
+    });
 
-  if (res.status === 204) return { data: undefined as T };
+    if (res.status === 204) return { data: undefined as T };
 
-  const json: ApiResponse<T> = await res.json();
+    const json: ApiResponse<T> = await res.json();
 
-  if (!res.ok || json.error) {
-    const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
-    throw new ApiError(err.code, err.message, err.statusCode);
+    if (!res.ok || json.error) {
+      const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
+      throw new ApiError(err.code, err.message, err.statusCode);
+    }
+
+    return json;
+  } finally {
+    endInflight();
   }
-
-  return json;
 }
 
 export const api = {
