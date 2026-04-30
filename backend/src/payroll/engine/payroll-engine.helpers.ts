@@ -56,6 +56,11 @@ export function buildSnapshot(params: {
   sal_deduction: number | string;
   security_return: number | string;
   pf_applicable: boolean;
+  // Optional for back-compat with existing callers/tests that pre-date
+  // the per-employee ESIC gate. Defaults to TRUE so older code keeps
+  // its previous behavior — ESIC then turns purely on
+  // statutory.esic_active + gross threshold, exactly as before.
+  esic_applicable?: boolean;
   lwp_days: number | string;
   ot_hours: number | string;
   components: SnapshotComponent[];
@@ -70,6 +75,7 @@ export function buildSnapshot(params: {
     sal_deduction: num(params.sal_deduction),
     security_return: num(params.security_return),
     pf_applicable: params.pf_applicable,
+    esic_applicable: params.esic_applicable ?? true,
     lwp_days: num(params.lwp_days),
     ot_hours: num(params.ot_hours),
     components: params.components,

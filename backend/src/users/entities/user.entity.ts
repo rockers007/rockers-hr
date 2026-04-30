@@ -178,6 +178,13 @@ export class User {
   @Column({ type: 'boolean', default: true })
   pf_applicable: boolean;
 
+  // Per-employee ESIC gate. Engine applies ESIC only when BOTH this and
+  // statutory.esic_active are true AND gross < statutory.esic_threshold_gross.
+  // Migration EsicApplicableFlag1712000000090 backfills existing rows
+  // with TRUE so behavior is unchanged for employees already on file.
+  @Column({ type: 'boolean', default: true })
+  esic_applicable: boolean;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   bank_name: string | null;
 

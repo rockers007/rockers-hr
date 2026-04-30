@@ -206,7 +206,7 @@ export class RunsService {
       // Admins fix missing salaries from /admin/employees/:id/edit then retry.
       const employees = await m.query(
         `SELECT id, gross, incentive, tds, loan_emi, sal_deduction,
-                security_return, pf_applicable
+                security_return, pf_applicable, esic_applicable
          FROM users
          WHERE is_active = TRUE AND gross > 0`,
       );
@@ -273,16 +273,18 @@ export class RunsService {
             run_id, user_id,
             snapshot_gross, snapshot_incentive, snapshot_tds,
             snapshot_loan_emi, snapshot_sal_deduction, snapshot_security_return,
-            snapshot_pf_applicable, snapshot_components, snapshot_statutory,
+            snapshot_pf_applicable, snapshot_esic_applicable,
+            snapshot_components, snapshot_statutory,
             lwp_days, cl_days, sl_days, pl_days, wfh_days, comp_off_days,
             el_hours, ot_hours, present_days
           ) VALUES (
             $1, $2,
             $3, $4, $5,
             $6, $7, $8,
-            $9, $10::jsonb, $11::jsonb,
-            $12, $13, $14, $15, $16, $17,
-            $18, $19, $20
+            $9, $10,
+            $11::jsonb, $12::jsonb,
+            $13, $14, $15, $16, $17, $18,
+            $19, $20, $21
           )`,
           [
             runId,
@@ -294,6 +296,7 @@ export class RunsService {
             emp.sal_deduction,
             emp.security_return,
             emp.pf_applicable,
+            emp.esic_applicable,
             JSON.stringify(snapshotComponents),
             JSON.stringify(snapshotStatutory),
             cappedLwp,
@@ -364,6 +367,7 @@ export class RunsService {
           sal_deduction: snap.snapshot_sal_deduction,
           security_return: snap.snapshot_security_return,
           pf_applicable: snap.snapshot_pf_applicable,
+          esic_applicable: snap.snapshot_esic_applicable,
           lwp_days: snap.lwp_days,
           ot_hours: snap.ot_hours,
           components: snap.snapshot_components,
@@ -598,6 +602,7 @@ export class RunsService {
       sal_deduction: snap.snapshot_sal_deduction,
       security_return: snap.snapshot_security_return,
       pf_applicable: snap.snapshot_pf_applicable,
+      esic_applicable: snap.snapshot_esic_applicable,
       lwp_days: snap.lwp_days,
       ot_hours: snap.ot_hours,
       components: snap.snapshot_components,

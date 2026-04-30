@@ -21,6 +21,7 @@ export interface SalaryPatch {
   sal_deduction?: number;
   security_return?: number;
   pf_applicable?: boolean;
+  esic_applicable?: boolean;
   bank_name?: string;
   bank_account_no?: string;
   bank_ifsc?: string;
@@ -59,6 +60,7 @@ export class SalaryService {
       sal_deduction: user.sal_deduction,
       security_return: user.security_return,
       pf_applicable: user.pf_applicable,
+      esic_applicable: user.esic_applicable,
       bank_name: user.bank_name,
       bank_account_no: user.bank_account_no,
       bank_ifsc: user.bank_ifsc,
@@ -187,6 +189,7 @@ export class SalaryService {
       sal_deduction: user.sal_deduction,
       security_return: user.security_return,
       pf_applicable: user.pf_applicable,
+      esic_applicable: user.esic_applicable,
       lwp_days: 0,
       ot_hours: 0,
       components: components.map((c) => ({
@@ -269,7 +272,13 @@ export class SalaryService {
         label: 'Employee PF',
         amount: out.employee_pf.toFixed(2),
       });
-    if (out.employee_esic > 0)
+    // Only render the ESIC row when it's actually applied. The engine
+    // always computes employee_esic (gross × rate) regardless of gating
+    // — gating happens in the totals via the esic_applied flag. So we
+    // mirror the engine here: row visible iff esic_applied is true.
+    // Otherwise the row would show a number that's NOT in
+    // total_deductions, which would make the table fail to reconcile.
+    if (out.esic_applied && out.employee_esic > 0)
       deductions.push({
         code: 'EMPLOYEE_ESIC',
         label: 'Employee ESIC',

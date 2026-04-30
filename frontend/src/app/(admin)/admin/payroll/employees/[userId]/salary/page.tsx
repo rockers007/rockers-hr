@@ -46,6 +46,7 @@ export default function SalaryConfigPage() {
       sal_deduction: data.sal_deduction,
       security_return: data.security_return,
       pf_applicable: data.pf_applicable,
+      esic_applicable: data.esic_applicable,
     }) !==
       JSON.stringify({
         gross: original.gross,
@@ -55,6 +56,7 @@ export default function SalaryConfigPage() {
         sal_deduction: original.sal_deduction,
         security_return: original.security_return,
         pf_applicable: original.pf_applicable,
+        esic_applicable: original.esic_applicable,
       });
 
   const update = <K extends keyof PayrollSalary>(field: K, value: PayrollSalary[K]) => {
@@ -78,6 +80,7 @@ export default function SalaryConfigPage() {
           sal_deduction: Number(data.sal_deduction),
           security_return: Number(data.security_return),
           pf_applicable: data.pf_applicable,
+          esic_applicable: data.esic_applicable,
         },
       );
       setData(updated);
@@ -121,6 +124,11 @@ export default function SalaryConfigPage() {
             label="PF Applicable"
             checked={data.pf_applicable}
             onChange={(v) => update('pf_applicable', v)}
+          />
+          <ToggleRow
+            label="ESIC Applicable"
+            checked={data.esic_applicable}
+            onChange={(v) => update('esic_applicable', v)}
           />
           <NumField
             label="Incentive / Fix Variable (₹)"

@@ -68,6 +68,12 @@ export class PayrollRunEmployee {
   @Column({ type: 'boolean' })
   snapshot_pf_applicable: boolean;
 
+  // Captured at run time so re-runs and audit playbacks see the exact
+  // employee-level ESIC state that was in effect when the run executed.
+  // System-wide gate stays in snapshot_statutory.esic_active.
+  @Column({ type: 'boolean', default: true })
+  snapshot_esic_applicable: boolean;
+
   @Column({ type: 'jsonb' })
   snapshot_components: SnapshotComponent[];
 

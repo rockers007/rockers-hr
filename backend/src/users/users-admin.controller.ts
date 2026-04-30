@@ -194,7 +194,7 @@ export class UsersAdminController {
       'resignation_date', 'last_working_day', 'employment_status',
       // Payroll fields. designation kept as legacy free-text; designation_id
       // is the canonical FK into master_designations (scoped per department).
-      'emp_number', 'designation', 'designation_id', 'gross', 'incentive', 'pf_applicable', 'dob',
+      'emp_number', 'designation', 'designation_id', 'gross', 'incentive', 'pf_applicable', 'esic_applicable', 'dob',
       // Bank details — admin may set directly (onboarding / corrections).
       // Employees use the self-service bank-change workflow for subsequent
       // updates so there's an approval trail.
@@ -205,7 +205,7 @@ export class UsersAdminController {
       // Uploaded assets — admin may set/clear on behalf of employee
       'photo_s3_key', 'resume_s3_key',
     ];
-    const payrollFields = ['gross', 'incentive', 'pf_applicable'];
+    const payrollFields = ['gross', 'incentive', 'pf_applicable', 'esic_applicable'];
 
     // Bank-field format validation (skip for empty-string / null clears)
     const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;

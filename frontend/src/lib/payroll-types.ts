@@ -123,6 +123,7 @@ export interface PayrollSalary {
   sal_deduction: string;
   security_return: string;
   pf_applicable: boolean;
+  esic_applicable: boolean;
   bank_name: string | null;
   bank_account_no: string | null;
   bank_ifsc: string | null;
