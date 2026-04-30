@@ -92,6 +92,7 @@ export default function EmployeeSalaryPage() {
         <SalaryBreakdownTable
           preview={data.computed_preview}
           emptyMessage="Your salary configuration is incomplete — please contact HR."
+          summaryLevel="employee"
         />
         <p className="mt-4 text-xs text-text-secondary">
           To see the exact figures for a specific month (with leave

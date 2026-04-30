@@ -20,9 +20,21 @@ import { formatINR, type SalaryBreakdown } from '@/lib/payroll-types';
 export function SalaryBreakdownTable({
   preview,
   emptyMessage,
+  summaryLevel = 'full',
 }: {
   preview: SalaryBreakdown | undefined | null;
   emptyMessage?: string;
+  /**
+   * Controls which rows render in the bottom Summary section.
+   *  - 'full' (default, admin view): Salary for Calculation, Estimated
+   *    Net Payable, Monthly CTC, CTC as per IT — gives HR the full
+   *    picture for compensation reviews.
+   *  - 'employee' (employee /payroll/salary view): only Estimated Net
+   *    Payable. Salary-for-calc, CTC and CTC-as-per-IT are
+   *    intentionally hidden — those are HR-internal and not
+   *    appropriate to surface to the employee on a what-if breakdown.
+   */
+  summaryLevel?: 'full' | 'employee';
 }) {
   const hasRows =
     preview && (preview.earnings.length > 0 || preview.deductions.length > 0);
@@ -78,15 +90,21 @@ export function SalaryBreakdownTable({
 
       {/* Net + CTC */}
       <Section title="Summary">
-        <Row label="Salary for Calculation" amount={preview.sal_for_calc} />
+        {summaryLevel === 'full' && (
+          <Row label="Salary for Calculation" amount={preview.sal_for_calc} />
+        )}
         <Row
           label="Estimated Net Payable"
           amount={preview.estimated_net_payable}
           bold
           highlight
         />
-        <Row label="Monthly CTC" amount={preview.ctc} />
-        <Row label="CTC as per IT" amount={preview.ctc_as_per_it} />
+        {summaryLevel === 'full' && (
+          <>
+            <Row label="Monthly CTC" amount={preview.ctc} />
+            <Row label="CTC as per IT" amount={preview.ctc_as_per_it} />
+          </>
+        )}
       </Section>
     </div>
   );
