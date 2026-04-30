@@ -126,7 +126,7 @@ export class ProfileExtrasService {
   async registerDocument(
     userId: string,
     dto: DocumentRegisterDto,
-  ): Promise<UserDocument> {
+  ): Promise<UserDocument & { document_type_label: string | null }> {
     if (!dto.document_type_id || !dto.s3_key) {
       throw new BadRequestException('document_type_id and s3_key are required');
     }
@@ -162,7 +162,14 @@ export class ProfileExtrasService {
       file_size_bytes: dto.file_size_bytes ?? null,
       mime_type: dto.mime_type ?? null,
     });
-    return this.docRepo.save(row);
+    const saved = await this.docRepo.save(row);
+    // Attach the master label so the response matches listDocuments.
+    // Without this, the frontend's optimistic `setDocs([row, ...docs])`
+    // pattern shows "—" in the type column until the page is refreshed
+    // (the GET endpoint joins master_document_types, the POST didn't).
+    // We've already loaded the type record above to validate it, so
+    // there's no extra DB hit.
+    return { ...saved, document_type_label: type.label };
   }
 
   async deleteDocument(userId: string, id: string): Promise<void> {
