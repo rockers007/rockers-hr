@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,18 +12,25 @@ import {
   BankChangeStatus,
 } from '../entities/bank-change-request.entity';
 import { User } from '../../users/entities/user.entity';
+import { AdminUser } from '../../users/entities/admin-user.entity';
 import { PayrollAuditService } from '../common/payroll-audit.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 @Injectable()
 export class BankChangeService {
+  private readonly logger = new Logger(BankChangeService.name);
+
   constructor(
     @InjectRepository(BankChangeRequest)
     private readonly repo: Repository<BankChangeRequest>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(AdminUser)
+    private readonly adminUserRepo: Repository<AdminUser>,
     private readonly audit: PayrollAuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async submit(
@@ -74,7 +82,61 @@ export class BankChangeService {
       entityId: saved.id,
       after: saved,
     });
+
+    // Notify super-admins. Fire-and-forget — a notification failure
+    // should not roll back the saved request (the user already
+    // submitted, the row exists in PENDING). Errors are logged so the
+    // admin can still see the request in the dashboard.
+    this.notifySuperAdminsOfSubmission(saved, user).catch((e) =>
+      this.logger.error(
+        `Failed to dispatch payroll.bank_change_submitted: ${String(e)}`,
+      ),
+    );
+
     return saved;
+  }
+
+  /**
+   * Email every active Super Admin (master_admin_roles.name = 'Super Admin')
+   * whenever an employee submits a bank-change request, so they know to
+   * review it in the admin panel. Other admin roles can still review
+   * the request — this is just the alert escalation.
+   */
+  private async notifySuperAdminsOfSubmission(
+    request: BankChangeRequest,
+    employee: User | null,
+  ): Promise<void> {
+    // Pull super-admins with their email addresses in one query.
+    const recipients: Array<{ user_id: string; gmail: string }> =
+      await this.adminUserRepo
+        .createQueryBuilder('au')
+        .leftJoin('au.role', 'role')
+        .leftJoin('au.user', 'u')
+        .where('au.is_active = true')
+        .andWhere('role.name = :rname', { rname: 'Super Admin' })
+        .select(['au.user_id AS user_id', 'u.gmail AS gmail'])
+        .getRawMany();
+
+    if (recipients.length === 0) {
+      this.logger.warn(
+        'No active Super Admin to notify about bank change request — check master_admin_roles seed.',
+      );
+      return;
+    }
+
+    await this.notifications.dispatch(
+      'payroll.bank_change_submitted',
+      recipients
+        .filter((r) => !!r.gmail)
+        .map((r) => ({ userId: r.user_id, email: r.gmail })),
+      {
+        employeeName: employee?.name ?? 'an employee',
+        empNumber: employee?.emp_number ?? '—',
+        submittedAt: request.submitted_at
+          ? new Date(request.submitted_at).toISOString()
+          : new Date().toISOString(),
+      },
+    );
   }
 
   async listMine(userId: string): Promise<BankChangeRequest[]> {

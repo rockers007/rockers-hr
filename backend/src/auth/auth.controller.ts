@@ -18,6 +18,7 @@ import {
   EmployeeLoginDto,
   ActivateAccountHttpDto,
   ChangePasswordHttpDto,
+  FinishPasswordResetHttpDto,
   JwtPayload,
 } from './auth.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -129,6 +130,28 @@ export class AuthController {
     // its localStorage token because tokens_valid_from is bumped by the
     // change, which would otherwise reject the next request with 401.
     const result = await this.inviteAuth.changeMyPassword(user.sub, dto);
+    return { data: result };
+  }
+
+  /**
+   * POST /api/v1/auth/finish-password-reset
+   *
+   * Endpoint for the admin-triggered password reset flow. The user
+   * already authenticated with the temp password emailed to them, so
+   * the only thing we ask for here is the new password + confirmation.
+   * Distinct from /change-password (which needs the current password)
+   * and /activate-account (which collects the full profile).
+   */
+  @Post('finish-password-reset')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'finish_password_reset', entityType: 'user', method: 'POST' })
+  async finishPasswordReset(
+    @Body() dto: FinishPasswordResetHttpDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.inviteAuth.finishPasswordReset(user.sub, dto);
     return { data: result };
   }
 

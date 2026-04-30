@@ -302,6 +302,93 @@ export class InviteAuthService {
   }
 
   // ----------------------------------------------------------------------
+  // Finish an admin-triggered password reset.
+  //
+  // Distinct from changeMyPassword in that:
+  //   - The user authenticated with the temp password from the email,
+  //     so requiring `current_password` again would be redundant — the
+  //     fact that they hold a valid JWT already proves possession of
+  //     the temp password from the reset email.
+  //   - Distinct from activateAccount because the user is already
+  //     active and has filled their profile — this flow ONLY updates
+  //     the password and clears first_login_required.
+  //
+  // Guard: only callable when first_login_required=true AND is_active=true
+  // (the exact state set by sendPasswordReset). Fresh invites still go
+  // through activateAccount via /complete-profile.
+  // ----------------------------------------------------------------------
+  async finishPasswordReset(
+    userId: string,
+    dto: { new_password: string; confirm_password: string },
+  ): Promise<{ token: string; user: Partial<User>; changed_at: Date }> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roleType'],
+    });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+    // Ensure this is the post-reset state, not a fresh invite (is_active
+    // false) or a normal session (first_login_required false).
+    if (!user.first_login_required || !user.is_active) {
+      throw new ConflictException({
+        code: 'NOT_IN_RESET',
+        message:
+          'No password reset is in progress for this account. Use Change Password from your profile instead.',
+      });
+    }
+
+    // Strength + confirmation
+    if (
+      !dto.new_password ||
+      dto.new_password.length < PASSWORD_MIN_LEN ||
+      !/[A-Za-z]/.test(dto.new_password) ||
+      !/\d/.test(dto.new_password)
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_TOO_WEAK',
+        message:
+          'Password must be at least 8 characters and include a letter and a digit.',
+      });
+    }
+    if (dto.new_password !== dto.confirm_password) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_MISMATCH',
+        message: 'New password and confirmation do not match.',
+      });
+    }
+
+    // Refuse reuse of the temp password — the random one in the email
+    // shouldn't be the user's permanent secret.
+    if (user.password_hash) {
+      const reused = await bcrypt.compare(dto.new_password, user.password_hash);
+      if (reused) {
+        throw new UnprocessableEntityException({
+          code: 'PASSWORD_REUSE',
+          message: 'New password must differ from the temporary password.',
+        });
+      }
+    }
+
+    user.password_hash = await bcrypt.hash(dto.new_password, BCRYPT_COST);
+    user.first_login_required = false;
+    user.invite_token = null;
+    user.invite_token_expires_at = null;
+    user.tokens_valid_from = sessionCutoff();
+    const saved = await this.userRepo.save(user);
+
+    const token = this.signUserToken(saved);
+    return {
+      changed_at: new Date(),
+      token,
+      user: this.publicUser(saved),
+    };
+  }
+
+  // ----------------------------------------------------------------------
   // Admin-triggered password reset
   // For active employees who forgot their password. Generates a random
   // temporary password, stores its hash, forces first_login_required=true

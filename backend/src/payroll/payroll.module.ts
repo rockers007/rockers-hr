@@ -17,6 +17,7 @@ import { InvestmentProof } from './entities/investment-proof.entity';
 import { BankTransferFile } from './entities/bank-transfer-file.entity';
 import { IdempotencyKey } from './entities/idempotency-key.entity';
 import { User } from '../users/entities/user.entity';
+import { AdminUser } from '../users/entities/admin-user.entity';
 
 // Services
 import { ComponentsService } from './master/components.service';
@@ -66,6 +67,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       BankTransferFile,
       IdempotencyKey,
       User,
+      AdminUser,
     ]),
   ],
   controllers: [

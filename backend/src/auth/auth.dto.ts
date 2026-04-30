@@ -97,6 +97,26 @@ export class ChangePasswordHttpDto {
   confirm_password: string;
 }
 
+/**
+ * Body for POST /auth/finish-password-reset. The reset email link sends
+ * the user back to the app authenticated with a temp password (proven
+ * via JwtAuthGuard) so we only ask for the new password + confirmation
+ * — no current_password needed.
+ */
+export class FinishPasswordResetHttpDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(PASSWORD_MAX)
+  new_password: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(PASSWORD_MAX)
+  confirm_password: string;
+}
+
 export class ActivateAccountHttpDto {
   @IsOptional()
   @IsString()
