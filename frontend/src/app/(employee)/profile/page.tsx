@@ -170,7 +170,12 @@ function ProfileInner() {
         setSuccess={setSuccess}
       />
 
-      <BankSection profile={profile} />
+      <BankSection
+        profile={profile}
+        setProfile={setProfile}
+        setError={setError}
+        setSuccess={setSuccess}
+      />
 
       <FamilySection
         family={family}
@@ -677,14 +682,39 @@ function PersonalSection({
 
 function BankSection({
   profile,
+  setProfile,
+  setError,
+  setSuccess,
 }: {
   profile: ProfileData;
+  setProfile: (p: ProfileData) => void;
+  setError: (s: string) => void;
+  setSuccess: (s: string) => void;
 }) {
-  // Bank details are read-only on /profile by design. The only writable
-  // path for an employee is the bank-change request flow on
-  // /payroll/bank-change, where an admin reviews + approves before the
-  // values are written to the user row. Keeps payroll bank-transfer
-  // files trustworthy by enforcing a human approval step.
+  // Bank details have two distinct lifecycles on /profile:
+  //
+  //  1. First-time entry — record has all three bank columns null.
+  //     Employee can fill them inline and PATCH /users/me to save.
+  //     Backend gate: UsersService.updateProfile rejects bank fields
+  //     once any are set, so this path is single-use per employee.
+  //  2. Already-set — fields render read-only and any change must go
+  //     through the bank-change request flow on /payroll/bank-change,
+  //     where an admin reviews + approves. Keeps payroll bank-transfer
+  //     files trustworthy by enforcing a human approval step.
+  const hasBank =
+    !!profile.bank_name || !!profile.bank_account_no || !!profile.bank_ifsc;
+
+  if (!hasBank) {
+    return (
+      <BankFirstTimeForm
+        profile={profile}
+        setProfile={setProfile}
+        setError={setError}
+        setSuccess={setSuccess}
+      />
+    );
+  }
+
   const masked = (v: string | null) =>
     v && v.length > 4 ? `${'*'.repeat(v.length - 4)}${v.slice(-4)}` : v ?? '—';
 
@@ -695,7 +725,7 @@ function BankSection({
           Bank Details
         </h2>
         <Link
-          href="/payroll/bank-change"
+          href="/payroll/bank-change?from=profile"
           className="text-sm font-medium text-accent hover:underline"
         >
           Request a change →
@@ -715,6 +745,141 @@ function BankSection({
         />
         <ReadOnly label="IFSC" value={profile.bank_ifsc ?? '—'} />
       </div>
+    </Card>
+  );
+}
+
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_REGEX = /^\d{9,18}$/;
+
+function BankFirstTimeForm({
+  profile,
+  setProfile,
+  setError,
+  setSuccess,
+}: {
+  profile: ProfileData;
+  setProfile: (p: ProfileData) => void;
+  setError: (s: string) => void;
+  setSuccess: (s: string) => void;
+}) {
+  const [bankName, setBankName] = useState('');
+  const [accountNo, setAccountNo] = useState('');
+  const [accountConfirm, setAccountConfirm] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLocalError('');
+
+    if (!bankName.trim() || !accountNo.trim() || !ifsc.trim()) {
+      setLocalError('All three fields are required.');
+      return;
+    }
+    if (accountNo !== accountConfirm) {
+      setLocalError('Account number confirmation does not match.');
+      return;
+    }
+    if (!ACCOUNT_REGEX.test(accountNo)) {
+      setLocalError('Account number must be 9–18 digits (numbers only).');
+      return;
+    }
+    if (!IFSC_REGEX.test(ifsc.toUpperCase())) {
+      setLocalError('IFSC format is invalid (e.g. HDFC0001234).');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await api.patch<ProfileData>('/users/me', {
+        bank_name: bankName.trim(),
+        bank_account_no: accountNo.trim(),
+        bank_ifsc: ifsc.trim().toUpperCase(),
+      });
+      setProfile(updated);
+      setSuccess(
+        'Bank details saved. Any further change will require a bank-change request.',
+      );
+    } catch (err) {
+      setError((err as ApiError).message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold text-text-primary">
+        Bank Details
+      </h2>
+      <p className="mt-1 text-xs text-text-secondary">
+        Add your salary account here. You can fill these in once — after
+        that, any change requires a bank-change request that HR will
+        review and approve.
+      </p>
+
+      <form
+        onSubmit={submit}
+        className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
+        <Field label="Bank Name *">
+          <input
+            required
+            value={bankName}
+            onChange={(e) => setBankName(e.target.value)}
+            className={inputCls}
+            placeholder="e.g. HDFC Bank"
+          />
+        </Field>
+        <Field label="IFSC Code *">
+          <input
+            required
+            value={ifsc}
+            onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+            className={inputCls}
+            placeholder="e.g. HDFC0001234"
+          />
+        </Field>
+        <Field label="Account Number *">
+          <input
+            required
+            inputMode="numeric"
+            value={accountNo}
+            onChange={(e) =>
+              setAccountNo(e.target.value.replace(/\D/g, ''))
+            }
+            className={inputCls}
+            placeholder="9–18 digits"
+          />
+        </Field>
+        <Field label="Re-enter Account Number *">
+          <input
+            required
+            inputMode="numeric"
+            value={accountConfirm}
+            onChange={(e) =>
+              setAccountConfirm(e.target.value.replace(/\D/g, ''))
+            }
+            className={inputCls}
+          />
+        </Field>
+
+        {localError && (
+          <div className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            {localError}
+          </div>
+        )}
+
+        <div className="sm:col-span-2 flex justify-end">
+          <Button type="submit" isLoading={saving} disabled={saving}>
+            Save Bank Details
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }

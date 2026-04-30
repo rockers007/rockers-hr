@@ -89,10 +89,32 @@ export class UpdateProfileDto {
   esic_no?: string;
 
   // --- Bank ---
-  // Bank fields are intentionally NOT in this DTO. Employees can only
-  // change their bank details by submitting a bank-change request that
-  // an admin reviews and approves (see PayrollBankChangeService); the
-  // approval handler is the only path that writes the new IFSC / account
-  // number to users.bank_*. PATCH /users/me explicitly rejects these
-  // keys via forbidNonWhitelisted on the global ValidationPipe.
+  // Bank fields are accepted on PATCH /users/me ONLY for the first-time
+  // entry case (the existing user record has all three bank columns
+  // null). Once any bank field is set, the only path to change it is a
+  // bank-change request that an admin reviews and approves
+  // (PayrollBankChangeService). The runtime gate lives in
+  // UsersService.updateProfile — the DTO's job is just shape + format
+  // validation that mirrors the BankChangeService submit validators so
+  // both entry points enforce identical constraints.
+  @IsOptional()
+  @IsString()
+  @MaxLength(SHORT)
+  bank_name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(SHORT)
+  @Matches(/^\d{9,18}$/, {
+    message: 'Account number must be 9–18 digits (numbers only)',
+  })
+  bank_account_no?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(SHORT)
+  @Matches(/^[A-Z]{4}0[A-Z0-9]{6}$/, {
+    message: 'IFSC format is invalid (expected ABCD0123456)',
+  })
+  bank_ifsc?: string;
 }

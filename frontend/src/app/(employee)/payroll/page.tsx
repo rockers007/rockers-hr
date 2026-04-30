@@ -179,7 +179,7 @@ export default function EmployeePayrollDashboard() {
           desc="View your current structure and 7-component split."
         />
         <QuickLink
-          href="/payroll/bank-change"
+          href="/payroll/bank-change?from=payroll"
           title="Bank Details"
           desc="View current account or request a change."
         />

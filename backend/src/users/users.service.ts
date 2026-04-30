@@ -207,11 +207,15 @@ export class UsersService {
     'emergency_phone',
     'pf_uan_no',
     'esic_no',
-    // NOTE: bank_name / bank_account_no / bank_ifsc are intentionally
-    // excluded. Employees update bank details only through the
-    // bank-change request approval workflow; admins can still edit
-    // them directly via PATCH /admin/users/:id with full IFSC + account
-    // format validation (see UsersAdminController.adminUpdateUser).
+    // Bank fields are accepted ONLY for first-time entry — see the
+    // gate in updateProfile() below. Once any of bank_name /
+    // bank_account_no / bank_ifsc is set, further changes must go
+    // through the bank-change request approval workflow
+    // (PayrollBankChangeService). Admins can still edit directly via
+    // PATCH /admin/users/:id (UsersAdminController.adminUpdateUser).
+    'bank_name',
+    'bank_account_no',
+    'bank_ifsc',
   ];
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -220,6 +224,34 @@ export class UsersService {
       this.assertPastDate(dto.dob, 'Date of birth');
     }
     const user = await this.findById(userId);
+
+    // Bank-fields gate: PATCH /users/me only writes bank details for
+    // first-time entry. If the existing record already has any bank
+    // value, reject the bank portion of this request — the employee
+    // must use the bank-change request flow so an admin reviews the
+    // change. We also require all three to be supplied together, so
+    // the bank file used by payroll bank transfers can't be left in a
+    // half-set state via partial PATCHes.
+    const bankKeys = ['bank_name', 'bank_account_no', 'bank_ifsc'] as const;
+    const bankSubmitted = bankKeys.filter((k) => {
+      const v = (dto as Record<string, unknown>)[k];
+      return v !== undefined && v !== '';
+    });
+    if (bankSubmitted.length > 0) {
+      const userHasAnyBank =
+        !!user.bank_name || !!user.bank_account_no || !!user.bank_ifsc;
+      if (userHasAnyBank) {
+        throw new BadRequestException(
+          'Bank details are already on file. Submit a bank-change request to update them.',
+        );
+      }
+      if (bankSubmitted.length !== bankKeys.length) {
+        throw new BadRequestException(
+          'First-time bank entry requires bank name, account number, and IFSC together.',
+        );
+      }
+    }
+
     const incoming = dto as unknown as Record<string, unknown>;
     for (const key of this.SELF_ALLOWED_FIELDS) {
       if (incoming[key] !== undefined) {
