@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { buildS3Client } from '../common/s3-client.factory';
 import { UserFamilyMember } from './entities/user-family-member.entity';
 import { UserDocument } from './entities/user-document.entity';
 import { MasterDocumentType } from '../master/entities/master-document-type.entity';
@@ -49,19 +50,8 @@ export class ProfileExtrasService {
     private readonly docTypeRepo: Repository<MasterDocumentType>,
     private readonly configService: ConfigService,
   ) {
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>(
-      'AWS_SECRET_ACCESS_KEY',
-    );
-    const region = this.configService.get<string>('AWS_REGION');
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET', '');
-    this.s3Client =
-      accessKeyId && secretAccessKey && region
-        ? new S3Client({
-            region,
-            credentials: { accessKeyId, secretAccessKey },
-          })
-        : null;
+    this.s3Client = buildS3Client(this.configService);
   }
 
   // -------------------- family members --------------------

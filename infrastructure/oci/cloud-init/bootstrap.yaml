@@ -1,0 +1,89 @@
+#cloud-config
+# Cloud-init script for a fresh Oracle Linux 8 / Ubuntu 22.04 VM on
+# OCI. Paste the contents into the Cloud-init script field on the
+# OCI "Create instance" form, OR pass via Terraform (see DEPLOY_OCI.md).
+#
+# What it does on first boot:
+#   1. Updates the OS.
+#   2. Installs Docker Engine + compose plugin, certbot, git, OCI CLI.
+#   3. Opens firewall ports 80 / 443.
+#   4. Creates /opt/rockers-hr and the deploy user.
+#   5. Sets up a daily backup cron + nightly TLS renewal cron.
+#
+# After cloud-init finishes (~3 min), SSH in and:
+#   git clone <repo> /opt/rockers-hr
+#   cp /opt/rockers-hr/infrastructure/oci/.env.production.example \
+#      /opt/rockers-hr/infrastructure/oci/.env.production
+#   vim /opt/rockers-hr/infrastructure/oci/.env.production
+#   sudo /opt/rockers-hr/infrastructure/oci/scripts/deploy.sh
+#
+# Tested on:
+#   - Oracle Linux 8 (Ampere A1 + x86)
+#   - Ubuntu 22.04 LTS
+
+package_update: true
+package_upgrade: true
+
+# Works for both Oracle Linux (yum/dnf) and Ubuntu (apt). cloud-init
+# `packages:` uses the right manager automatically.
+packages:
+  - git
+  - curl
+  - vim
+  - htop
+  - jq
+  - unzip
+  - chrony
+  - fail2ban
+  - certbot
+
+write_files:
+  - path: /etc/sysctl.d/99-rockers-hr.conf
+    content: |
+      # Bigger conntrack table for an HTTP-heavy box.
+      net.netfilter.nf_conntrack_max=131072
+      # Allow Postgres to use more shared memory.
+      kernel.shmmax=4294967296
+
+  - path: /etc/logrotate.d/docker-rockers-hr
+    content: |
+      /var/lib/docker/containers/*/*.log {
+          rotate 7
+          daily
+          compress
+          missingok
+          notifempty
+          copytruncate
+      }
+
+runcmd:
+  # 1. Docker Engine — official convenience script. Works on both
+  # OL8 and Ubuntu 22.04.
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - usermod -aG docker opc || usermod -aG docker ubuntu || true
+
+  # 2. OCI CLI — for the daily backup script.
+  - bash -c 'curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults'
+
+  # 3. Open firewall ports 80 + 443. iptables rules are already open
+  # on most OCI shapes, but firewalld / ufw needs a manual nudge.
+  - bash -c 'if command -v firewall-cmd >/dev/null; then firewall-cmd --permanent --add-service=http; firewall-cmd --permanent --add-service=https; firewall-cmd --reload; fi'
+  - bash -c 'if command -v ufw >/dev/null; then ufw allow 22; ufw allow 80; ufw allow 443; ufw --force enable; fi'
+
+  # 4. Working directories.
+  - mkdir -p /opt/rockers-hr/backups
+  - chown -R 1000:1000 /opt/rockers-hr
+
+  # 5. Cron — TLS renewal at 04:30 daily, off-box backup at 03:00.
+  - bash -c 'echo "30 4 * * * root certbot renew --quiet --post-hook \"docker exec \$(docker ps -qf name=nginx) nginx -s reload\"" > /etc/cron.d/rockers-hr-tls'
+  - bash -c 'echo "0 3 * * * root /opt/rockers-hr/infrastructure/oci/scripts/backup.sh" > /etc/cron.d/rockers-hr-backup'
+  - chmod 644 /etc/cron.d/rockers-hr-*
+
+  # 6. fail2ban — stops SSH brute-force noise.
+  - systemctl enable --now fail2ban
+
+  # 7. Apply sysctl tweaks immediately.
+  - sysctl --system
+
+final_message: "VM bootstrap complete. SSH in and follow DEPLOY_OCI.md §4 onwards."

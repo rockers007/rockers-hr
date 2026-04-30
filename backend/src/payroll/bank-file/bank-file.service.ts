@@ -14,6 +14,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+import { buildS3Client } from '../../common/s3-client.factory';
 import { PayrollRun } from '../entities/payroll-run.entity';
 import { BankTransferFile } from '../entities/bank-transfer-file.entity';
 import { BankChangeRequest } from '../entities/bank-change-request.entity';
@@ -51,18 +52,10 @@ export class BankFileService {
     private readonly audit: PayrollAuditService,
     config: ConfigService,
   ) {
-    const accessKeyId = config.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = config.get<string>('AWS_SECRET_ACCESS_KEY');
-    const region = config.get<string>('AWS_REGION');
     this.bucket =
       config.get<string>('AWS_S3_BANK_BUCKET') ??
       config.get<string>('AWS_S3_BUCKET', '');
-    if (accessKeyId && secretAccessKey && region) {
-      this.s3 = new S3Client({
-        region,
-        credentials: { accessKeyId, secretAccessKey },
-      });
-    }
+    this.s3 = buildS3Client(config);
   }
 
   async preview(runId: string): Promise<{
