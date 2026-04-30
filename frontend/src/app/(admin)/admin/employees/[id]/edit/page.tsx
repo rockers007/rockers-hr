@@ -870,6 +870,7 @@ function AdminFamilySection({ userId }: { userId: string }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [relations, setRelations] = useState<MasterRecord[]>([]);
   const [draft, setDraft] = useState<{
     name: string;
     relation: string;
@@ -899,6 +900,11 @@ function AdminFamilySection({ userId }: { userId: string }) {
 
   useEffect(() => {
     load();
+    // Master relations are fetched once — don't re-poll on auto-refresh.
+    api
+      .get<MasterRecord[]>('/master/relations')
+      .then(setRelations)
+      .catch(() => setRelations([]));
   }, [load]);
 
   // Pause silent polling while the admin is filling the inline add/edit
@@ -1004,12 +1010,27 @@ function AdminFamilySection({ userId }: { userId: string }) {
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
           />
-          <input
-            placeholder="Relation * (e.g. Father, Spouse)"
+          <select
             value={draft.relation}
             onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
             className="rounded-lg border border-border bg-white px-3 py-2 text-sm"
-          />
+          >
+            <option value="">Select relation… *</option>
+            {/*
+              Surface the saved value if a label was deactivated after this
+              row was created — admin can still re-save the row without
+              losing the historical relation.
+            */}
+            {draft.relation &&
+              !relations.some((r) => r.label === draft.relation) && (
+                <option value={draft.relation}>{draft.relation}</option>
+              )}
+            {relations.map((r) => (
+              <option key={r.id} value={r.label}>
+                {r.label}
+              </option>
+            ))}
+          </select>
           <input
             placeholder="Occupation"
             value={draft.occupation}

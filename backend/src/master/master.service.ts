@@ -22,6 +22,7 @@ import {
 import { MasterMaritalStatus } from './entities/master-marital-status.entity';
 import { MasterDocumentType } from './entities/master-document-type.entity';
 import { MasterDesignation } from './entities/master-designation.entity';
+import { MasterRelation } from './entities/master-relation.entity';
 
 // Maps URL table param to actual DB table name prefix
 const ALLOWED_TABLES = [
@@ -39,6 +40,7 @@ const ALLOWED_TABLES = [
   'marital_statuses',
   'document_types',
   'designations',
+  'relations',
 ] as const;
 
 export type MasterTableName = (typeof ALLOWED_TABLES)[number];
@@ -76,6 +78,8 @@ export class MasterService {
     private documentTypesRepo: Repository<MasterDocumentType>,
     @InjectRepository(MasterDesignation)
     private designationsRepo: Repository<MasterDesignation>,
+    @InjectRepository(MasterRelation)
+    private relationsRepo: Repository<MasterRelation>,
   ) {
     this.repoMap = {
       qualifications: this.qualificationsRepo,
@@ -92,6 +96,7 @@ export class MasterService {
       marital_statuses: this.maritalStatusesRepo,
       document_types: this.documentTypesRepo,
       designations: this.designationsRepo,
+      relations: this.relationsRepo,
     };
   }
 

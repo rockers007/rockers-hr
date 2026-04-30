@@ -72,6 +72,7 @@ function ProfileInner() {
   const [docs, setDocs] = useState<UserDoc[]>([]);
   const [maritalStatuses, setMaritalStatuses] = useState<MasterRecord[]>([]);
   const [docTypes, setDocTypes] = useState<MasterRecord[]>([]);
+  const [relations, setRelations] = useState<MasterRecord[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -80,18 +81,20 @@ function ProfileInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [me, fam, d, maritals, docTypesRes] = await Promise.all([
+      const [me, fam, d, maritals, docTypesRes, relationsRes] = await Promise.all([
         api.get<ProfileData>('/users/me'),
         api.get<FamilyMember[]>('/users/me/family').catch(() => []),
         api.get<UserDoc[]>('/users/me/documents').catch(() => []),
         api.get<MasterRecord[]>('/master/marital_statuses').catch(() => []),
         api.get<MasterRecord[]>('/master/document_types').catch(() => []),
+        api.get<MasterRecord[]>('/master/relations').catch(() => []),
       ]);
       setProfile(me);
       setFamily(fam);
       setDocs(d);
       setMaritalStatuses(maritals);
       setDocTypes(docTypesRes);
+      setRelations(relationsRes);
     } finally {
       setLoading(false);
     }
@@ -172,6 +175,7 @@ function ProfileInner() {
       <FamilySection
         family={family}
         setFamily={setFamily}
+        relations={relations}
         setError={setError}
         setSuccess={setSuccess}
       />
@@ -730,11 +734,13 @@ const EMPTY_MEMBER = {
 function FamilySection({
   family,
   setFamily,
+  relations,
   setError,
   setSuccess,
 }: {
   family: FamilyMember[];
   setFamily: (f: FamilyMember[]) => void;
+  relations: MasterRecord[];
   setError: (e: string) => void;
   setSuccess: (s: string) => void;
 }) {
@@ -823,13 +829,28 @@ function FamilySection({
             />
           </Field>
           <Field label="Relation *">
-            <input
+            <select
               required
               value={draft.relation}
               onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
               className={inputCls}
-              placeholder="Spouse / Father / Mother / …"
-            />
+            >
+              <option value="">Select relation…</option>
+              {/*
+                Show the saved value even if it's no longer in the active
+                master list — keeps existing rows editable after an admin
+                deactivates a label.
+              */}
+              {draft.relation &&
+                !relations.some((r) => r.label === draft.relation) && (
+                  <option value={draft.relation}>{draft.relation}</option>
+                )}
+              {relations.map((r) => (
+                <option key={r.id} value={r.label}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Occupation">
             <input

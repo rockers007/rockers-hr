@@ -18,6 +18,7 @@ import {
 import { MasterMaritalStatus } from './entities/master-marital-status.entity';
 import { MasterDocumentType } from './entities/master-document-type.entity';
 import { MasterDesignation } from './entities/master-designation.entity';
+import { MasterRelation } from './entities/master-relation.entity';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MasterDesignation } from './entities/master-designation.entity';
       MasterMaritalStatus,
       MasterDocumentType,
       MasterDesignation,
+      MasterRelation,
     ]),
   ],
   controllers: [MasterController],
