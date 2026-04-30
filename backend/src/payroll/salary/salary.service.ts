@@ -300,11 +300,38 @@ export class SalaryService {
         amount: Number(user.sal_deduction).toFixed(2),
       });
 
+    // Employer PF surfacing — CTC-style visualization. Engine's
+    // total_earnings/total_deductions/net_payable do NOT include the
+    // employer PF contribution (it's company-side, paid to the PF
+    // authority, not to the employee). To make the company's CTC
+    // contribution visible to the viewer we add it as an earning row,
+    // and offset it with an identical row on the deductions side so the
+    // displayed totals still arithmetically reconcile to the original
+    // net_payable. The engine's net is the source of truth and remains
+    // unchanged — this only affects what the breakdown table renders.
+    let displayedTotalEarnings = out.total_earnings;
+    let displayedTotalDeductions = out.total_deductions;
+    if (user.pf_applicable && out.employer_pf > 0) {
+      earnings.push({
+        code: 'EMPLOYER_PF',
+        label: 'Employer PF',
+        amount: out.employer_pf.toFixed(2),
+        is_pf_base: false,
+      });
+      deductions.push({
+        code: 'EMPLOYER_PF_OFFSET',
+        label: 'Employer PF (company contribution, not paid to employee)',
+        amount: out.employer_pf.toFixed(2),
+      });
+      displayedTotalEarnings += out.employer_pf;
+      displayedTotalDeductions += out.employer_pf;
+    }
+
     return {
       gross: String(snap.gross.toFixed(2)),
       sal_for_calc: String(out.sal_for_calc.toFixed(2)),
-      total_earnings: String(out.total_earnings.toFixed(2)),
-      total_deductions: String(out.total_deductions.toFixed(2)),
+      total_earnings: String(displayedTotalEarnings.toFixed(2)),
+      total_deductions: String(displayedTotalDeductions.toFixed(2)),
       estimated_net_payable: String(out.net_payable.toFixed(2)),
       ctc: String(out.ctc.toFixed(2)),
       ctc_as_per_it: String(out.ctc_as_per_it.toFixed(2)),
