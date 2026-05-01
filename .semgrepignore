@@ -1,0 +1,57 @@
+# Files Semgrep should NOT scan. Same syntax as .gitignore.
+# Goal: skip generated code, build artefacts, vendored dependencies,
+# and noisy test fixtures so signal stays high.
+
+# --- Build outputs ---
+**/dist/
+**/build/
+**/.next/
+**/out/
+**/coverage/
+
+# --- Vendored / installed deps ---
+**/node_modules/
+**/vendor/
+**/.pnpm-store/
+backend/test-results/
+test-results/
+
+# --- Mobile (Flutter) build artefacts ---
+mobile/.dart_tool/
+mobile/build/
+mobile/ios/Pods/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+
+# --- Generated / minified ---
+*.min.js
+*.min.css
+*.bundle.js
+*.map
+
+# --- Lockfiles (separate concern; covered by dependency scanners) ---
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+mobile/pubspec.lock
+
+# --- Test fixtures we DON'T want flagged for hardcoded test creds ---
+**/*.spec.ts
+**/*.test.ts
+tests/
+backend/test/
+
+# --- DB dumps / large generated SQL ---
+*.sql.gz
+masterdata_backup.sql
+
+# --- Documentation ---
+docs/
+planning/
+
+# --- Worktrees: avoid double-scanning the same code ---
+.claude/worktrees/
+
+# --- Skip our own audit log fields if they ever land in code (false positives) ---
+# (none right now; placeholder for future)

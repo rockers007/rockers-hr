@@ -32,6 +32,26 @@ const PASSWORD_MIN_LEN = 8;
 export const LOGIN_MAX_FAILED_ATTEMPTS = 5;
 export const LOGIN_LOCK_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+/**
+ * JWT iat claims are stored in seconds (Unix timestamp) while our DB
+ * timestamps are millisecond-precision. If we write `new Date()` straight
+ * into `tokens_valid_from` and immediately sign a new JWT, the signed
+ * token's iat can fall *before* the DB value by up to 999ms (the current
+ * second rounded down), which would immediately invalidate the just-issued
+ * token. Back off by one second so that tokens signed within the same
+ * second still validate.
+ *
+ * Combined with the 2-second grace window in JwtStrategy.validate, this
+ * gives roughly 3 seconds of slack on freshly-issued tokens. That is
+ * intentional: the cost of a stolen token surviving 3 extra seconds after
+ * a forced rotation is negligible compared to the cost of legitimately
+ * issued tokens being rejected by their own rotation event. Do not tune
+ * either value without understanding the other.
+ */
+export function sessionCutoff(): Date {
+  return new Date(Date.now() - 1000);
+}
+
 export interface InviteDto {
   name: string;
   email: string;
@@ -182,6 +202,8 @@ export class InviteAuthService {
     );
     user.first_login_required = true;
     user.registration_method = 'admin_invite';
+    // Invalidate any prior tokens — the old password no longer works.
+    user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
     await this.sendInviteEmail({
@@ -204,8 +226,11 @@ export class InviteAuthService {
   async changeMyPassword(
     userId: string,
     dto: ChangePasswordDto,
-  ): Promise<{ changed_at: Date }> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+  ): Promise<{ changed_at: Date; token: string; user: Partial<User> }> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roleType'],
+    });
     if (!user || !user.password_hash) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
@@ -258,9 +283,109 @@ export class InviteAuthService {
     user.first_login_required = false;
     user.invite_token = null;
     user.invite_token_expires_at = null;
-    await this.userRepo.save(user);
+    // Invalidate any previously-issued tokens (other tabs, mobile app, etc).
+    user.tokens_valid_from = sessionCutoff();
+    const saved = await this.userRepo.save(user);
 
-    return { changed_at: new Date() };
+    // Issue a fresh JWT so the caller's current session survives. Without
+    // this the new tokens_valid_from cutoff would reject the request the
+    // moment the response lands and the next call would 401 ("session
+    // expired") — silently logging the user out right after they
+    // successfully changed their password. The frontend must replace its
+    // localStorage token with this one.
+    const token = this.signUserToken(saved);
+    return {
+      changed_at: new Date(),
+      token,
+      user: this.publicUser(saved),
+    };
+  }
+
+  // ----------------------------------------------------------------------
+  // Finish an admin-triggered password reset.
+  //
+  // Distinct from changeMyPassword in that:
+  //   - The user authenticated with the temp password from the email,
+  //     so requiring `current_password` again would be redundant — the
+  //     fact that they hold a valid JWT already proves possession of
+  //     the temp password from the reset email.
+  //   - Distinct from activateAccount because the user is already
+  //     active and has filled their profile — this flow ONLY updates
+  //     the password and clears first_login_required.
+  //
+  // Guard: only callable when first_login_required=true AND is_active=true
+  // (the exact state set by sendPasswordReset). Fresh invites still go
+  // through activateAccount via /complete-profile.
+  // ----------------------------------------------------------------------
+  async finishPasswordReset(
+    userId: string,
+    dto: { new_password: string; confirm_password: string },
+  ): Promise<{ token: string; user: Partial<User>; changed_at: Date }> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['roleType'],
+    });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+    // Ensure this is the post-reset state, not a fresh invite (is_active
+    // false) or a normal session (first_login_required false).
+    if (!user.first_login_required || !user.is_active) {
+      throw new ConflictException({
+        code: 'NOT_IN_RESET',
+        message:
+          'No password reset is in progress for this account. Use Change Password from your profile instead.',
+      });
+    }
+
+    // Strength + confirmation
+    if (
+      !dto.new_password ||
+      dto.new_password.length < PASSWORD_MIN_LEN ||
+      !/[A-Za-z]/.test(dto.new_password) ||
+      !/\d/.test(dto.new_password)
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_TOO_WEAK',
+        message:
+          'Password must be at least 8 characters and include a letter and a digit.',
+      });
+    }
+    if (dto.new_password !== dto.confirm_password) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_MISMATCH',
+        message: 'New password and confirmation do not match.',
+      });
+    }
+
+    // Refuse reuse of the temp password — the random one in the email
+    // shouldn't be the user's permanent secret.
+    if (user.password_hash) {
+      const reused = await bcrypt.compare(dto.new_password, user.password_hash);
+      if (reused) {
+        throw new UnprocessableEntityException({
+          code: 'PASSWORD_REUSE',
+          message: 'New password must differ from the temporary password.',
+        });
+      }
+    }
+
+    user.password_hash = await bcrypt.hash(dto.new_password, BCRYPT_COST);
+    user.first_login_required = false;
+    user.invite_token = null;
+    user.invite_token_expires_at = null;
+    user.tokens_valid_from = sessionCutoff();
+    const saved = await this.userRepo.save(user);
+
+    const token = this.signUserToken(saved);
+    return {
+      changed_at: new Date(),
+      token,
+      user: this.publicUser(saved),
+    };
   }
 
   // ----------------------------------------------------------------------
@@ -289,6 +414,8 @@ export class InviteAuthService {
     user.invite_token_expires_at = new Date(
       Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
+    // Invalidate any previously-issued tokens belonging to this employee.
+    user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
     const frontendUrl = this.config.get<string>(
@@ -527,6 +654,10 @@ export class InviteAuthService {
     user.is_active = true;
     user.invite_token = null;
     user.invite_token_expires_at = null;
+    // Invalidate the initial temp-password JWT; frontend will replace its
+    // stored token with the freshly-signed one returned below, and any other
+    // devices that still hold the pre-activation token are kicked out.
+    user.tokens_valid_from = sessionCutoff();
 
     const saved = await this.userRepo.save(user);
 

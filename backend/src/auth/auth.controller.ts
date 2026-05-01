@@ -17,12 +17,15 @@ import {
   AdminLoginDto,
   EmployeeLoginDto,
   ActivateAccountHttpDto,
+  ChangePasswordHttpDto,
+  FinishPasswordResetHttpDto,
   JwtPayload,
 } from './auth.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
+import { AuditLog } from '../audit/audit.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -57,6 +60,7 @@ export class AuthController {
    */
   @Post('activate-account')
   @UseGuards(JwtAuthGuard)
+  @AuditLog({ action: 'activate_account', entityType: 'user', method: 'POST' })
   async activateAccount(
     @Body() dto: ActivateAccountHttpDto,
     @CurrentUser() user: JwtPayload,
@@ -117,16 +121,37 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'change_password', entityType: 'user', method: 'POST' })
   async changePassword(
-    @Body()
-    dto: {
-      current_password: string;
-      new_password: string;
-      confirm_password: string;
-    },
+    @Body() dto: ChangePasswordHttpDto,
     @CurrentUser() user: JwtPayload,
   ) {
+    // Service returns { changed_at, token, user } — frontend MUST swap
+    // its localStorage token because tokens_valid_from is bumped by the
+    // change, which would otherwise reject the next request with 401.
     const result = await this.inviteAuth.changeMyPassword(user.sub, dto);
+    return { data: result };
+  }
+
+  /**
+   * POST /api/v1/auth/finish-password-reset
+   *
+   * Endpoint for the admin-triggered password reset flow. The user
+   * already authenticated with the temp password emailed to them, so
+   * the only thing we ask for here is the new password + confirmation.
+   * Distinct from /change-password (which needs the current password)
+   * and /activate-account (which collects the full profile).
+   */
+  @Post('finish-password-reset')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'finish_password_reset', entityType: 'user', method: 'POST' })
+  async finishPasswordReset(
+    @Body() dto: FinishPasswordResetHttpDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.inviteAuth.finishPasswordReset(user.sub, dto);
     return { data: result };
   }
 

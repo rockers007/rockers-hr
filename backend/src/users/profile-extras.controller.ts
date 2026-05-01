@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminJwtGuard } from '../auth/guards/admin-jwt.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { AdminPermissions } from '../auth/decorators/admin-permissions.decorator';
+import { AuditLog } from '../audit/audit.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 /**
@@ -42,6 +43,7 @@ export class MyProfileExtrasController {
   }
 
   @Post('family')
+  @AuditLog({ action: 'add_family_member', entityType: 'user_family_member', method: 'POST' })
   async addFamily(
     @CurrentUser('sub') userId: string,
     @Body() dto: FamilyMemberDto,
@@ -50,6 +52,7 @@ export class MyProfileExtrasController {
   }
 
   @Patch('family/:id')
+  @AuditLog({ action: 'update_family_member', entityType: 'user_family_member', method: 'PATCH' })
   async updateFamily(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -59,6 +62,7 @@ export class MyProfileExtrasController {
   }
 
   @Delete('family/:id')
+  @AuditLog({ action: 'delete_family_member', entityType: 'user_family_member', method: 'DELETE' })
   async deleteFamily(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -73,6 +77,7 @@ export class MyProfileExtrasController {
   }
 
   @Post('documents')
+  @AuditLog({ action: 'add_document', entityType: 'user_document', method: 'POST' })
   async addDoc(
     @CurrentUser('sub') userId: string,
     @Body() dto: DocumentRegisterDto,
@@ -80,7 +85,16 @@ export class MyProfileExtrasController {
     return { data: await this.svc.registerDocument(userId, dto) };
   }
 
+  @Get('documents/:id/view-url')
+  async viewDoc(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return { data: await this.svc.getDocumentViewUrl(userId, id) };
+  }
+
   @Delete('documents/:id')
+  @AuditLog({ action: 'delete_document', entityType: 'user_document', method: 'DELETE' })
   async deleteDoc(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -107,6 +121,7 @@ export class AdminProfileExtrasController {
 
   @Post('family')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_add_family_member', entityType: 'user_family_member', method: 'POST' })
   async addFamily(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: FamilyMemberDto,
@@ -116,6 +131,7 @@ export class AdminProfileExtrasController {
 
   @Patch('family/:id')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_update_family_member', entityType: 'user_family_member', method: 'PATCH' })
   async updateFamily(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -126,6 +142,7 @@ export class AdminProfileExtrasController {
 
   @Delete('family/:id')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_delete_family_member', entityType: 'user_family_member', method: 'DELETE' })
   async deleteFamily(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -142,6 +159,7 @@ export class AdminProfileExtrasController {
 
   @Post('documents')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_add_document', entityType: 'user_document', method: 'POST' })
   async addDoc(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: DocumentRegisterDto,
@@ -149,8 +167,23 @@ export class AdminProfileExtrasController {
     return { data: await this.svc.registerDocument(userId, dto) };
   }
 
+  // Read-only access: gated by employees.view (also granted to the
+  // Reports Admin role per the RBAC matrix in ADMIN_RBAC.md). Admins
+  // who can see an employee can also read their uploaded ID documents
+  // — distinct from the higher employees.edit_profile required to add
+  // or remove a document.
+  @Get('documents/:id/view-url')
+  @AdminPermissions('employees.view')
+  async viewDoc(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return { data: await this.svc.getDocumentViewUrl(userId, id) };
+  }
+
   @Delete('documents/:id')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_delete_document', entityType: 'user_document', method: 'DELETE' })
   async deleteDoc(
     @Param('userId', ParseUUIDPipe) userId: string,
     @Param('id', ParseUUIDPipe) id: string,

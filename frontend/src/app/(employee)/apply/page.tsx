@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
 import type { LeaveType, MasterRecord, LeaveBalance } from '@/lib/types';
 
 interface CalcResult {
@@ -47,7 +48,7 @@ export default function ApplyLeavePage() {
           title="Leave Application Disabled"
           description={
             user?.last_working_day
-              ? `Your last working day was ${new Date(user.last_working_day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. You can no longer apply for leave.`
+              ? `Your last working day was ${formatDate(user.last_working_day)}. You can no longer apply for leave.`
               : `Your employment status is "${user?.employment_status}". You cannot apply for leave.`
           }
         />

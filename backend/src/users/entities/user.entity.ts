@@ -12,6 +12,7 @@ import { MasterGender } from '../../master/entities/master-gender.entity';
 import { MasterRoleType } from '../../master/entities/master-role-type.entity';
 import { MasterQualification } from '../../master/entities/master-qualification.entity';
 import { MasterDepartment } from '../../master/entities/master-department.entity';
+import { MasterDesignation } from '../../master/entities/master-designation.entity';
 
 @Entity('users')
 export class User {
@@ -130,6 +131,12 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   locked_until: Date | null;
 
+  // --- Session invalidation cutoff (see migration 1712000000050) ---
+  // JwtStrategy.validate rejects tokens whose `iat` is earlier than this.
+  // Bumped on password change / admin password reset / admin unlock.
+  @Column({ type: 'timestamptz', default: () => 'now()' })
+  tokens_valid_from: Date;
+
   // --- Extended profile ---
   @Column({ type: 'uuid', nullable: true })
   marital_status_id: string | null;
@@ -171,6 +178,13 @@ export class User {
   @Column({ type: 'boolean', default: true })
   pf_applicable: boolean;
 
+  // Per-employee ESIC gate. Engine applies ESIC only when BOTH this and
+  // statutory.esic_active are true AND gross < statutory.esic_threshold_gross.
+  // Migration EsicApplicableFlag1712000000090 backfills existing rows
+  // with TRUE so behavior is unchanged for employees already on file.
+  @Column({ type: 'boolean', default: true })
+  esic_applicable: boolean;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   bank_name: string | null;
 
@@ -183,8 +197,18 @@ export class User {
   @Column({ type: 'varchar', length: 30, nullable: true })
   emp_number: string | null;
 
+  // Legacy free-text designation, kept for backward compat. Prefer
+  // designation_id / designation relation for new records — see the
+  // master_designations table.
   @Column({ type: 'varchar', length: 100, nullable: true })
   designation: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  designation_id: string | null;
+
+  @ManyToOne(() => MasterDesignation, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'designation_id' })
+  designationMaster: MasterDesignation | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;

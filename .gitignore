@@ -137,3 +137,7 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Semgrep local report files
+semgrep-report.json
+semgrep-report.sarif

@@ -91,10 +91,17 @@ export class UsersService {
   async findById(id: string): Promise<User> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: ['gender', 'roleType', 'qualification', 'department', 'manager'],
+      relations: [
+        'gender',
+        'roleType',
+        'qualification',
+        'department',
+        'manager',
+        'designationMaster',
+      ],
     });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(`User with id ${id} not found`);
     }
     return user;
   }
@@ -146,7 +153,11 @@ export class UsersService {
       employment_status: user.employment_status || 'active',
       // Payroll fields (editable on /admin/employees/[id]/edit)
       emp_number: user.emp_number ?? null,
-      designation: user.designation ?? null,
+      // designation: if the new FK is set, prefer that label; otherwise fall
+      // back to the legacy free-text column. designation_id is always
+      // returned so the admin edit form can pre-select the dropdown.
+      designation_id: user.designation_id ?? null,
+      designation: user.designationMaster?.label ?? user.designation ?? null,
       gross: user.gross ?? '0',
       incentive: user.incentive ?? '0',
       pf_applicable: user.pf_applicable ?? true,
@@ -162,6 +173,9 @@ export class UsersService {
       emergency_phone: user.emergency_phone ?? null,
       pf_uan_no: user.pf_uan_no ?? null,
       esic_no: user.esic_no ?? null,
+      // Surfaced for admin auto-refresh: used by the edit page to decide
+      // whether server data is newer than what the form originally loaded.
+      updated_at: user.updated_at,
     };
   }
 
@@ -193,8 +207,12 @@ export class UsersService {
     'emergency_phone',
     'pf_uan_no',
     'esic_no',
-    // Bank — self-serve write allowed (employee can also use the bank-change
-    // workflow, but the profile page accepts direct edits for onboarding use).
+    // Bank fields are accepted ONLY for first-time entry — see the
+    // gate in updateProfile() below. Once any of bank_name /
+    // bank_account_no / bank_ifsc is set, further changes must go
+    // through the bank-change request approval workflow
+    // (PayrollBankChangeService). Admins can still edit directly via
+    // PATCH /admin/users/:id (UsersAdminController.adminUpdateUser).
     'bank_name',
     'bank_account_no',
     'bank_ifsc',
@@ -206,6 +224,34 @@ export class UsersService {
       this.assertPastDate(dto.dob, 'Date of birth');
     }
     const user = await this.findById(userId);
+
+    // Bank-fields gate: PATCH /users/me only writes bank details for
+    // first-time entry. If the existing record already has any bank
+    // value, reject the bank portion of this request — the employee
+    // must use the bank-change request flow so an admin reviews the
+    // change. We also require all three to be supplied together, so
+    // the bank file used by payroll bank transfers can't be left in a
+    // half-set state via partial PATCHes.
+    const bankKeys = ['bank_name', 'bank_account_no', 'bank_ifsc'] as const;
+    const bankSubmitted = bankKeys.filter((k) => {
+      const v = (dto as Record<string, unknown>)[k];
+      return v !== undefined && v !== '';
+    });
+    if (bankSubmitted.length > 0) {
+      const userHasAnyBank =
+        !!user.bank_name || !!user.bank_account_no || !!user.bank_ifsc;
+      if (userHasAnyBank) {
+        throw new BadRequestException(
+          'Bank details are already on file. Submit a bank-change request to update them.',
+        );
+      }
+      if (bankSubmitted.length !== bankKeys.length) {
+        throw new BadRequestException(
+          'First-time bank entry requires bank name, account number, and IFSC together.',
+        );
+      }
+    }
+
     const incoming = dto as unknown as Record<string, unknown>;
     for (const key of this.SELF_ALLOWED_FIELDS) {
       if (incoming[key] !== undefined) {
@@ -321,7 +367,8 @@ export class UsersService {
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.department', 'd')
       .leftJoinAndSelect('u.roleType', 'rt')
-      .leftJoinAndSelect('u.manager', 'm');
+      .leftJoinAndSelect('u.manager', 'm')
+      .leftJoinAndSelect('u.designationMaster', 'desig');
 
     if (query.department_id) {
       qb.andWhere('u.department_id = :departmentId', { departmentId: query.department_id });
@@ -349,10 +396,13 @@ export class UsersService {
     const [data, total] = await qb.getManyAndCount();
 
     // Attach a resolved CloudFront URL so the admin list can render the
-    // employee's photo without each client knowing the CDN host.
+    // employee's photo without each client knowing the CDN host, and
+    // promote the designation master label onto the top-level designation
+    // field (falling back to the legacy free-text column).
     const decorated = data.map((u) => ({
       ...u,
       photo_url: this.buildPhotoUrl(u.photo_s3_key),
+      designation: u.designationMaster?.label ?? u.designation ?? null,
     }));
 
     return {

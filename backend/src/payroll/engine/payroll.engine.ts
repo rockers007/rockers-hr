@@ -36,6 +36,11 @@ export function calculate(snapshot: PayrollSnapshot): PayrollComputation {
     sal_deduction,
     security_return,
     pf_applicable,
+    // Default true preserves pre-flag behavior: existing payroll runs
+    // and unit tests construct snapshots without this field, and
+    // expect ESIC to track only statutory.esic_active + gross
+    // threshold (the original two-gate semantics).
+    esic_applicable = true,
     lwp_days,
     ot_hours,
     components,
@@ -108,8 +113,15 @@ export function calculate(snapshot: PayrollSnapshot): PayrollComputation {
       : 0;
 
   // 4. ESIC — scaffold (§4.4)
+  // Two AND-gates plus the gross threshold: the system-wide
+  // statutory.esic_active master switch, AND the per-employee
+  // esic_applicable flag (added with EsicApplicableFlag1712000000090).
+  // HR can disable ESIC for an individual without flipping the
+  // company-wide setting.
   const esicApplied =
-    statutory.esic_active && gross < statutory.esic_threshold_gross;
+    statutory.esic_active &&
+    esic_applicable &&
+    gross < statutory.esic_threshold_gross;
   const employeeESIC = round2(gross * statutory.esic_employee_rate);
   const employerESIC = round2(gross * statutory.esic_employer_rate);
 

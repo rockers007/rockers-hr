@@ -3,9 +3,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { buildS3Client } from '../common/s3-client.factory';
 import { UserFamilyMember } from './entities/user-family-member.entity';
 import { UserDocument } from './entities/user-document.entity';
 import { MasterDocumentType } from '../master/entities/master-document-type.entity';
@@ -33,6 +38,9 @@ export interface DocumentRegisterDto {
  */
 @Injectable()
 export class ProfileExtrasService {
+  private readonly s3Client: S3Client | null;
+  private readonly bucket: string;
+
   constructor(
     @InjectRepository(UserFamilyMember)
     private readonly familyRepo: Repository<UserFamilyMember>,
@@ -40,7 +48,11 @@ export class ProfileExtrasService {
     private readonly docRepo: Repository<UserDocument>,
     @InjectRepository(MasterDocumentType)
     private readonly docTypeRepo: Repository<MasterDocumentType>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET', '');
+    this.s3Client = buildS3Client(this.configService);
+  }
 
   // -------------------- family members --------------------
 
@@ -114,10 +126,30 @@ export class ProfileExtrasService {
   async registerDocument(
     userId: string,
     dto: DocumentRegisterDto,
-  ): Promise<UserDocument> {
+  ): Promise<UserDocument & { document_type_label: string | null }> {
     if (!dto.document_type_id || !dto.s3_key) {
       throw new BadRequestException('document_type_id and s3_key are required');
     }
+
+    // SECURITY: prevent IDOR. The s3_key in the request body comes from
+    // the client and could be ANY S3 path the caller knows about — for
+    // example the deterministic payslip key
+    //   payslips/{year}/{month}/{emp_number}.pdf
+    // — which would let an employee register a "document" pointing at a
+    // colleague's payslip and then call /documents/:id/view-url to get a
+    // presigned GET. The /uploads/presigned endpoint always emits keys of
+    // the form `${context}/${userId}/${uuid}${ext}` (see
+    // UploadsService.generatePresignedUrl), so any key that doesn't begin
+    // with `user_document/${userId}/` is either a different context or a
+    // different user — reject it.
+    const allowedPrefix = `user_document/${userId}/`;
+    if (!dto.s3_key.startsWith(allowedPrefix)) {
+      throw new ForbiddenException({
+        code: 'INVALID_S3_KEY',
+        message: 'Document s3_key must belong to the user_document upload context for this user.',
+      });
+    }
+
     const type = await this.docTypeRepo.findOne({
       where: { id: dto.document_type_id, is_active: true },
     });
@@ -130,7 +162,14 @@ export class ProfileExtrasService {
       file_size_bytes: dto.file_size_bytes ?? null,
       mime_type: dto.mime_type ?? null,
     });
-    return this.docRepo.save(row);
+    const saved = await this.docRepo.save(row);
+    // Attach the master label so the response matches listDocuments.
+    // Without this, the frontend's optimistic `setDocs([row, ...docs])`
+    // pattern shows "—" in the type column until the page is refreshed
+    // (the GET endpoint joins master_document_types, the POST didn't).
+    // We've already loaded the type record above to validate it, so
+    // there's no extra DB hit.
+    return { ...saved, document_type_label: type.label };
   }
 
   async deleteDocument(userId: string, id: string): Promise<void> {
@@ -140,6 +179,53 @@ export class ProfileExtrasService {
     if (!row) throw new NotFoundException('Document not found');
     row.deleted_at = new Date();
     await this.docRepo.save(row);
+  }
+
+  /**
+   * Issues a short-lived presigned GET URL for a document so the browser
+   * can render it without exposing a permanently-public S3 URL.
+   *
+   * The bucket has all public access blocked (see SECURITY_TODO.md §6), so
+   * this is the only way to read a user document. URL is valid for 5 min —
+   * enough to click and open, short enough that a leaked URL is useless
+   * within minutes.
+   *
+   * Caller is trusted to have already authorized access to `userId`
+   * (employee self, or admin with employees.view permission).
+   */
+  async getDocumentViewUrl(
+    userId: string,
+    id: string,
+  ): Promise<{ url: string; expires_in_seconds: number; filename: string }> {
+    if (!this.s3Client) {
+      throw new ServiceUnavailableException(
+        'File storage is not configured. AWS credentials are missing.',
+      );
+    }
+    const row = await this.docRepo.findOne({
+      where: { id, user_id: userId, deleted_at: IsNull() },
+    });
+    if (!row) throw new NotFoundException('Document not found');
+
+    const expiresIn = 300; // 5 minutes
+    // The last path segment of s3_key is a UUID + extension — generally
+    // ASCII-safe today, but we sanitise + RFC 5987 encode it so any future
+    // change to the key format (or a quotation mark in the filename) can't
+    // break the Content-Disposition header.
+    const rawFilename = row.s3_key.split('/').pop() || 'document.pdf';
+    const safeAscii = rawFilename.replace(/[\\"\r\n]/g, '_');
+    const encodedUtf8 = encodeURIComponent(rawFilename);
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: row.s3_key,
+      ResponseContentType: row.mime_type || 'application/pdf',
+      // Render inline so "View" opens the PDF in a new tab instead of
+      // forcing a download. RFC 5987 dual-name lets browsers fall back
+      // to the ASCII form if they don't understand filename*.
+      ResponseContentDisposition: `inline; filename="${safeAscii}"; filename*=UTF-8''${encodedUtf8}`,
+    });
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    return { url, expires_in_seconds: expiresIn, filename: rawFilename };
   }
 
   // -------------------- helpers --------------------

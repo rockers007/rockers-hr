@@ -21,6 +21,8 @@ import {
 } from './entities';
 import { MasterMaritalStatus } from './entities/master-marital-status.entity';
 import { MasterDocumentType } from './entities/master-document-type.entity';
+import { MasterDesignation } from './entities/master-designation.entity';
+import { MasterRelation } from './entities/master-relation.entity';
 
 // Maps URL table param to actual DB table name prefix
 const ALLOWED_TABLES = [
@@ -37,6 +39,8 @@ const ALLOWED_TABLES = [
   'admin_roles',
   'marital_statuses',
   'document_types',
+  'designations',
+  'relations',
 ] as const;
 
 export type MasterTableName = (typeof ALLOWED_TABLES)[number];
@@ -72,6 +76,10 @@ export class MasterService {
     private maritalStatusesRepo: Repository<MasterMaritalStatus>,
     @InjectRepository(MasterDocumentType)
     private documentTypesRepo: Repository<MasterDocumentType>,
+    @InjectRepository(MasterDesignation)
+    private designationsRepo: Repository<MasterDesignation>,
+    @InjectRepository(MasterRelation)
+    private relationsRepo: Repository<MasterRelation>,
   ) {
     this.repoMap = {
       qualifications: this.qualificationsRepo,
@@ -87,6 +95,8 @@ export class MasterService {
       admin_roles: this.adminRolesRepo,
       marital_statuses: this.maritalStatusesRepo,
       document_types: this.documentTypesRepo,
+      designations: this.designationsRepo,
+      relations: this.relationsRepo,
     };
   }
 
@@ -128,9 +138,19 @@ export class MasterService {
       where.is_active = true;
     }
 
-    // Support context filter for file_types
+    // Per-table query parameters. Other master tables intentionally
+    // ignore `query` — extending it requires adding an explicit branch
+    // here, not a generic where-spread, so unknown filters can't leak
+    // through and a typo can't accidentally narrow another table's
+    // result set.
     if (table === 'file_types' && query?.context) {
       where.context = query.context;
+    }
+
+    // Support department_id filter for designations so the frontend can
+    // populate a dropdown filtered to the currently-selected department.
+    if (table === 'designations' && query?.department_id) {
+      where.department_id = query.department_id;
     }
 
     const order: Record<string, 'ASC' | 'DESC'> = {};

@@ -7,6 +7,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { BackupService } from './backup.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -31,6 +32,7 @@ export class BackupController {
   constructor(private readonly backupService: BackupService) {}
 
   @Post('trigger')
+  @Throttle({ default: { ttl: 300000, limit: 3 } })
   async triggerBackup() {
     const result = await this.backupService.performBackup();
     if (!result) {

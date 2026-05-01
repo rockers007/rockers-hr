@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
 import { useMasterData } from '@/lib/master-data';
-import { getInitials, formatDate } from '@/lib/utils';
+import { getInitials, formatDate, formatDateTime } from '@/lib/utils';
+import { useAutoRefresh } from '@/lib/use-auto-refresh';
 import type { MasterRecord } from '@/lib/types';
 
 interface EmployeeRow {
@@ -75,6 +76,12 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  // Keep the list fresh while the admin is on this page so employee-side
+  // edits (profile updates, photo changes, locks clearing, activation)
+  // appear without a manual browser refresh. Hook handles on-focus +
+  // 30-second polling automatically; paused while the tab is hidden.
+  useAutoRefresh(fetchEmployees);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -238,7 +245,7 @@ export default function EmployeesPage() {
                           new Date(emp.locked_until).getTime() > Date.now() && (
                             <span
                               className="ml-2 inline-flex items-center rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-xs font-medium text-[#991b1b]"
-                              title={`Locked until ${new Date(emp.locked_until).toLocaleString()}`}
+                              title={`Locked until ${formatDateTime(emp.locked_until)}`}
                             >
                               🔒 Locked
                             </span>

@@ -12,6 +12,7 @@ import {
   formatINR,
   stateLabel,
 } from '@/lib/payroll-types';
+import { formatDate } from '@/lib/utils';
 
 export default function PayrollDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -130,7 +131,7 @@ export default function PayrollDashboardPage() {
                     <td className="px-6 py-3">{r.total_employees}</td>
                     <td className="px-6 py-3">{formatINR(r.total_net_payable)}</td>
                     <td className="px-6 py-3 text-sm text-text-secondary">
-                      {new Date(r.created_at).toLocaleDateString('en-IN')}
+                      {formatDate(r.created_at)}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <Link

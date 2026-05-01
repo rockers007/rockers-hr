@@ -28,15 +28,17 @@ function LoginInner() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      // Check the token for first_login_required — if the user still needs
-      // to complete activation, send them to /complete-profile instead of
-      // bouncing straight to /dashboard. Without this guard, the submit()
-      // handler's /complete-profile redirect races with this effect and the
-      // effect wins, so new invitees end up at /dashboard despite having
-      // an unactivated account.
+      // Three possible destinations after a login flips isAuthenticated true:
+      //   - /complete-profile  : fresh invite (is_active=false, first_login_required=true)
+      //   - /reset-password    : admin-triggered reset (is_active=true,  first_login_required=true)
+      //   - /dashboard         : everyone else
+      // Source of truth is the JWT we just stored; this effect runs after
+      // submit() and would otherwise race the redirect, sending new users
+      // to /dashboard even when they're not done activating.
       const token =
         typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       let firstLoginRequired = false;
+      let isActive = true;
       if (token) {
         try {
           const part = token.split('.')[1];
@@ -44,11 +46,17 @@ function LoginInner() {
             atob(part.replace(/-/g, '+').replace(/_/g, '/')),
           );
           firstLoginRequired = payload?.first_login_required === true;
+          isActive = payload?.is_active !== false;
         } catch {
           /* ignore parse errors, fall through to /dashboard */
         }
       }
-      router.replace(firstLoginRequired ? '/complete-profile' : '/dashboard');
+      const dest = !firstLoginRequired
+        ? '/dashboard'
+        : isActive
+          ? '/reset-password'
+          : '/complete-profile';
+      router.replace(dest);
     }
   }, [isLoading, isAuthenticated, router]);
 
@@ -59,15 +67,19 @@ function LoginInner() {
     try {
       const result = await api.post<{
         token: string;
-        user: User & { first_login_required?: boolean };
+        user: User & { first_login_required?: boolean; is_active?: boolean };
         first_login_required: boolean;
       }>('/auth/login/email', { email: email.trim(), password });
 
       localStorage.setItem('token', result.token);
       setUser(result.user);
 
+      // Same three-way branch as the effect above. is_active comes off
+      // result.user when present; default true so we err towards
+      // /reset-password rather than the fuller /complete-profile form.
       if (result.first_login_required) {
-        router.replace('/complete-profile');
+        const userActive = result.user?.is_active !== false;
+        router.replace(userActive ? '/reset-password' : '/complete-profile');
       } else {
         router.replace('/dashboard');
       }

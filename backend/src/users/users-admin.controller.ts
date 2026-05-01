@@ -10,6 +10,8 @@ import {
   ParseUUIDPipe,
   ConflictException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { AuditLog } from '../audit/audit.decorator';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
@@ -40,6 +42,8 @@ export class UsersAdminController {
    */
   @Post('users/invite')
   @AdminPermissions('employees.add_direct')
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  @AuditLog({ action: 'invite_user', entityType: 'user', method: 'POST' })
   async inviteUser(@Body() dto: InviteUserDto) {
     const result = await this.inviteAuth.inviteUser(dto);
     return { data: result };
@@ -52,6 +56,8 @@ export class UsersAdminController {
    */
   @Post('users/:id/resend-invite')
   @AdminPermissions('employees.add_direct')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'resend_invite', entityType: 'user', method: 'POST' })
   async resendInvite(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.inviteAuth.resendInvite(id);
     return { data: result };
@@ -67,6 +73,8 @@ export class UsersAdminController {
    */
   @Post('users/:id/reset-password')
   @AdminPermissions('employees.add_direct')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'admin_reset_password', entityType: 'user', method: 'POST' })
   async resetPassword(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.inviteAuth.sendPasswordReset(id);
     return { data: result };
@@ -80,6 +88,8 @@ export class UsersAdminController {
    */
   @Post('users/:id/unlock')
   @AdminPermissions('employees.add_direct')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @AuditLog({ action: 'admin_unlock_account', entityType: 'user', method: 'POST' })
   async unlockAccount(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.inviteAuth.unlockAccount(id);
     return { data: result };
@@ -117,6 +127,7 @@ export class UsersAdminController {
 
   @Post('registrations/:id/activate')
   @AdminPermissions('employees.activate')
+  @AuditLog({ action: 'activate_user', entityType: 'user', method: 'POST' })
   async activateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ActivateUserDto,
@@ -127,6 +138,7 @@ export class UsersAdminController {
 
   @Post('registrations/:id/reject')
   @AdminPermissions('employees.activate')
+  @AuditLog({ action: 'reject_user', entityType: 'user', method: 'POST' })
   async rejectUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -162,6 +174,7 @@ export class UsersAdminController {
 
   @Post('users')
   @AdminPermissions('employees.add_direct')
+  @AuditLog({ action: 'admin_create_user', entityType: 'user', method: 'POST' })
   async adminCreateUser(@Body() dto: AdminCreateUserDto) {
     const data = await this.usersService.adminCreateUser(dto);
     return { data };
@@ -169,6 +182,7 @@ export class UsersAdminController {
 
   @Patch('users/:id')
   @AdminPermissions('employees.edit_profile')
+  @AuditLog({ action: 'admin_update_user', entityType: 'user', method: 'PATCH' })
   async adminUpdateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updates: Record<string, any>,
@@ -178,8 +192,9 @@ export class UsersAdminController {
       'is_manager', 'qualification_id', 'gender_id',
       'join_date', 'confirmation_date',
       'resignation_date', 'last_working_day', 'employment_status',
-      // Payroll fields
-      'emp_number', 'designation', 'gross', 'incentive', 'pf_applicable', 'dob',
+      // Payroll fields. designation kept as legacy free-text; designation_id
+      // is the canonical FK into master_designations (scoped per department).
+      'emp_number', 'designation', 'designation_id', 'gross', 'incentive', 'pf_applicable', 'esic_applicable', 'dob',
       // Bank details — admin may set directly (onboarding / corrections).
       // Employees use the self-service bank-change workflow for subsequent
       // updates so there's an approval trail.
@@ -190,7 +205,7 @@ export class UsersAdminController {
       // Uploaded assets — admin may set/clear on behalf of employee
       'photo_s3_key', 'resume_s3_key',
     ];
-    const payrollFields = ['gross', 'incentive', 'pf_applicable'];
+    const payrollFields = ['gross', 'incentive', 'pf_applicable', 'esic_applicable'];
 
     // Bank-field format validation (skip for empty-string / null clears)
     const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;

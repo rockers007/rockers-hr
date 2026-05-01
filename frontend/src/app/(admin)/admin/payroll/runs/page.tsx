@@ -13,6 +13,7 @@ import {
   formatINR,
   stateLabel,
 } from '@/lib/payroll-types';
+import { formatDate } from '@/lib/utils';
 
 export default function RunsListPage() {
   const [loading, setLoading] = useState(true);
@@ -123,7 +124,7 @@ export default function RunsListPage() {
                     <td className="px-6 py-3">{formatINR(r.total_net_payable)}</td>
                     <td className="px-6 py-3 text-sm text-text-secondary">
                       {r.released_at
-                        ? new Date(r.released_at).toLocaleDateString('en-IN')
+                        ? formatDate(r.released_at)
                         : '—'}
                     </td>
                     <td className="px-6 py-3 text-right">

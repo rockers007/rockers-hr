@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/api';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
+import { formatDateTime } from '@/lib/utils';
 
 interface BackupItem {
   key: string;
@@ -29,18 +30,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+// Route through the shared formatDateTime helper so every surface uses
+// the same dd/MM/yyyy HH:mm presentation.
 function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso);
 }
 
 export default function DatabaseBackupsPage() {

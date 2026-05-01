@@ -14,6 +14,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import * as zlib from 'zlib';
+import { buildS3Client } from '../common/s3-client.factory';
 import type { Readable } from 'stream';
 import type { Response } from 'express';
 
@@ -29,20 +30,18 @@ export class BackupService {
   private readonly databaseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
-    const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET', '');
     this.databaseUrl = this.configService.get<string>('DATABASE_URL', '');
 
-    if (accessKeyId && secretAccessKey && this.bucket) {
-      this.s3Client = new S3Client({
-        region,
-        credentials: { accessKeyId, secretAccessKey },
-      });
-      this.logger.log('Database backup service initialized (S3 target: ' + this.bucket + ')');
+    this.s3Client = buildS3Client(this.configService);
+    if (this.s3Client && this.bucket) {
+      this.logger.log(
+        'Database backup service initialized (S3 target: ' + this.bucket + ')',
+      );
     } else {
-      this.logger.warn('AWS S3 not configured — database backups disabled');
+      this.logger.warn(
+        'AWS S3 not configured — database backups disabled',
+      );
     }
   }
 

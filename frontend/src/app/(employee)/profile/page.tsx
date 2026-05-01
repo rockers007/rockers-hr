@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { api, ApiError } from '@/lib/api';
@@ -8,7 +9,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { MasterDataProvider, useMasterData } from '@/lib/master-data';
-import { getInitials, maxDobDate, validateDob } from '@/lib/utils';
+import {
+  formatDate,
+  getInitials,
+  maxDobDate,
+  validateDob,
+} from '@/lib/utils';
 import type { MasterRecord } from '@/lib/types';
 
 interface ProfileData {
@@ -66,6 +72,7 @@ function ProfileInner() {
   const [docs, setDocs] = useState<UserDoc[]>([]);
   const [maritalStatuses, setMaritalStatuses] = useState<MasterRecord[]>([]);
   const [docTypes, setDocTypes] = useState<MasterRecord[]>([]);
+  const [relations, setRelations] = useState<MasterRecord[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -74,18 +81,20 @@ function ProfileInner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [me, fam, d, maritals, docTypesRes] = await Promise.all([
+      const [me, fam, d, maritals, docTypesRes, relationsRes] = await Promise.all([
         api.get<ProfileData>('/users/me'),
         api.get<FamilyMember[]>('/users/me/family').catch(() => []),
         api.get<UserDoc[]>('/users/me/documents').catch(() => []),
         api.get<MasterRecord[]>('/master/marital_statuses').catch(() => []),
         api.get<MasterRecord[]>('/master/document_types').catch(() => []),
+        api.get<MasterRecord[]>('/master/relations').catch(() => []),
       ]);
       setProfile(me);
       setFamily(fam);
       setDocs(d);
       setMaritalStatuses(maritals);
       setDocTypes(docTypesRes);
+      setRelations(relationsRes);
     } finally {
       setLoading(false);
     }
@@ -164,8 +173,6 @@ function ProfileInner() {
       <BankSection
         profile={profile}
         setProfile={setProfile}
-        saving={saving}
-        setSaving={setSaving}
         setError={setError}
         setSuccess={setSuccess}
       />
@@ -173,6 +180,7 @@ function ProfileInner() {
       <FamilySection
         family={family}
         setFamily={setFamily}
+        relations={relations}
         setError={setError}
         setSuccess={setSuccess}
       />
@@ -247,11 +255,21 @@ function ChangePasswordSection({
 
     setSaving(true);
     try {
-      await api.post('/auth/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      });
+      // Backend rotates tokens_valid_from when the password changes, so
+      // it issues a fresh JWT in the response. We MUST swap the stored
+      // token immediately or the next request will 401 ("session
+      // expired") because the user's old token now predates the cutoff.
+      const res = await api.post<{ token: string }>(
+        '/auth/change-password',
+        {
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        },
+      );
+      if (res?.token) {
+        localStorage.setItem('token', res.token);
+      }
       setSuccess('Password updated successfully.');
       setCurrentPassword('');
       setNewPassword('');
@@ -592,11 +610,7 @@ function PersonalSection({
         <ReadOnly label="Department" value={profile.department?.label ?? '—'} />
         <ReadOnly
           label="Date of Joining"
-          value={
-            profile.join_date
-              ? new Date(profile.join_date).toLocaleDateString()
-              : '—'
-          }
+          value={profile.join_date ? formatDate(profile.join_date) : '—'}
         />
         <Field label="PF UAN No">
           <input
@@ -669,46 +683,127 @@ function PersonalSection({
 function BankSection({
   profile,
   setProfile,
-  saving,
-  setSaving,
   setError,
   setSuccess,
 }: {
   profile: ProfileData;
   setProfile: (p: ProfileData) => void;
-  saving: boolean;
-  setSaving: (v: boolean) => void;
-  setError: (e: string) => void;
+  setError: (s: string) => void;
   setSuccess: (s: string) => void;
 }) {
-  const [form, setForm] = useState({
-    bank_name: profile.bank_name ?? '',
-    bank_account_no: profile.bank_account_no ?? '',
-    bank_ifsc: profile.bank_ifsc ?? '',
-  });
+  // Bank details have two distinct lifecycles on /profile:
+  //
+  //  1. First-time entry — record has all three bank columns null.
+  //     Employee can fill them inline and PATCH /users/me to save.
+  //     Backend gate: UsersService.updateProfile rejects bank fields
+  //     once any are set, so this path is single-use per employee.
+  //  2. Already-set — fields render read-only and any change must go
+  //     through the bank-change request flow on /payroll/bank-change,
+  //     where an admin reviews + approves. Keeps payroll bank-transfer
+  //     files trustworthy by enforcing a human approval step.
+  const hasBank =
+    !!profile.bank_name || !!profile.bank_account_no || !!profile.bank_ifsc;
 
-  async function save(e: FormEvent) {
+  if (!hasBank) {
+    return (
+      <BankFirstTimeForm
+        profile={profile}
+        setProfile={setProfile}
+        setError={setError}
+        setSuccess={setSuccess}
+      />
+    );
+  }
+
+  const masked = (v: string | null) =>
+    v && v.length > 4 ? `${'*'.repeat(v.length - 4)}${v.slice(-4)}` : v ?? '—';
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Bank Details
+        </h2>
+        <Link
+          href="/payroll/bank-change?from=profile"
+          className="text-sm font-medium text-accent hover:underline"
+        >
+          Request a change →
+        </Link>
+      </div>
+      <p className="mt-1 text-xs text-text-secondary">
+        Bank details on file are shown below. To change them, submit a
+        bank-change request — your HR admin will review and approve it,
+        and the new values will replace the ones below automatically.
+      </p>
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <ReadOnly label="Bank Name" value={profile.bank_name ?? '—'} />
+        <ReadOnly
+          label="Account Number"
+          value={masked(profile.bank_account_no)}
+        />
+        <ReadOnly label="IFSC" value={profile.bank_ifsc ?? '—'} />
+      </div>
+    </Card>
+  );
+}
+
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_REGEX = /^\d{9,18}$/;
+
+function BankFirstTimeForm({
+  profile,
+  setProfile,
+  setError,
+  setSuccess,
+}: {
+  profile: ProfileData;
+  setProfile: (p: ProfileData) => void;
+  setError: (s: string) => void;
+  setSuccess: (s: string) => void;
+}) {
+  const [bankName, setBankName] = useState('');
+  const [accountNo, setAccountNo] = useState('');
+  const [accountConfirm, setAccountConfirm] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState('');
+
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (form.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.bank_ifsc)) {
-      setError('IFSC must match the format ABCD0123456.');
+    setLocalError('');
+
+    if (!bankName.trim() || !accountNo.trim() || !ifsc.trim()) {
+      setLocalError('All three fields are required.');
       return;
     }
-    if (form.bank_account_no && !/^\d{9,18}$/.test(form.bank_account_no)) {
-      setError('Bank account number must be 9–18 digits.');
+    if (accountNo !== accountConfirm) {
+      setLocalError('Account number confirmation does not match.');
       return;
     }
+    if (!ACCOUNT_REGEX.test(accountNo)) {
+      setLocalError('Account number must be 9–18 digits (numbers only).');
+      return;
+    }
+    if (!IFSC_REGEX.test(ifsc.toUpperCase())) {
+      setLocalError('IFSC format is invalid (e.g. HDFC0001234).');
+      return;
+    }
+
     setSaving(true);
     try {
-      await api.patch('/users/me', {
-        bank_name: form.bank_name || null,
-        bank_account_no: form.bank_account_no || null,
-        bank_ifsc: form.bank_ifsc.toUpperCase() || null,
+      const updated = await api.patch<ProfileData>('/users/me', {
+        bank_name: bankName.trim(),
+        bank_account_no: accountNo.trim(),
+        bank_ifsc: ifsc.trim().toUpperCase(),
       });
-      const refreshed = await api.get<ProfileData>('/users/me');
-      setProfile(refreshed);
-      setSuccess('Bank details saved.');
+      setProfile(updated);
+      setSuccess(
+        'Bank details saved. Any further change will require a bank-change request.',
+      );
     } catch (err) {
       setError((err as ApiError).message || 'Save failed');
     } finally {
@@ -718,41 +813,68 @@ function BankSection({
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-text-primary">Bank Details</h2>
-      <form onSubmit={save} className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Field label="Bank Name">
+      <h2 className="text-lg font-semibold text-text-primary">
+        Bank Details
+      </h2>
+      <p className="mt-1 text-xs text-text-secondary">
+        Add your salary account here. You can fill these in once — after
+        that, any change requires a bank-change request that HR will
+        review and approve.
+      </p>
+
+      <form
+        onSubmit={submit}
+        className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+      >
+        <Field label="Bank Name *">
           <input
-            value={form.bank_name}
+            required
+            value={bankName}
+            onChange={(e) => setBankName(e.target.value)}
+            className={inputCls}
+            placeholder="e.g. HDFC Bank"
+          />
+        </Field>
+        <Field label="IFSC Code *">
+          <input
+            required
+            value={ifsc}
+            onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+            className={inputCls}
+            placeholder="e.g. HDFC0001234"
+          />
+        </Field>
+        <Field label="Account Number *">
+          <input
+            required
+            inputMode="numeric"
+            value={accountNo}
             onChange={(e) =>
-              setForm((f) => ({ ...f, bank_name: e.target.value }))
+              setAccountNo(e.target.value.replace(/\D/g, ''))
             }
             className={inputCls}
-            placeholder="HDFC Bank"
+            placeholder="9–18 digits"
           />
         </Field>
-        <Field label="Account Number (9–18 digits)">
+        <Field label="Re-enter Account Number *">
           <input
+            required
             inputMode="numeric"
-            value={form.bank_account_no}
+            value={accountConfirm}
             onChange={(e) =>
-              setForm((f) => ({ ...f, bank_account_no: e.target.value }))
+              setAccountConfirm(e.target.value.replace(/\D/g, ''))
             }
-            className={`${inputCls} font-mono`}
+            className={inputCls}
           />
         </Field>
-        <Field label="IFSC (ABCD0123456)">
-          <input
-            value={form.bank_ifsc}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                bank_ifsc: e.target.value.toUpperCase(),
-              }))
-            }
-            className={`${inputCls} font-mono uppercase`}
-          />
-        </Field>
-        <div className="sm:col-span-3 flex justify-end">
+
+        {localError && (
+          <div className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            {localError}
+          </div>
+        )}
+
+        <div className="sm:col-span-2 flex justify-end">
           <Button type="submit" isLoading={saving} disabled={saving}>
             Save Bank Details
           </Button>
@@ -777,11 +899,13 @@ const EMPTY_MEMBER = {
 function FamilySection({
   family,
   setFamily,
+  relations,
   setError,
   setSuccess,
 }: {
   family: FamilyMember[];
   setFamily: (f: FamilyMember[]) => void;
+  relations: MasterRecord[];
   setError: (e: string) => void;
   setSuccess: (s: string) => void;
 }) {
@@ -870,13 +994,28 @@ function FamilySection({
             />
           </Field>
           <Field label="Relation *">
-            <input
+            <select
               required
               value={draft.relation}
               onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
               className={inputCls}
-              placeholder="Spouse / Father / Mother / …"
-            />
+            >
+              <option value="">Select relation…</option>
+              {/*
+                Show the saved value even if it's no longer in the active
+                master list — keeps existing rows editable after an admin
+                deactivates a label.
+              */}
+              {draft.relation &&
+                !relations.some((r) => r.label === draft.relation) && (
+                  <option value={draft.relation}>{draft.relation}</option>
+                )}
+              {relations.map((r) => (
+                <option key={r.id} value={r.label}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Occupation">
             <input
@@ -1064,6 +1203,21 @@ function DocumentsSection({
     }
   }
 
+  async function view(id: string) {
+    setError('');
+    try {
+      const res = await api.get<{ url: string }>(
+        `/users/me/documents/${id}/view-url`,
+      );
+      // Open in a new tab — the presigned URL is short-lived and the
+      // browser will render the PDF inline (ResponseContentDisposition:
+      // inline on the signed GET).
+      window.open(res.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError((err as ApiError).message || 'Could not open document');
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm('Remove this document?')) return;
     try {
@@ -1123,7 +1277,7 @@ function DocumentsSection({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary">
             <tr>
-              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">Document</th>
               <th className="px-3 py-2">Uploaded</th>
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
@@ -1145,9 +1299,16 @@ function DocumentsSection({
                     {d.document_type_label ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-text-secondary">
-                    {new Date(d.uploaded_at).toLocaleDateString('en-IN')}
+                    {formatDate(d.uploaded_at)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right space-x-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => view(d.id)}
+                    >
+                      View
+                    </Button>
                     <Button size="sm" variant="danger" onClick={() => remove(d.id)}>
                       Remove
                     </Button>

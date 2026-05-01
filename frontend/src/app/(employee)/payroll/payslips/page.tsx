@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { formatINR, MONTHS } from '@/lib/payroll-types';
+import { formatDate } from '@/lib/utils';
 
 interface PayslipRow {
   run_id: string;
@@ -106,7 +107,7 @@ export default function EmployeePayslipsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-text-secondary">
                     {r.release_date
-                      ? new Date(r.release_date).toLocaleDateString('en-IN')
+                      ? formatDate(r.release_date)
                       : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">

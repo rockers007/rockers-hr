@@ -11,6 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 import { MasterFileType } from '../master/entities/master-file-type.entity';
 import { PresignedUploadDto } from './dto/presigned-upload.dto';
+import { buildS3Client } from '../common/s3-client.factory';
 
 @Injectable()
 export class UploadsService {
@@ -23,23 +24,15 @@ export class UploadsService {
     private readonly fileTypeRepo: Repository<MasterFileType>,
     private readonly configService: ConfigService,
   ) {
-    const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>(
-      'AWS_SECRET_ACCESS_KEY',
-    );
-    const region = this.configService.get<string>('AWS_REGION');
     this.bucket = this.configService.get<string>('AWS_S3_BUCKET', '');
     this.cloudfrontUrl = this.configService.get<string>(
       'AWS_CLOUDFRONT_URL',
       '',
     );
-
-    if (accessKeyId && secretAccessKey && region) {
-      this.s3Client = new S3Client({
-        region,
-        credentials: { accessKeyId, secretAccessKey },
-      });
-    }
+    // Single factory so every S3 callsite picks up AWS_S3_ENDPOINT
+    // when deployed against OCI Object Storage (or any other S3-
+    // compatible backend). See common/s3-client.factory.ts.
+    this.s3Client = buildS3Client(this.configService);
   }
 
   async generatePresignedUrl(
