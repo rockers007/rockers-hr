@@ -6,12 +6,17 @@ import * as path from 'path';
 config();
 
 /**
- * Dumps the current state of 11 master tables from the live DATABASE_URL
- * into `master-data.generated.ts`. That file then becomes the canonical
- * seed input — run `npm run seed` on any fresh DB to reproduce it.
+ * Dumps the current state of every master table from the live
+ * DATABASE_URL into `master-data.generated.ts`. That file then
+ * becomes the canonical seed input — run `npm run seed` on any fresh
+ * DB to reproduce it.
  *
  * Re-running `seed:dump` overwrites the generated file with the current
  * DB state, so it doubles as a "snapshot" tool for master data changes.
+ *
+ * Keep this list in sync with:
+ *   - seed-master-data.ts (the hardcoded defaults)
+ *   - seed-from-snapshot.ts (replay path)
  *
  * Usage:  npm run seed:dump
  */
@@ -28,6 +33,10 @@ const TABLES = [
   'master_notification_templates',
   'master_public_holidays',
   'master_departments',
+  'master_designations',
+  'master_marital_statuses',
+  'master_document_types',
+  'master_relations',
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -44,6 +53,10 @@ const ORDER_BY: Record<TableName, string> = {
   master_notification_templates: 'event_key',
   master_public_holidays: 'year, date',
   master_departments: 'sort_order, label',
+  master_designations: 'department_id, sort_order, label',
+  master_marital_statuses: 'sort_order',
+  master_document_types: 'sort_order',
+  master_relations: 'sort_order',
 };
 
 function quoteLiteral(v: unknown): string {
@@ -78,7 +91,23 @@ async function run(): Promise<void> {
   for (const table of TABLES) {
     let rows: Array<Record<string, unknown>> = [];
     try {
-      rows = await ds.query(`SELECT * FROM ${table} ORDER BY ${ORDER_BY[table]}`);
+      // Designations are department-scoped via FK. Embed the parent's
+      // code + label so seed-from-snapshot.ts can re-resolve the FK
+      // against a different DB where the department UUIDs won't match.
+      if (table === 'master_designations') {
+        rows = await ds.query(`
+          SELECT md.*,
+                 dep.code  AS department_code,
+                 dep.label AS department_label
+          FROM master_designations md
+          JOIN master_departments dep ON dep.id = md.department_id
+          ORDER BY ${ORDER_BY[table]}
+        `);
+      } else {
+        rows = await ds.query(
+          `SELECT * FROM ${table} ORDER BY ${ORDER_BY[table]}`,
+        );
+      }
     } catch (e) {
       console.warn(
         `Skipping ${table}: ${(e as Error).message}`,
