@@ -1,4 +1,23 @@
-const API_BASE = '/api/v1';
+/**
+ * Where the Next.js client sends its API requests.
+ *
+ *   NEXT_PUBLIC_API_URL=https://rockers-hr.onrender.com
+ *     → cross-origin to a deployed backend (Render, Railway, OCI, …).
+ *       Trailing slashes on the env value are trimmed so we don't end
+ *       up with `https://host//api/v1/...` (most cloud hosts ignore
+ *       the double slash, ngrok does not).
+ *
+ *   NEXT_PUBLIC_API_URL unset / empty
+ *     → relative `/api/v1`, which is the default for local dev where
+ *       the Next dev server proxies /api/* to the local backend on
+ *       :4000, AND for production deployments that put the frontend
+ *       behind the same domain as the backend (reverse-proxy mode).
+ *
+ * The value is inlined at build time by Next.js — restart `next dev`
+ * (or rebuild the production bundle) after changing the env var.
+ */
+const API_HOST = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
+const API_BASE = `${API_HOST}/api/v1`;
 
 export interface ApiResponse<T> {
   data: T;
