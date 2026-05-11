@@ -289,7 +289,7 @@ function ChangePasswordSection({
     <Card>
       <h2 className="text-lg font-semibold text-text-primary">Change Password</h2>
       <p className="mt-1 text-sm text-text-secondary">
-        Use a new password you haven't used here before. Minimum 8 characters
+        Use a new password you haven&apos;t used here before. Minimum 8 characters
         with at least one letter and one digit.
       </p>
 

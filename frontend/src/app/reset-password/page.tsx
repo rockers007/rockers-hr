@@ -115,7 +115,7 @@ export default function ResetPasswordPage() {
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
           {name ? `Hi ${name}, your` : 'Your'} HR admin has reset your password.
-          Choose a new one to finish the reset. You'll be signed in
+          Choose a new one to finish the reset. You&apos;ll be signed in
           immediately afterwards.
         </p>
         {email && (

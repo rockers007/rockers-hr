@@ -154,7 +154,7 @@ function LoginInner() {
               placeholder="••••••••"
             />
             <p className="mt-1 text-xs text-text-secondary">
-              First-time login? Use the password sent to your email — you'll be
+              First-time login? Use the password sent to your email — you&apos;ll be
               prompted to set a new one after logging in.
             </p>
           </div>

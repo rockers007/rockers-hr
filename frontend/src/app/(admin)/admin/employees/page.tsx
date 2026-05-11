@@ -423,7 +423,7 @@ export default function EmployeesPage() {
             </h2>
             <p className="mt-1 text-sm text-text-secondary">
               The employee will receive a welcome email with a login link and
-              random password. They'll complete their profile on first login.
+              random password. They&apos;ll complete their profile on first login.
             </p>
 
             <form
