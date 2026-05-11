@@ -1,0 +1,182 @@
+# Production stack for Rockers HR on a single Oracle Cloud VM.
+#
+# Layout: nginx is the only container with public ports (80 + 443).
+# Postgres + backend + frontend live on a private docker network and
+# are reached via the reverse proxy. Postgres data lives on a named
+# volume that we'll back up daily via the backup container.
+#
+# Configuration comes from .env.production at the same path. See
+# .env.production.example for the full list of variables.
+#
+# Usage:
+#   cd /opt/rockers-hr/infrastructure/oci
+#   docker compose -f docker-compose.production.yml --env-file .env.production up -d
+#
+# All services restart automatically on failure or VM reboot.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # Intentionally NO `ports:` block — postgres is reachable only from
+    # the internal docker network. Use `docker compose exec postgres
+    # psql …` for ad-hoc access.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # mount the backups dir read-write so pg_dump can write straight
+      # into a host folder that the backup container then ships off-box.
+      - /opt/rockers-hr/backups:/backups
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  backend:
+    image: ${BACKEND_IMAGE:-rockers-hr-backend:local}
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: '4000'
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL}
+      # AWS SDK + OCI Object Storage compat: same SDK, just override
+      # the endpoint when deploying to OCI. See DEPLOY_OCI.md §6.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-}
+      AWS_CLOUDFRONT_URL: ${AWS_CLOUDFRONT_URL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      LLM_MOCK: ${LLM_MOCK:-true}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/api/v1/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-rockers-hr-frontend:local}
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Inside the docker network, the browser makes API calls back to
+      # /api/v1 on the same origin (nginx routes them). NEXT_PUBLIC_*
+      # is baked at build time so we keep it relative.
+      NEXT_PUBLIC_API_URL: /api/v1
+    depends_on:
+      - backend
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Let's Encrypt certs live here, persisted across container
+      # restarts and renewals via certbot on the host.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  # Daily pg_dump → /opt/rockers-hr/backups → cron uploads to Object
+  # Storage (see scripts/backup.sh on the host crontab).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGHOST: postgres
+    volumes:
+      - /opt/rockers-hr/backups:/backups
+    networks:
+      - internal
+    # Long-running: emits a fresh dump every 24h and prunes >30 day
+    # files. Off-box upload is a host-cron concern, see
+    # scripts/backup.sh.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          STAMP=$$(date +%Y%m%d_%H%M%S)
+          OUT="/backups/rockers_hr_$$STAMP.sql.gz"
+          echo "[backup] dumping to $$OUT"
+          PGPASSWORD="$$POSTGRES_PASSWORD" pg_dump \
+            -h $$PGHOST -U $$POSTGRES_USER $$POSTGRES_DB \
+            | gzip > "$$OUT"
+          # keep 30 days
+          find /backups -name 'rockers_hr_*.sql.gz' -mtime +30 -delete
+          sleep 86400
+        done
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge

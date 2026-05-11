@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
+import { formatDate } from '@/lib/utils';
 
 interface OvertimeUser {
   id: string;
@@ -296,7 +297,8 @@ export default function AdminOvertimePage() {
 function formatOtDate(dateStr: string): string {
   try {
     const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const weekday = d.toLocaleDateString('en-IN', { weekday: 'short' });
+    return `${weekday}, ${formatDate(dateStr)}`;
   } catch {
     return dateStr;
   }

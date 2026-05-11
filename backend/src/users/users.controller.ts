@@ -15,6 +15,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/auth.dto';
+import { AuditLog } from '../audit/audit.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -47,6 +48,7 @@ export class UsersController {
 
   @Patch('me')
   @UseGuards(JwtAuthGuard)
+  @AuditLog({ action: 'update_profile', entityType: 'user', method: 'PATCH' })
   async updateProfile(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateProfileDto,

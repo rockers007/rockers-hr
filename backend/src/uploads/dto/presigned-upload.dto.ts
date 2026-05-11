@@ -12,6 +12,6 @@ export class PresignedUploadDto {
 
   @IsNotEmpty()
   @IsString()
-  @IsIn(['profile_photo', 'resume', 'leave_doc'])
+  @IsIn(['profile_photo', 'resume', 'leave_doc', 'user_document'])
   context: string;
 }

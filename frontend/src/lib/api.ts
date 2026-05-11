@@ -1,4 +1,23 @@
-const API_BASE = '/api/v1';
+/**
+ * Where the Next.js client sends its API requests.
+ *
+ *   NEXT_PUBLIC_API_URL=https://rockers-hr.onrender.com
+ *     → cross-origin to a deployed backend (Render, Railway, OCI, …).
+ *       Trailing slashes on the env value are trimmed so we don't end
+ *       up with `https://host//api/v1/...` (most cloud hosts ignore
+ *       the double slash, ngrok does not).
+ *
+ *   NEXT_PUBLIC_API_URL unset / empty
+ *     → relative `/api/v1`, which is the default for local dev where
+ *       the Next dev server proxies /api/* to the local backend on
+ *       :4000, AND for production deployments that put the frontend
+ *       behind the same domain as the backend (reverse-proxy mode).
+ *
+ * The value is inlined at build time by Next.js — restart `next dev`
+ * (or rebuild the production bundle) after changing the env var.
+ */
+const API_HOST = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
+const API_BASE = `${API_HOST}/api/v1`;
 
 export interface ApiResponse<T> {
   data: T;
@@ -18,6 +37,43 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Global in-flight request counter. Every call into this module
+ * increments before fetch and decrements in a `finally`, dispatching a
+ * `api:inflight` CustomEvent on `window` whenever the count changes.
+ *
+ * The TopProgressBar component listens for this event and renders a
+ * thin animated bar across the top of the viewport while count > 0.
+ * This is the cheapest way to give the user *something* on screen for
+ * every click that fires an API call without having to add per-button
+ * loading state to dozens of forms.
+ *
+ * Lives in this module (not a separate store) so any code path that
+ * already imports `api` picks up the instrumentation automatically.
+ * SSR-safe: guarded by `typeof window !== 'undefined'`.
+ */
+let inflightCount = 0;
+const INFLIGHT_EVENT = 'api:inflight';
+
+function notifyInflightChange() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent(INFLIGHT_EVENT, { detail: { count: inflightCount } }),
+  );
+}
+
+function startInflight() {
+  inflightCount++;
+  notifyInflightChange();
+}
+
+function endInflight() {
+  inflightCount = Math.max(0, inflightCount - 1);
+  notifyInflightChange();
+}
+
+export const API_INFLIGHT_EVENT = INFLIGHT_EVENT;
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -30,25 +86,30 @@ async function request<T>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string>),
-    },
-    ...options,
-  });
+  startInflight();
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string>),
+      },
+      ...options,
+    });
 
-  if (res.status === 204) return undefined as T;
+    if (res.status === 204) return undefined as T;
 
-  const json: ApiResponse<T> = await res.json();
+    const json: ApiResponse<T> = await res.json();
 
-  if (!res.ok || json.error) {
-    const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
-    throw new ApiError(err.code, err.message, err.statusCode);
+    if (!res.ok || json.error) {
+      const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
+      throw new ApiError(err.code, err.message, err.statusCode);
+    }
+
+    return json.data;
+  } finally {
+    endInflight();
   }
-
-  return json.data;
 }
 
 async function requestWithMeta<T>(
@@ -63,25 +124,30 @@ async function requestWithMeta<T>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string>),
-    },
-    ...options,
-  });
+  startInflight();
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string>),
+      },
+      ...options,
+    });
 
-  if (res.status === 204) return { data: undefined as T };
+    if (res.status === 204) return { data: undefined as T };
 
-  const json: ApiResponse<T> = await res.json();
+    const json: ApiResponse<T> = await res.json();
 
-  if (!res.ok || json.error) {
-    const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
-    throw new ApiError(err.code, err.message, err.statusCode);
+    if (!res.ok || json.error) {
+      const err = json.error ?? { code: 'UNKNOWN', message: 'Request failed', statusCode: res.status };
+      throw new ApiError(err.code, err.message, err.statusCode);
+    }
+
+    return json;
+  } finally {
+    endInflight();
   }
-
-  return json;
 }
 
 export const api = {

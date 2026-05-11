@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { TopProgressBar } from '@/components/ui/top-progress-bar';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -29,6 +30,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="antialiased">
+        {/*
+          Global API loading indicator. Activates whenever any
+          api.* call is in flight so users get visible feedback the
+          moment they click a button — no per-form wiring needed.
+          See components/ui/top-progress-bar.tsx for the easing logic.
+        */}
+        <TopProgressBar />
         {children}
       </body>
     </html>

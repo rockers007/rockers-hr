@@ -23,7 +23,7 @@ import { PayrollModule } from './payroll/payroll.module';
 
 @Module({
   imports: [
-    // Environment config — loads .env at project root
+    // Environment config — loads backend/.env
     ConfigModule.forRoot({ isGlobal: true }),
 
     // PostgreSQL via TypeORM
@@ -35,9 +35,23 @@ import { PayrollModule } from './payroll/payroll.module';
         if (!dbUrl) {
           throw new Error('DATABASE_URL environment variable is required');
         }
+        // SSL gating mirrors src/config/typeorm.config.ts so the
+        // running NestJS app and the migration CLI use the same
+        // policy. PGSSL=require (skip CA) for managed Postgres where
+        // the provider's root CA isn't in Node's bundle; PGSSL=strict
+        // when you've imported the CA. Auto-enable for known managed
+        // hosts (Supabase / RDS / OCI) so a fresh DATABASE_URL works
+        // out of the box without remembering to set PGSSL.
+        const sslMode = (config.get<string>('PGSSL') ?? '').toLowerCase();
+        let ssl: boolean | { rejectUnauthorized: boolean } | undefined;
+        if (sslMode === 'require') ssl = { rejectUnauthorized: false };
+        else if (sslMode === 'strict') ssl = { rejectUnauthorized: true };
+        else if (/supabase\.(co|com)|amazonaws\.com|oraclecloud\.com/i.test(dbUrl))
+          ssl = { rejectUnauthorized: false };
         return {
           type: 'postgres' as const,
           url: dbUrl,
+          ssl,
           autoLoadEntities: true,
           synchronize: false,
           logging: config.get<string>('NODE_ENV') === 'development',

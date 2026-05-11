@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
 import {
   BankChangeRequest,
   PayrollSalary,
@@ -13,7 +15,34 @@ import {
 
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
+// `from` qualifies the back link so the user returns to wherever they
+// arrived from (employees reach this page from /profile via the
+// "Request a change" link AND from /payroll via the "Bank Details"
+// quick-link). Defaults to /payroll when the param is absent.
+function backLink(from: string | null): { href: string; label: string } {
+  if (from === 'profile') {
+    return { href: '/profile', label: '← Back to My Profile' };
+  }
+  return { href: '/payroll', label: '← Back to Payroll' };
+}
+
 export default function BankChangePage() {
+  // useSearchParams reads from the URL during render and Next.js
+  // requires it inside a Suspense boundary so the surrounding shell
+  // can render at build time without statically resolving query
+  // params. Without this, `next build` fails the page with a
+  // "useSearchParams() should be wrapped in a suspense boundary"
+  // error.
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <BankChangeInner />
+    </Suspense>
+  );
+}
+
+function BankChangeInner() {
+  const searchParams = useSearchParams();
+  const back = backLink(searchParams.get('from'));
   const [loading, setLoading] = useState(true);
   const [salary, setSalary] = useState<PayrollSalary | null>(null);
   const [history, setHistory] = useState<BankChangeRequest[]>([]);
@@ -87,8 +116,8 @@ export default function BankChangePage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/payroll" className="text-sm text-accent hover:underline">
-          ← Back to Payroll
+        <Link href={back.href} className="text-sm text-accent hover:underline">
+          {back.label}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Bank Details</h1>
         <p className="text-sm text-text-secondary">
@@ -178,7 +207,7 @@ export default function BankChangePage() {
               {history.map((h) => (
                 <tr key={h.id}>
                   <td className="px-4 py-3">
-                    {new Date(h.submitted_at).toLocaleDateString('en-IN')}
+                    {formatDate(h.submitted_at)}
                   </td>
                   <td className="px-4 py-3">
                     {h.new_bank_name} · {h.new_ifsc}
@@ -203,7 +232,7 @@ export default function BankChangePage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-text-secondary">
                     {h.reviewed_at
-                      ? new Date(h.reviewed_at).toLocaleDateString('en-IN')
+                      ? formatDate(h.reviewed_at)
                       : '—'}
                   </td>
                 </tr>

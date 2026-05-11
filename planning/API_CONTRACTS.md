@@ -612,3 +612,49 @@ Paginated audit log. Filter: `?actor_id=uuid&entity_type=leave_request&action=le
 
 ### `GET /health`
 Returns `200 OK` with `{ "status": "ok", "db": "ok" }`. No auth required.
+
+---
+
+## Auth & Registration (v2.0 — admin-invite flow)
+
+See `AUTH_REGISTRATION.md` for full design. Summary endpoints:
+
+### `POST /admin/users/invite` — admin creates + invites
+**Auth:** admin JWT with `employees.add_direct` permission.
+**Body:** `{ "name": string, "email": string, "emp_number"?: string }`
+**201:** `{ "data": { "user": { "id", "name", "email", "emp_number", "is_active": false } } }`
+**Errors:** `400 EMAIL_INVALID`, `409 EMAIL_TAKEN`
+
+Creates the user row with `first_login_required=true`, generates a random password, stores its bcrypt hash, generates a 7-day `invite_token`, and dispatches the `user.invited` email template. Audit: `user.invited`.
+
+### `POST /auth/login/email` — employee email + password login
+**Body:** `{ "email": string, "password": string }`
+**200 OK — profile complete:** `{ "data": { "token", "user", "first_login_required": false } }`
+**200 OK — first login:** `{ "data": { "token", "user", "first_login_required": true } }` → frontend routes to `/complete-profile`
+**401 INVALID_CREDENTIALS:** wrong email or wrong password (both surface the same message to prevent enumeration).
+**403 ACCOUNT_INACTIVE:** account was deactivated after activation.
+
+### `POST /auth/activate-account` — first-login completion
+**Auth:** employee JWT from a `first_login_required=true` login.
+**Body:** `{ phone, dob, gender_id, qualification_id, department_id, join_date, photo_s3_key?, resume_s3_key?, new_password, confirm_password }`
+**200:** `{ "data": { "token": "<new JWT>", "user": { "is_active": true, "first_login_required": false, ... } } }`
+**409 ALREADY_ACTIVATED:** `first_login_required=false`.
+**422 PASSWORD_TOO_WEAK / PASSWORD_MISMATCH / VALIDATION_FAILED**
+
+Persists profile fields, sets new `password_hash`, flips `is_active=true`, clears invite token, dispatches `user.activated` email, returns refreshed JWT.
+
+### `POST /admin/users/:id/resend-invite`
+**Auth:** admin JWT with `employees.add_direct` permission.
+**200:** `{ "data": { "sent_at", "expires_at" } }`
+**404 USER_NOT_FOUND**, **409 ALREADY_ACTIVE**
+
+Regenerates the random password (invalidating the previous one), refreshes the invite token (7-day expiry), re-dispatches `user.invited`.
+
+### Legacy Gmail OAuth (unchanged)
+
+Kept for employees created under the pre-v2.0 self-registration flow.
+
+- `GET /auth/google` — initiate
+- `GET /auth/google/callback` — handle callback
+
+The `/login` page renders a "Continue with Google" secondary link below the email+password form. Google OAuth does NOT apply to users created via `/admin/users/invite` — they must authenticate with the invited password.

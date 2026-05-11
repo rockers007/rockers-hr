@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
 import { BankChangeRequest } from '@/lib/payroll-types';
+import { formatDateTime } from '@/lib/utils';
 
 type StatusFilter = '' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -114,7 +115,7 @@ export default function BankChangesAdminPage() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td className="px-4 py-3 text-text-secondary">
-                    {new Date(r.submitted_at).toLocaleString('en-IN')}
+                    {formatDateTime(r.submitted_at)}
                   </td>
                   <td className="px-4 py-3">
                     <div>{r.current_bank_name ?? '—'}</div>

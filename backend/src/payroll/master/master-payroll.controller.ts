@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -147,14 +148,16 @@ export class MasterPayrollController {
     const row = rows[0];
     if (!row) {
       if (!body.company_name?.trim()) {
-        return {
-          success: false,
-          error: {
-            code: 'COMPANY_NAME_REQUIRED',
-            message:
-              'company_name is required when creating the first company profile row.',
-          },
-        };
+        // Throw a real Nest exception so the global filter wraps it as
+        // { error: { code, message, statusCode: 400 } } and the frontend
+        // sees json.error. Returning {success:false,…} with HTTP 200
+        // sails through ResponseInterceptor and the frontend treats the
+        // failed write as success.
+        throw new BadRequestException({
+          code: 'COMPANY_NAME_REQUIRED',
+          message:
+            'company_name is required when creating the first company profile row.',
+        });
       }
       const created = await this.companyRepo.save(
         this.companyRepo.create(body as CompanyProfile),

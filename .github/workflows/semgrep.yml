@@ -1,0 +1,84 @@
+# Semgrep static-analysis security scan.
+#
+#   - Runs on every push to a long-lived branch, every PR, and once a week
+#     so we catch new findings even if the branch hasn't moved (rule
+#     definitions on Semgrep's side keep evolving).
+#   - `semgrep ci` reads the project's policy from semgrep.dev (configured
+#     via SEMGREP_APP_TOKEN) plus any custom rules in .semgrep/ and uploads
+#     findings to the dashboard at https://semgrep.dev/orgs/-/findings .
+#   - SARIF output is also uploaded so findings show up in the GitHub
+#     Security tab → Code scanning alerts (no extra token needed; uses the
+#     workflow's GITHUB_TOKEN).
+#   - Report-only mode by default: the job NEVER fails the PR. To start
+#     blocking PRs on HIGH/CRITICAL findings, change `continue-on-error`
+#     to `false` and add `--severity=ERROR --severity=WARNING` to the
+#     scan step.
+
+name: Semgrep
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - payroll
+      - 'claude/**'
+  pull_request:
+    branches: [main, master, payroll]
+  schedule:
+    # Mondays 08:00 IST (02:30 UTC)
+    - cron: '30 2 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write # so the SARIF upload can post to the Security tab
+
+jobs:
+  semgrep:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    # Skip dependabot — Semgrep can't authenticate against the token in a
+    # dependabot-triggered run, and these PRs are dependency bumps anyway.
+    if: (github.actor != 'dependabot[bot]')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run semgrep ci (uploads findings to semgrep.dev)
+        # `semgrep ci` does the right thing in CI: incremental scans on
+        # PRs (only changed files), full scans on pushes/cron. Combines
+        # cloud-side policy with rules in .semgrep/.
+        #
+        # Suppressed rules:
+        #   - njsscan.database.nosql_find_injection — assumes Mongoose;
+        #     this project uses TypeORM/Postgres, every match is a
+        #     false positive on `.find({ where: {...} })`.
+        #   - njsscan.xss.xss_node.express_xss — same noise on TypeORM
+        #     responses being passed to res.send / res.json.
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          semgrep ci \
+            --sarif --output=semgrep-report.sarif \
+            --exclude-rule=ajinabraham.njsscan.database.nosql_find_injection.node_nosqli_injection \
+            --exclude-rule=ajinabraham.njsscan.xss.xss_node.express_xss
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-report.sarif
+          category: semgrep
+
+      - name: Save SARIF as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep-report.sarif
+          retention-days: 90

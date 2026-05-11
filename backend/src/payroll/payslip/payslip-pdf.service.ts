@@ -301,10 +301,23 @@ export function passwordFromDob(
   dob: string | Date | null | undefined,
 ): string | null {
   if (!dob) return null;
-  // pg may return DATE columns as Date objects depending on type parsers.
-  const iso =
-    typeof dob === 'string' ? dob : new Date(dob).toISOString().slice(0, 10);
-  const [y, m, day] = iso.split('-');
-  if (!y || !m || !day) return null;
-  return `${day}${m}`;
+
+  // PostgreSQL DATE columns can come back as either strings ("1990-05-15")
+  // or Date instances depending on TypeORM type parsers. We MUST NOT route
+  // a Date through .toISOString() because that converts to UTC, which on
+  // any timezone east of UTC will roll back to the previous calendar day
+  // for any dob stored at local midnight (the typical DATE-column case).
+  // That gave employees the password for the day BEFORE their birthday
+  // half the time. Instead, read the local-date components directly.
+  if (typeof dob === 'string') {
+    const [y, m, day] = dob.slice(0, 10).split('-');
+    if (!y || !m || !day) return null;
+    return `${day}${m}`;
+  }
+
+  const d = dob instanceof Date ? dob : new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}${month}`;
 }

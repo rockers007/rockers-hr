@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
 import { formatDate, formatDateRange, getInitials } from '@/lib/utils';
+import { useAutoRefresh } from '@/lib/use-auto-refresh';
 import type { LeaveBalance, LeaveRequest } from '@/lib/types';
 
 interface EmployeeProfile {
@@ -42,9 +43,9 @@ export default function EmployeeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
       setError('');
       try {
         const [emp, leaves] = await Promise.all([
@@ -54,13 +55,22 @@ export default function EmployeeDetailPage() {
         setEmployee(emp);
         setRecentLeaves(leaves);
       } catch {
-        setError('Failed to load employee details.');
+        if (!opts?.silent) setError('Failed to load employee details.');
       } finally {
-        setLoading(false);
+        if (!opts?.silent) setLoading(false);
       }
-    }
+    },
+    [id],
+  );
+
+  useEffect(() => {
     load();
-  }, [id]);
+  }, [load]);
+
+  // Silently refetch while the page is open so employee-side edits land in
+  // the admin view without a manual browser refresh. `silent` keeps the
+  // spinner off during background refreshes.
+  useAutoRefresh(() => load({ silent: true }));
 
   if (loading) return <PageLoader />;
 

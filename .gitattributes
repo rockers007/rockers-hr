@@ -1,0 +1,48 @@
+# Stabilise line endings across Windows / macOS / Linux contributors.
+# Without this, every Windows checkout converts LF -> CRLF and triggers
+# warnings on every git add ("LF will be replaced by CRLF").
+#
+# Source files are normalised to LF in the repo, regardless of the
+# platform they were committed from. Binary files are left alone.
+
+* text=auto eol=lf
+
+# Explicit text classification — avoids mis-detection of files with no
+# extension or unusual content.
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.sql       text eol=lf
+*.sh        text eol=lf
+*.dart      text eol=lf
+*.txt       text eol=lf
+*.env.*     text eol=lf
+
+# Windows-only files that need CRLF.
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.ps1       text eol=crlf
+
+# Treat as binary — do not normalise.
+*.pdf       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.zip       binary
+*.gz        binary
+*.docx      binary
+*.xlsx      binary
+*.pptx      binary

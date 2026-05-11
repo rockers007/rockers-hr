@@ -45,6 +45,12 @@ export interface PayrollSnapshot {
   sal_deduction: number;
   security_return: number;
   pf_applicable: boolean;
+  // Per-employee ESIC gate. Engine applies ESIC only when this AND
+  // statutory.esic_active are both true (and gross is below the
+  // threshold). Optional for back-compat — engine defaults missing
+  // values to true so older snapshots and tests behave as they did
+  // before this flag existed.
+  esic_applicable?: boolean;
 
   lwp_days: number;
   ot_hours: number;

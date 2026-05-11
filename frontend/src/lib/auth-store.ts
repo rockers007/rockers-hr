@@ -26,7 +26,7 @@ interface AuthState {
   setAdminUser: (admin: AdminUser | null) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   adminUser: null,
   isLoading: true,
@@ -85,6 +85,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // Capture admin-ness BEFORE clearing state so we know where to redirect.
+    // Fallback: path-based detection handles stale state after refresh.
+    const wasAdmin =
+      get().isAdmin ||
+      (typeof window !== 'undefined' &&
+        window.location.pathname.startsWith('/admin'));
     try {
       await api.post('/auth/logout');
     } catch {
@@ -93,7 +99,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('token');
       set({ user: null, adminUser: null, isAuthenticated: false, isAdmin: false });
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        window.location.href = wasAdmin ? '/admin/login' : '/login';
       }
     }
   },

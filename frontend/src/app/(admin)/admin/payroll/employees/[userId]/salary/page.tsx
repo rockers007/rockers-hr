@@ -7,7 +7,8 @@ import { api, ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/ui/spinner';
-import { PayrollSalary, formatINR } from '@/lib/payroll-types';
+import { PayrollSalary } from '@/lib/payroll-types';
+import { SalaryBreakdownTable } from '@/components/payroll/salary-breakdown-table';
 
 export default function SalaryConfigPage() {
   const { userId } = useParams<{ userId: string }>();
@@ -45,6 +46,7 @@ export default function SalaryConfigPage() {
       sal_deduction: data.sal_deduction,
       security_return: data.security_return,
       pf_applicable: data.pf_applicable,
+      esic_applicable: data.esic_applicable,
     }) !==
       JSON.stringify({
         gross: original.gross,
@@ -54,6 +56,7 @@ export default function SalaryConfigPage() {
         sal_deduction: original.sal_deduction,
         security_return: original.security_return,
         pf_applicable: original.pf_applicable,
+        esic_applicable: original.esic_applicable,
       });
 
   const update = <K extends keyof PayrollSalary>(field: K, value: PayrollSalary[K]) => {
@@ -77,6 +80,7 @@ export default function SalaryConfigPage() {
           sal_deduction: Number(data.sal_deduction),
           security_return: Number(data.security_return),
           pf_applicable: data.pf_applicable,
+          esic_applicable: data.esic_applicable,
         },
       );
       setData(updated);
@@ -120,6 +124,11 @@ export default function SalaryConfigPage() {
             label="PF Applicable"
             checked={data.pf_applicable}
             onChange={(v) => update('pf_applicable', v)}
+          />
+          <ToggleRow
+            label="ESIC Applicable"
+            checked={data.esic_applicable}
+            onChange={(v) => update('esic_applicable', v)}
           />
           <NumField
             label="Incentive / Fix Variable (₹)"
@@ -172,30 +181,20 @@ export default function SalaryConfigPage() {
           </div>
         </Card>
 
-        <Card className="p-6 space-y-3">
-          <h2 className="text-lg font-semibold">Live Preview (no LWP, no OT)</h2>
-          {data.computed_preview ? (
-            <dl className="space-y-2 text-sm">
-              <Row label="Gross" value={formatINR(data.computed_preview.gross)} />
-              <Row label="Sal for Calc" value={formatINR(data.computed_preview.sal_for_calc)} />
-              <Row label="Total Earnings" value={formatINR(data.computed_preview.total_earnings)} />
-              <Row label="Employee PF" value={formatINR(data.computed_preview.employee_pf)} />
-              <Row label="Professional Tax" value={formatINR(data.computed_preview.professional_tax)} />
-              <Row label="Total Deductions" value={formatINR(data.computed_preview.total_deductions)} />
-              <div className="border-t border-border pt-2" />
-              <Row
-                label="Estimated Net Payable"
-                value={formatINR(data.computed_preview.estimated_net_payable)}
-                bold
-              />
-              <Row label="CTC" value={formatINR(data.computed_preview.ctc)} />
-              <Row label="CTC As Per IT" value={formatINR(data.computed_preview.ctc_as_per_it)} />
-            </dl>
-          ) : (
-            <p className="text-sm text-text-secondary">
-              Preview not available — set a gross to compute.
+        <Card className="p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Salary Breakdown</h2>
+            <p className="mt-1 text-xs text-text-secondary">
+              What-if preview — assumes no LWP and no OT. Values update
+              live when you change gross / incentive on the left and
+              save. Same row layout as the payroll-run detail view.
             </p>
-          )}
+          </div>
+
+          <SalaryBreakdownTable
+            preview={data.computed_preview}
+            emptyMessage="Set a gross amount and save to compute the breakdown."
+          />
 
           <div className="border-t border-border pt-3">
             <h3 className="text-sm font-semibold">Bank Details (read-only)</h3>

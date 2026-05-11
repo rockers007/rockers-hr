@@ -1,0 +1,159 @@
+# Project-specific Semgrep rules for Rockers HR.
+#
+# These rules complement Semgrep's standard rulesets (p/security-audit,
+# p/owasp-top-ten, p/typescript, p/nodejsscan) by enforcing the
+# conventions documented in planning/SECURITY_GUIDELINES.md and catching
+# the bug classes flagged in past code reviews on this repo.
+#
+# Each rule has:
+#   - id          — stable identifier, prefixed `rockers-hr.`
+#   - severity    — ERROR (block-worthy) / WARNING (review) / INFO (style)
+#   - message     — what's wrong + how to fix
+#   - languages   — TypeScript by default
+#   - pattern     — Semgrep pattern to match
+#
+# To run just these rules locally:
+#   docker run --rm -v "${PWD}:/src" semgrep/semgrep \
+#     semgrep scan --config /src/.semgrep/rockers-hr.yml /src
+
+rules:
+  # -----------------------------------------------------------------
+  # 1. Inline @Body() type literals bypass the global ValidationPipe.
+  #    Caught the change-password silent-logout bug (review #5a).
+  # -----------------------------------------------------------------
+  - id: rockers-hr.body-inline-type-bypasses-validation
+    severity: ERROR
+    # The TypeScript pattern grammar in Semgrep doesn't reliably parse
+    # type-literal positions inside parameter type annotations, so we
+    # match via regex instead. False-positive rate is acceptable: any
+    # `@Body() name: { … }` shape is a real bug.
+    languages: [generic]
+    message: >-
+      `@Body()` parameter uses an inline TypeScript type literal, which
+      bypasses class-validator (the global ValidationPipe only inspects
+      class instances). Replace with a proper DTO class decorated with
+      class-validator decorators (@IsString, @IsUUID, @MaxLength, …).
+      See SECURITY_GUIDELINES.md §2.1.
+    paths:
+      include:
+        - 'backend/src/**/*.controller.ts'
+    pattern-regex: '@Body\(\)\s*\n?\s*\w+:\s*\{'
+
+  # -----------------------------------------------------------------
+  # 2. Trusting client-provided s3_key without a prefix check is the
+  #    IDOR pattern that let one employee read another's payslip
+  #    (review #1). Any TypeORM persistence of a request-body s3_key
+  #    must be preceded by a prefix-validation guard.
+  # -----------------------------------------------------------------
+  - id: rockers-hr.s3-key-from-body-without-validation
+    severity: ERROR
+    languages: [typescript]
+    message: >-
+      A request-body `s3_key` is being persisted without an explicit
+      prefix-validation check. This is an IDOR risk — clients can
+      register a "document" pointing at any S3 path the server has
+      access to (e.g. payslips/…/{emp_number}.pdf). Ensure the s3_key
+      starts with the user-scoped prefix before saving. See the fix
+      in ProfileExtrasService.registerDocument.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $REPO.create({ ..., s3_key: $DTO.s3_key, ... })
+          - pattern: |
+              $REPO.save({ ..., s3_key: $DTO.s3_key, ... })
+      - pattern-not-inside: |
+          if (!$X.startsWith(...)) { ... }
+          ...
+      - pattern-not-inside: |
+          if ($X.startsWith(...)) { ... }
+          ...
+
+  # -----------------------------------------------------------------
+  # 3. Raw SQL with template-literal interpolation. TypeORM should
+  #    receive parameterised queries via `.query(sql, [params])` or
+  #    QueryBuilder — never string-concatenated user input.
+  # -----------------------------------------------------------------
+  - id: rockers-hr.sql-template-literal
+    severity: ERROR
+    languages: [typescript]
+    message: >-
+      Possible SQL injection — query string contains template literal
+      interpolation. Use parameterised queries: `.query("… WHERE x = $1",
+      [value])` or QueryBuilder. See SECURITY_GUIDELINES.md §2.2.
+    patterns:
+      - pattern-either:
+          - pattern: $REPO.query(`...${$X}...`)
+          - pattern: $QR.query(`...${$X}...`)
+          - pattern: $DS.query(`...${$X}...`)
+
+  # -----------------------------------------------------------------
+  # 4. Returning success-shape on validation failure — the bug from
+  #    patchCompanyProfile (review #8).
+  # -----------------------------------------------------------------
+  - id: rockers-hr.return-success-false-on-failure
+    severity: WARNING
+    languages: [typescript]
+    message: >-
+      Endpoint returns `{ success: false, error: ... }` instead of
+      throwing a Nest exception. The global response interceptor wraps
+      this as a successful response, so the frontend's `json.error`
+      check sees nothing and treats the failed write as success. Throw
+      BadRequestException / ConflictException / etc. instead.
+    pattern: |
+      return { success: false, error: ... };
+
+  # -----------------------------------------------------------------
+  # 6. JWT-in-localStorage warning. Documented in SECURITY_TODO P0
+  #    item #2; flagging so we don't add new occurrences before the
+  #    cookie migration.
+  # -----------------------------------------------------------------
+  - id: rockers-hr.jwt-in-localstorage
+    severity: INFO
+    languages: [typescript, javascript]
+    message: >-
+      JWT stored in localStorage — XSS-vulnerable. Tracked in
+      SECURITY_TODO.md (P0 #2: move to httpOnly cookies). New code
+      should use the existing api client + auth-store rather than
+      adding more callsites.
+    patterns:
+      - pattern-either:
+          - pattern: localStorage.setItem('token', ...)
+          - pattern: localStorage.setItem("token", ...)
+
+  # -----------------------------------------------------------------
+  # 7. dangerouslySetInnerHTML — XSS sink. We render notification
+  #    template HTML server-side; never let user-controlled HTML hit
+  #    React directly.
+  # -----------------------------------------------------------------
+  - id: rockers-hr.dangerously-set-inner-html
+    severity: ERROR
+    languages: [typescript, javascript]
+    message: >-
+      dangerouslySetInnerHTML opts out of React's XSS protection. This
+      project does not need it — notification template HTML is
+      rendered server-side via NotificationsService.renderTemplate
+      (string-replacement of {{tokens}}, no HTML injection from the
+      caller). Remove this and use plain JSX.
+    pattern: dangerouslySetInnerHTML={...}
+
+  # -----------------------------------------------------------------
+  # 8. Don't log secrets — guards against accidental leaks. Crude
+  #    pattern; tune as needed.
+  # -----------------------------------------------------------------
+  - id: rockers-hr.console-log-of-secret-named-var
+    severity: WARNING
+    languages: [typescript, javascript]
+    message: >-
+      console.log includes a variable whose name matches password /
+      token / secret / api_key. Even in dev, we don't want secrets in
+      stdout (they end up in container logs and shipped to log
+      aggregators). Use Logger with redaction or remove.
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $X.password, ...)
+          - pattern: console.log(..., $X.password_hash, ...)
+          - pattern: console.log(..., $X.token, ...)
+          - pattern: console.log(..., $X.secret, ...)
+          - pattern: console.log(..., $X.api_key, ...)
+          - pattern: console.log(..., password, ...)
+          - pattern: console.log(..., apiKey, ...)

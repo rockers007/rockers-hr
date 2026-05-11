@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/spinner';
-import { formatDateRange, getInitials } from '@/lib/utils';
+import { formatDate, formatDateRange, getInitials } from '@/lib/utils';
 import type { LeaveBalance, LeaveRequest, LeaveStatus, LeaveType } from '@/lib/types';
 
 interface TeamMember {
@@ -86,7 +86,7 @@ export default function DashboardPage() {
             <p className="text-xs text-[#a16207] mt-0.5">
               Only Leave Without Pay (LWP) is available during probation.
               {user.confirmation_date
-                ? ` Probation ends on ${new Date(user.confirmation_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+                ? ` Probation ends on ${formatDate(user.confirmation_date)}.`
                 : ''}
             </p>
           </div>

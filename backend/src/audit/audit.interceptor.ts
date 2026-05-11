@@ -40,7 +40,12 @@ export class AuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(async (responseData) => {
         try {
-          const actorId = request.user?.id;
+          // request.user is the JWT payload (see JwtStrategy.validate).
+          // Payload carries the user id under `sub`, admins include
+          // admin_role_id. Fall back to `id` for any callers that populate
+          // request.user directly.
+          const actorId =
+            request.user?.sub ?? request.user?.id ?? null;
           if (!actorId) return;
 
           const entityId =
@@ -56,7 +61,11 @@ export class AuditInterceptor implements NestInterceptor {
             entity_id: entityId,
             on_behalf_of: request.body?.on_behalf_of,
             before_state: beforeState ?? null,
-            after_state: responseData?.data ?? request.body ?? null,
+            // Redact sensitive fields from after_state and body so we don't
+            // persist passwords / tokens / bank secrets in the audit log.
+            after_state: redactSensitive(
+              responseData?.data ?? request.body ?? null,
+            ),
             ip_address: request.ip || request.connection?.remoteAddress,
           });
         } catch {
@@ -65,4 +74,76 @@ export class AuditInterceptor implements NestInterceptor {
       }),
     );
   }
+}
+
+/**
+ * Recursively scrub sensitive keys from an object before it lands in the
+ * audit log. We keep the shape so diffs remain useful, but replace
+ * secret-like values with the literal string "[REDACTED]".
+ *
+ * Two flavours of redaction:
+ *   FULL_REDACT  — credentials / tokens. Replaced with "[REDACTED]".
+ *   PARTIAL_MASK — PII (bank, PAN, Aadhaar). The audit log is admin-
+ *                  readable so a leaked log shouldn't expose full
+ *                  account numbers; we keep just enough of the value
+ *                  for an admin to recognise which row was touched
+ *                  (last 4 chars of the account, masked otherwise).
+ */
+const FULL_REDACT_KEYS = new Set([
+  'password',
+  'new_password',
+  'confirm_password',
+  'current_password',
+  'password_hash',
+  'token',
+  'invite_token',
+  'fcm_token',
+  'google_access_token',
+  'google_refresh_token',
+  'secret',
+]);
+
+const PARTIAL_MASK_KEYS = new Set([
+  // Current bank-on-file fields (users + payroll views).
+  'bank_account_no',
+  'bank_ifsc',
+  // Bank-change request fields — same secrets, different schema.
+  // Without these, every audited bank-change submission landed in
+  // after_state with the new account number in plaintext.
+  'new_account_no',
+  'new_ifsc',
+  // Statutory IDs.
+  'pan',
+  'pan_no',
+  'aadhaar',
+  'aadhaar_no',
+  'pf_uan_no',
+  'esic_no',
+]);
+
+function maskTail(value: unknown): string {
+  if (typeof value !== 'string' || value.length <= 4) return '****';
+  return '*'.repeat(Math.max(0, value.length - 4)) + value.slice(-4);
+}
+
+export function redactSensitive(value: any): any {
+  if (value === null || value === undefined) return value;
+  // Date and other native object instances are typeof 'object' but
+  // Object.entries() returns [] on them, so the generic branch below
+  // would silently turn every Date into {} and corrupt every audited
+  // updated_at / locked_at / released_at timestamp. Bypass them.
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(redactSensitive);
+  if (typeof value !== 'object') return value;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (FULL_REDACT_KEYS.has(k)) {
+      out[k] = '[REDACTED]';
+    } else if (PARTIAL_MASK_KEYS.has(k)) {
+      out[k] = v === null || v === undefined ? v : maskTail(v);
+    } else {
+      out[k] = redactSensitive(v);
+    }
+  }
+  return out;
 }

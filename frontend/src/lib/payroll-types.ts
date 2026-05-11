@@ -123,21 +123,40 @@ export interface PayrollSalary {
   sal_deduction: string;
   security_return: string;
   pf_applicable: boolean;
+  esic_applicable: boolean;
   bank_name: string | null;
   bank_account_no: string | null;
   bank_ifsc: string | null;
   dob: string | null;
-  computed_preview?: {
-    gross: string;
-    sal_for_calc: string;
-    total_earnings: string;
-    total_deductions: string;
-    estimated_net_payable: string;
-    ctc: string;
-    ctc_as_per_it: string;
-    employee_pf: string;
-    professional_tax: string;
-  };
+  computed_preview?: SalaryBreakdown;
+}
+
+/**
+ * Per-component salary breakdown — same shape used by the admin
+ * salary-config page (right panel) and the employee /payroll/salary
+ * page. Mirrors the per-row layout of payroll-run details.
+ */
+export interface SalaryBreakdown {
+  gross: string;
+  sal_for_calc: string;
+  total_earnings: string;
+  total_deductions: string;
+  estimated_net_payable: string;
+  ctc: string;
+  ctc_as_per_it: string;
+  employee_pf: string;
+  professional_tax: string;
+  earnings: Array<{
+    code: string;
+    label: string;
+    amount: string;
+    is_pf_base: boolean;
+  }>;
+  deductions: Array<{
+    code: string;
+    label: string;
+    amount: string;
+  }>;
 }
 
 export interface BankChangeRequest {
