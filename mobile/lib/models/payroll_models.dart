@@ -7,6 +7,31 @@ double _d(dynamic v) {
   return double.tryParse(v.toString()) ?? 0;
 }
 
+/// Per-row entry in the salary breakdown (earnings or deductions).
+/// Mirrors the shape produced by SalaryService.previewComputation on
+/// the backend so we can render the same component-level table the
+/// web app uses on /payroll/salary and the admin salary-config page.
+class BreakdownRow {
+  final String code;
+  final String label;
+  final String amount;
+  final bool isPfBase;
+
+  BreakdownRow({
+    required this.code,
+    required this.label,
+    required this.amount,
+    this.isPfBase = false,
+  });
+
+  factory BreakdownRow.fromJson(Map<String, dynamic> j) => BreakdownRow(
+        code: _s(j['code']),
+        label: _s(j['label']),
+        amount: _s(j['amount']),
+        isPfBase: j['is_pf_base'] == true,
+      );
+}
+
 class ComputedPreview {
   final String gross;
   final String salForCalc;
@@ -17,6 +42,13 @@ class ComputedPreview {
   final String ctcAsPerIt;
   final String employeePf;
   final String professionalTax;
+  // Per-component arrays — earnings (Basic, HRA, …, Incentive,
+  // Employer PF) and deductions (Employee PF, ESIC if applied, PT,
+  // TDS, Loan EMI, Salary Deduction, Employer-PF offset). Optional
+  // for back-compat with older deployments that don't yet emit these
+  // — the screen falls back to the flat view in that case.
+  final List<BreakdownRow> earnings;
+  final List<BreakdownRow> deductions;
 
   ComputedPreview({
     required this.gross,
@@ -28,6 +60,8 @@ class ComputedPreview {
     required this.ctcAsPerIt,
     required this.employeePf,
     required this.professionalTax,
+    this.earnings = const [],
+    this.deductions = const [],
   });
 
   factory ComputedPreview.fromJson(Map<String, dynamic> j) => ComputedPreview(
@@ -40,7 +74,18 @@ class ComputedPreview {
         ctcAsPerIt: _s(j['ctc_as_per_it']),
         employeePf: _s(j['employee_pf']),
         professionalTax: _s(j['professional_tax']),
+        earnings: (j['earnings'] as List?)
+                ?.map((e) => BreakdownRow.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        deductions: (j['deductions'] as List?)
+                ?.map((e) => BreakdownRow.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
       );
+
+  bool get hasComponentRows =>
+      earnings.isNotEmpty || deductions.isNotEmpty;
 }
 
 class PayrollSalary {
@@ -55,6 +100,10 @@ class PayrollSalary {
   final String salDeduction;
   final String securityReturn;
   final bool pfApplicable;
+  // Per-employee ESIC gate added in EsicApplicableFlag1712000000090.
+  // Defaults to true to match the backend column default and the
+  // behavior employees saw before the flag existed.
+  final bool esicApplicable;
   final String? bankName;
   final String? bankAccountNo;
   final String? bankIfsc;
@@ -73,6 +122,7 @@ class PayrollSalary {
     required this.salDeduction,
     required this.securityReturn,
     required this.pfApplicable,
+    this.esicApplicable = true,
     this.bankName,
     this.bankAccountNo,
     this.bankIfsc,
@@ -92,6 +142,12 @@ class PayrollSalary {
         salDeduction: _s(j['sal_deduction']),
         securityReturn: _s(j['security_return']),
         pfApplicable: j['pf_applicable'] == true,
+        // Default to true when missing so older API responses (or
+        // builds that pre-date the column) still surface ESIC rows
+        // exactly as before.
+        esicApplicable: j['esic_applicable'] == null
+            ? true
+            : j['esic_applicable'] == true,
         bankName: j['bank_name'] as String?,
         bankAccountNo: j['bank_account_no'] as String?,
         bankIfsc: j['bank_ifsc'] as String?,

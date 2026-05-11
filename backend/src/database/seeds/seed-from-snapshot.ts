@@ -96,8 +96,38 @@ export async function seedFromSnapshot(ds: DataSource): Promise<boolean> {
       qr,
       'master_departments',
       snap.masterDepartments,
+      // Departments have UNIQUE on `code`, with `label` as a friendly
+      // display name. Prefer code for the natural-key probe.
+      ['code', 'label'],
+    );
+
+    // Tables added after the original snapshot contract — fall back
+    // to empty arrays so older snapshots (that pre-date these tables)
+    // still apply cleanly without throwing on missing properties.
+    await insertIfMissing(
+      qr,
+      'master_marital_statuses',
+      snap.masterMaritalStatuses ?? [],
       ['label'],
     );
+    await insertIfMissing(
+      qr,
+      'master_document_types',
+      snap.masterDocumentTypes ?? [],
+      ['label'],
+    );
+    await insertIfMissing(
+      qr,
+      'master_relations',
+      snap.masterRelations ?? [],
+      ['label'],
+    );
+    // Designations are department-scoped via FK. The snapshot's
+    // department_id UUID won't match the target DB, so we remap by
+    // looking up the destination's department by label using the
+    // department label embedded in the dumped row (added in
+    // dump-master-data.ts after this table joined the list).
+    await insertDesignationsFromSnapshot(qr, snap.masterDesignations ?? []);
 
     await qr.commitTransaction();
     console.log('[seed] Snapshot applied (idempotent).');
@@ -212,4 +242,95 @@ type SnapshotData = {
   masterNotificationTemplates?: Array<Record<string, unknown>>;
   masterPublicHolidays?: Array<Record<string, unknown>>;
   masterDepartments?: Array<Record<string, unknown>>;
+  // Added later in the project lifecycle — old snapshots that
+  // pre-date these tables won't have the keys, so they're all
+  // optional.
+  masterMaritalStatuses?: Array<Record<string, unknown>>;
+  masterDocumentTypes?: Array<Record<string, unknown>>;
+  masterRelations?: Array<Record<string, unknown>>;
+  masterDesignations?: Array<Record<string, unknown>>;
 };
+
+/**
+ * Designation rows carry a `department_id` UUID. When seeding into a
+ * different database (fresh install, staging clone, …) the source
+ * UUID won't exist in the target's master_departments. We resolve
+ * the FK at insert time by looking up the department in the target
+ * DB using whichever stable key the snapshot provides — preferring
+ * `department_code` and falling back to `department_label` (added
+ * to the dump row in dump-master-data.ts). If neither matches, the
+ * row is skipped with a warning so the rest of the seed can proceed.
+ */
+async function insertDesignationsFromSnapshot(
+  qr: ReturnType<DataSource['createQueryRunner']>,
+  rows: Array<Record<string, unknown>>,
+): Promise<void> {
+  if (!rows || rows.length === 0) return;
+  let inserted = 0;
+  let skipped = 0;
+  let unresolved = 0;
+
+  for (const row of rows) {
+    const label = (row.label as string | undefined) ?? '';
+    if (!label) {
+      unresolved++;
+      continue;
+    }
+
+    // Try to resolve the destination department_id.
+    let destDeptId: string | null = null;
+    const deptCode = row.department_code as string | undefined;
+    const deptLabel = row.department_label as string | undefined;
+    if (deptCode) {
+      const r = await qr.query(
+        `SELECT id FROM master_departments WHERE code = $1 LIMIT 1`,
+        [deptCode],
+      );
+      if (r.length) destDeptId = r[0].id;
+    }
+    if (!destDeptId && deptLabel) {
+      const r = await qr.query(
+        `SELECT id FROM master_departments WHERE label = $1 LIMIT 1`,
+        [deptLabel],
+      );
+      if (r.length) destDeptId = r[0].id;
+    }
+    if (!destDeptId) {
+      unresolved++;
+      continue;
+    }
+
+    // Skip if (dept, label) already exists in the target.
+    const exists = await qr.query(
+      `SELECT 1 FROM master_designations WHERE department_id = $1 AND label = $2 LIMIT 1`,
+      [destDeptId, label],
+    );
+    if (exists.length) {
+      skipped++;
+      continue;
+    }
+
+    try {
+      await qr.query(
+        `INSERT INTO master_designations (department_id, label, sort_order, is_active)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          destDeptId,
+          label,
+          (row.sort_order as number | undefined) ?? 0,
+          (row.is_active as boolean | undefined) ?? true,
+        ],
+      );
+      inserted++;
+    } catch (e) {
+      if (/duplicate key|unique constraint/i.test((e as Error).message)) {
+        skipped++;
+        continue;
+      }
+      throw e;
+    }
+  }
+  console.log(
+    `[seed] master_designations: inserted ${inserted}, skipped ${skipped}, unresolved ${unresolved}`,
+  );
+}

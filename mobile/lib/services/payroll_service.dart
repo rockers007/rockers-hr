@@ -83,6 +83,27 @@ class PayrollService {
     return BankChangeRequest.fromJson(data as Map<String, dynamic>);
   }
 
+  /// First-time bank entry — PATCH /users/me with all three bank
+  /// fields together. Backend gates this in
+  /// UsersService.updateProfile: it only accepts bank fields when the
+  /// existing user row has all three columns null. Once any are set,
+  /// further changes go through the bank-change request workflow
+  /// above. Server enforces the same IFSC + 9–18 digit account
+  /// validators that submitBankChange does, so the client doesn't
+  /// need to do double-checking — it just surfaces whichever
+  /// BadRequest the server returns.
+  Future<void> setBankDetailsFirstTime({
+    required String bankName,
+    required String accountNo,
+    required String ifsc,
+  }) async {
+    await _api.patch('/users/me', body: {
+      'bank_name': bankName,
+      'bank_account_no': accountNo,
+      'bank_ifsc': ifsc,
+    });
+  }
+
   // ---- Investment proofs ----
 
   Future<List<InvestmentProof>> getInvestmentProofs(String fy) async {

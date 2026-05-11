@@ -64,6 +64,18 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
     }
   }
 
+  /// True when the employee has no bank details on file yet. In this
+  /// state the submit button writes directly via PATCH /users/me (the
+  /// backend gate only allows that for the all-null case). Once any
+  /// of the three bank columns is set, this flips to false and the
+  /// same form switches to the bank-change request workflow that an
+  /// admin must approve. Mirrors the BankSection logic on the web
+  /// /profile page.
+  bool get _isFirstTimeEntry =>
+      (_salary?.bankName ?? '').isEmpty &&
+      (_salary?.bankAccountNo ?? '').isEmpty &&
+      (_salary?.bankIfsc ?? '').isEmpty;
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_accCtrl.text.trim() != _accConfirmCtrl.text.trim()) {
@@ -75,15 +87,40 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
       _error = null;
     });
     try {
-      await _svc.submitBankChange(
-        newBankName: _bankCtrl.text.trim(),
-        newAccountNo: _accCtrl.text.trim(),
-        newIfsc: _ifscCtrl.text.trim().toUpperCase(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request submitted — HR will review.')),
-      );
+      final bankName = _bankCtrl.text.trim();
+      final accountNo = _accCtrl.text.trim();
+      final ifsc = _ifscCtrl.text.trim().toUpperCase();
+
+      if (_isFirstTimeEntry) {
+        // First-time onboarding path — write directly, no admin
+        // review. Subsequent edits will fall through to the
+        // submitBankChange branch since the bank fields will then be
+        // populated.
+        await _svc.setBankDetailsFirstTime(
+          bankName: bankName,
+          accountNo: accountNo,
+          ifsc: ifsc,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bank details saved. Future changes will need HR approval.',
+            ),
+          ),
+        );
+      } else {
+        await _svc.submitBankChange(
+          newBankName: bankName,
+          newAccountNo: accountNo,
+          newIfsc: ifsc,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request submitted — HR will review.')),
+        );
+      }
+
       _bankCtrl.clear();
       _accCtrl.clear();
       _accConfirmCtrl.clear();
@@ -100,6 +137,11 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
   @override
   Widget build(BuildContext context) {
     final hasPending = _history.any((h) => h.status == 'PENDING');
+    final firstTime = _isFirstTimeEntry;
+    // First-time onboarding always opens the form by default — there
+    // is nothing to "request a change" against, the user just needs
+    // to fill in their account.
+    final showForm = _showForm || firstTime;
 
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
@@ -129,9 +171,24 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
                         style: const TextStyle(color: AppColors.declinedText),
                       ),
                     ),
-                  _currentCard(),
-                  const SizedBox(height: 12),
-                  if (!_showForm && !hasPending)
+                  if (!firstTime) _currentCard(),
+                  if (!firstTime) const SizedBox(height: 12),
+                  if (firstTime)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Add your salary account here. You can fill these in once — '
+                        'after that, any change requires a bank-change request '
+                        'that HR will review and approve.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  if (!showForm && !hasPending && !firstTime)
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -140,7 +197,7 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
                         label: const Text('Request Change'),
                       ),
                     ),
-                  if (hasPending)
+                  if (hasPending && !firstTime)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -155,9 +212,9 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
                         ),
                       ),
                     ),
-                  if (_showForm) _formCard(),
-                  const SizedBox(height: 24),
-                  _historyCard(),
+                  if (showForm) _formCard(firstTime: firstTime),
+                  if (!firstTime) const SizedBox(height: 24),
+                  if (!firstTime) _historyCard(),
                 ],
               ),
             ),
@@ -186,69 +243,80 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
         ),
       );
 
-  Widget _formCard() => Container(
-        margin: const EdgeInsets.only(top: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'New Bank Details',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+  Widget _formCard({required bool firstTime}) {
+    final title = firstTime ? 'Bank Details' : 'New Bank Details';
+    final submitLabel = firstTime
+        ? (_submitting ? 'Saving…' : 'Save Bank Details')
+        : (_submitting ? 'Submitting…' : 'Submit');
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _bankCtrl,
+              decoration: const InputDecoration(labelText: 'Bank Name'),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _accCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Account Number',
+                hintText: '9–18 digits',
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _bankCtrl,
-                decoration: const InputDecoration(labelText: 'Bank Name'),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              validator: (v) =>
+                  (v == null || !_digitsRegex.hasMatch(v.trim()))
+                      ? 'Must be 9–18 digits'
+                      : null,
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _accConfirmCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Re-enter Account Number',
               ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _accCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Account Number',
-                  hintText: '9–18 digits',
-                ),
-                validator: (v) => (v == null ||
-                        !_digitsRegex.hasMatch(v.trim()))
-                    ? 'Must be 9–18 digits'
-                    : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _ifscCtrl,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'IFSC Code',
+                hintText: 'e.g. HDFC0001234',
               ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _accConfirmCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Re-enter Account Number',
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _ifscCtrl,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'IFSC Code',
-                  hintText: 'e.g. HDFC0001234',
-                ),
-                validator: (v) => (v == null ||
-                        !_ifscRegex.hasMatch(v.trim().toUpperCase()))
-                    ? 'Format: ABCD0123456'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
+              validator: (v) =>
+                  (v == null || !_ifscRegex.hasMatch(v.trim().toUpperCase()))
+                      ? 'Format: ABCD0123456'
+                      : null,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                // First-time entry has nothing to cancel back to —
+                // the form is the only content on the page until
+                // bank details are saved. Hide the Cancel button in
+                // that case to avoid confusion.
+                if (!firstTime) ...[
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _submitting
@@ -258,18 +326,20 @@ class _BankChangeScreenState extends State<BankChangeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      child: Text(_submitting ? 'Submitting…' : 'Submit'),
-                    ),
-                  ),
                 ],
-              ),
-            ],
-          ),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _submitting ? null : _submit,
+                    child: Text(submitLabel),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   Widget _historyCard() => Container(
         padding: const EdgeInsets.all(16),
