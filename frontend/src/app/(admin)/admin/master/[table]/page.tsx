@@ -116,7 +116,11 @@ function inferType(key: string, sample: any): 'boolean' | 'number' | 'date' | 't
 
 function coerceValue(key: string, value: string, type: string): any {
   if (value === '' || value === undefined) return null;
-  if (type === 'boolean') return value === 'true' || value === true;
+  // `value` is always a string here (HTML <input> and <select> both
+  // produce string values). The previous `|| value === true` branch
+  // was unreachable — TS 5.x correctly flags string-vs-boolean
+  // equality as a definite-mismatch error. Removed.
+  if (type === 'boolean') return value === 'true';
   if (type === 'number') return Number(value);
   return value;
 }
