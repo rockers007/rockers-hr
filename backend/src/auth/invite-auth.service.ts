@@ -155,12 +155,26 @@ export class InviteAuthService {
     });
     const saved = await this.userRepo.save(user);
 
-    await this.sendInviteEmail({
+    // Fire-and-forget: the invite row is already persisted, so the
+    // admin gets an immediate response and the employee appears in
+    // the list as Inactive even if SMTP is slow or unreachable
+    // (Render free-tier networks sometimes block outbound port 465
+    // for ~30s before the connection errors). If the send fails the
+    // admin can retry via the Resend Invite action — `sendInviteEmail`
+    // already catches and logs internally, so this `.catch` is
+    // belt-and-suspenders against an unhandled rejection. Without
+    // this change the entire endpoint hangs until Render's 30s
+    // request timeout, leaving the UI spinning on the loader.
+    void this.sendInviteEmail({
       user: saved,
       plainPassword,
       inviteToken: invite_token,
       expiresInDays: INVITE_TTL_DAYS,
-    });
+    }).catch((e) =>
+      this.logger.error(
+        `inviteUser: background email send failed for ${saved.gmail}: ${String(e)}`,
+      ),
+    );
 
     return {
       user: {
@@ -206,12 +220,20 @@ export class InviteAuthService {
     user.tokens_valid_from = sessionCutoff();
     await this.userRepo.save(user);
 
-    await this.sendInviteEmail({
+    // Fire-and-forget — see inviteUser() for the rationale. The user
+    // row has been rotated to a fresh invite token regardless of
+    // email delivery; the admin can re-trigger Resend Invite if SMTP
+    // is misbehaving.
+    void this.sendInviteEmail({
       user,
       plainPassword,
       inviteToken: user.invite_token,
       expiresInDays: INVITE_TTL_DAYS,
-    });
+    }).catch((e) =>
+      this.logger.error(
+        `resendInvite: background email send failed for ${user.gmail}: ${String(e)}`,
+      ),
+    );
 
     return {
       sent_at: new Date(),
