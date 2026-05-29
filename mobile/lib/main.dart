@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'config/theme.dart';
 import 'services/auth_service.dart';
 import 'services/master_data_service.dart';
+import 'screens/complete_profile_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/reset_password_screen.dart';
@@ -108,12 +109,19 @@ class _AuthGateState extends State<AuthGate> {
       return const LoginScreen();
     }
 
-    // Mirror the web /reset-password gate: when the JWT we hold is
-    // marked first_login_required (fresh invite OR an admin-triggered
-    // password reset), force the user through the reset screen
-    // before the rest of the app is reachable. AuthService flips
-    // this flag back to false once finishPasswordReset succeeds, and
-    // this AuthGate rebuilds into MainShell.
+    // Three-way first-login routing — same shape as the web
+    // /login → /complete-profile vs /reset-password fork:
+    //   - needsActivation  (first_login_required && !is_active)
+    //       → CompleteProfileScreen (fresh invite, fill phone/dob/
+    //         gender/qualification + set password).
+    //   - firstLoginRequired && active
+    //       → ResetPasswordScreen (admin reset, just choose a new
+    //         password).
+    //   - otherwise
+    //       → MainShell (normal sign-in).
+    if (auth.needsActivation) {
+      return const CompleteProfileScreen();
+    }
     if (auth.firstLoginRequired) {
       return const ResetPasswordScreen();
     }
