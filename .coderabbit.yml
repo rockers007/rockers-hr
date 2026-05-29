@@ -1,0 +1,23 @@
+language: en
+reviews:
+  profile: chill            # or "assertive" for stricter reviews
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/*.lock"
+    - "!**/dist/**"
+    - "!**/node_modules/**"
+  path_instructions:
+    - path: "backend/**"
+      instructions: "NestJS. Enforce the zero-hardcoded rule from planning/PLAN.md — dropdowns/policies must come from master tables, not constants."
+    - path: "frontend/**"
+      instructions: "Next.js. Master data must be fetched from /api/v1/master/:table, never hardcoded."
+    - path: "mobile/**"
+      instructions: "Flutter. Same dynamic master-data rule applies."
+chat:
+  auto_reply: true

@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rockers HR — Payroll Management System | Wireframes v2.0</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0ede8;color:#1a1a1a;min-height:100vh}
+:root{--brand:#1e3a5f;--brand2:#0f766e;}
+.cover{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0f4c4c 100%);color:#fff;padding:60px 48px;display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;right:-60px;top:-60px;width:360px;height:360px;background:radial-gradient(circle,rgba(30,130,200,.25),transparent 70%);pointer-events:none}
+.cover h1{font-size:44px;font-weight:800;line-height:1.1;letter-spacing:-1px}
+.cover h1 span{color:#5eead4}
+.cover .subtitle{color:#94a3b8;font-size:14px;max-width:560px;line-height:1.7}
+.cover-meta{display:flex;gap:24px;flex-wrap:wrap;margin-top:8px}
+.cover-meta-item{display:flex;flex-direction:column;gap:2px}
+.cover-meta-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px}
+.cover-meta-value{font-size:13px;color:#e2e8f0;font-weight:600}
+.cover-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(30,130,200,.2);border:1px solid rgba(30,130,200,.4);color:#93c5fd;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;width:fit-content}
+.cover-platforms{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.cover-platform{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:5px 13px;font-size:12px;color:#cbd5e1}
+/* TABS */
+.tabs-wrap{background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.tabs{display:flex;overflow-x:auto;padding:0 20px;gap:0}
+.tabs::-webkit-scrollbar{height:0}
+.tab{flex-shrink:0;padding:13px 15px;font-size:12.5px;font-weight:500;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;transition:all .2s}
+.tab:hover{color:#1a1a1a;background:#f9fafb}
+.tab.active{color:#1e3a5f;border-bottom-color:#1e3a5f}
+.tab-div{width:1px;height:20px;background:#e5e7eb;margin:0 4px;align-self:center}
+.tab-label{font-size:10px;color:#9ca3af;padding:13px 8px 13px 14px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+/* SCREENS */
+.screen{display:none}.screen.active{display:block}
+.screen-header{background:#fff;border-bottom:1px solid #e5e7eb;padding:18px 28px;display:flex;align-items:center;justify-content:space-between}
+.screen-header h2{font-size:17px;font-weight:700;color:#111}
+.screen-header p{font-size:12px;color:#6b7280;margin-top:2px}
+.sb{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.sb-web{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+.sb-admin{background:#fdf4ff;color:#7c3aed;border:1px solid #e9d5ff}
+.sb-calc{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.sb-emp{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.wf-canvas{padding:24px 28px;background:#f0ede8;min-height:calc(100vh - 180px)}
+/* BROWSER */
+.browser{background:#fff;border:1px solid #d1d5db;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.08);max-width:1160px;margin:0 auto}
+.browser-bar{background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:7px 12px;display:flex;align-items:center;gap:8px}
+.bd{display:flex;gap:5px}.bd span{width:10px;height:10px;border-radius:50%;display:block}
+.dot-r{background:#ff5f57}.dot-y{background:#ffbd2e}.dot-g{background:#28c840}
+.url{flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:3px 10px;font-size:11px;color:#6b7280;font-family:monospace;margin:0 8px}
+/* APP SHELL */
+.app-shell{display:flex;height:620px}
+.sidebar{width:200px;background:#0f172a;flex-shrink:0;display:flex;flex-direction:column;padding:14px 0}
+.sidebar-logo{padding:10px 14px 18px;display:flex;align-items:center;gap:8px}
+.lm{width:28px;height:28px;background:linear-gradient(135deg,#1e40af,#0f766e);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:12px}
+.sidebar-logo span{font-weight:700;color:#e2e8f0;font-size:13px}
+.sidebar-logo sub{font-size:9px;color:#64748b;display:block}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;font-size:12px;color:#94a3b8;cursor:pointer;border-left:3px solid transparent}
+.nav-item.active{background:rgba(30,64,175,.18);color:#93c5fd;border-left-color:#3b82f6}
+.nav-section{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:#475569;padding:14px 14px 5px;font-weight:700}
+.main{flex:1;overflow:auto;background:#f8fafc}
+.topbar{background:#fff;border-bottom:1px solid #e5e7eb;padding:0 20px;height:50px;display:flex;align-items:center;justify-content:space-between}
+.topbar-title{font-size:15px;font-weight:700;color:#111}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+/* UTILS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}
+.btn-primary{background:#1e3a5f;color:#fff}
+.btn-teal{background:#0f766e;color:#fff}
+.btn-outline{background:#fff;color:#374151;border:1px solid #d1d5db}
+.btn-green{background:#16a34a;color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+.avatar{width:30px;height:30px;border-radius:50%;background:#dde5f3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e40af;flex-shrink:0}
+.page-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px}
+.card-sm{padding:10px 14px}
+.stat-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.stat-num{font-size:24px;font-weight:800;color:#111;line-height:1}
+.stat-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.4px}
+.stat-sub{font-size:10px;color:#9ca3af}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.wt{width:100%;border-collapse:collapse;font-size:11px}
+.wt th{background:#f8fafc;color:#6b7280;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.5px;padding:7px 9px;border-bottom:1px solid #e5e7eb;text-align:left}
+.wt td{padding:8px 9px;border-bottom:1px solid #f3f4f6;color:#374151;vertical-align:middle}
+.wt tr:hover td{background:#f9fafb}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700}
+.bg{background:#dcfce7;color:#166534}.ba{background:#fef3c7;color:#92400e}
+.br{background:#fee2e2;color:#991b1b}.bb{background:#dbeafe;color:#1e40af}
+.bp{background:#ede9fe;color:#5b21b6}.bgray{background:#f3f4f6;color:#374151}
+.fl{font-size:11px;font-weight:700;color:#374151;margin-bottom:3px}
+.fi{border:1.5px solid #d1d5db;border-radius:7px;padding:7px 11px;font-size:12px;color:#374151;background:#fff;width:100%;outline:none}
+.fi.filled{border-color:#1e3a5f;background:#eff6ff}
+.fsel{background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%236b7280' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:28px;appearance:none}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.nb{background:#fff8ed;border:1px solid #fde68a;border-radius:7px;padding:10px 14px;font-size:11px;color:#92400e;display:flex;gap:8px}
+.nb-blue{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.nb-green{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.nb-red{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.nb-purple{background:#fdf4ff;border-color:#e9d5ff;color:#5b21b6}
+/* SALARY BREAKDOWN */
+.sal-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:12px}
+.sal-row:last-child{border:none}
+.sal-label{color:#374151}.sal-pct{font-size:10px;color:#9ca3af;margin-left:5px}
+.sal-val{font-weight:700;color:#111}
+.sal-deduct{color:#dc2626}
+.sal-section{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;padding:10px 0 4px}
+/* FORMULA BOX */
+.formula{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:11.5px;font-family:monospace;color:#166534;line-height:2}
+.formula strong{color:#111;font-size:13px}
+/* STEP FLOW */
+.step-row{display:flex;gap:0;margin-bottom:14px}
+.step-box{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.step-box:not(:last-child)::after{content:'→';position:absolute;right:-16px;top:17px;color:#9ca3af;font-size:18px;font-weight:700}
+.step-num{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid}
+.step-done{background:#dcfce7;color:#166534;border-color:#22c55e}
+.step-active{background:#dbeafe;color:#1e40af;border-color:#3b82f6;box-shadow:0 0 0 4px #bfdbfe}
+.step-pend{background:#f3f4f6;color:#9ca3af;border-color:#e5e7eb}
+.step-lbl{font-size:9.5px;color:#6b7280;text-align:center;line-height:1.3}
+/* PAYSLIP */
+.payslip{background:#fff;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:10.5px}
+.ps-hdr{background:linear-gradient(135deg,#1e3a5f,#0f4c4c);color:#fff;padding:14px 18px}
+.ps-company{font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
+.ps-addr{font-size:9.5px;color:#94a3b8;margin-top:2px}
+.ps-month-pill{font-size:11px;font-weight:700;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:5px;color:#e2e8f0}
+.ps-emp-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:10px 18px;background:#f8fafc;border-bottom:1px solid #e5e7eb}
+.ps-field-label{font-size:9px;color:#9ca3af;text-transform:uppercase;letter-spacing:.3px}
+.ps-field-val{font-size:11px;font-weight:600;color:#111;margin-top:1px}
+/* Payslip table */
+.ps-table{width:100%;border-collapse:collapse;font-size:10.5px}
+.ps-table th{background:#f0f4f8;font-weight:700;font-size:9.5px;color:#374151;text-transform:uppercase;letter-spacing:.3px;padding:6px 10px;border:1px solid #e5e7eb;text-align:center}
+.ps-table td{padding:5px 10px;border:1px solid #f3f4f6;color:#374151;vertical-align:middle}
+.ps-table .tl{text-align:left}.ps-table .tr{text-align:right;font-weight:600}
+.ps-table .ded{color:#dc2626}.ps-table .earn{color:#111}
+.ps-table .total-row td{background:#f8fafc;font-weight:700;font-size:11px}
+.ps-table .net-row td{background:#dcfce7;font-weight:800;font-size:12px;color:#166534}
+/* MOBILE */
+.mwrap{display:flex;justify-content:center;gap:32px;flex-wrap:wrap}
+.mf{width:300px;background:#1a1a1a;border-radius:38px;padding:9px;box-shadow:0 16px 50px rgba(0,0,0,.28);flex-shrink:0}
+.mnotch{background:#1a1a1a;height:22px;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+.mnotch span{width:70px;height:16px;background:#000;border-radius:10px;display:block}
+.mscreen{background:#fff;border-radius:26px;overflow:hidden;height:570px;display:flex;flex-direction:column}
+.mstatus{background:#fff;padding:5px 14px;display:flex;justify-content:space-between}
+.mstatus-time{font-size:11px;font-weight:700;color:#111}
+.mtopbar{padding:8px 14px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f3f4f6}
+.mtopbar h3{font-size:14px;font-weight:800;color:#111}
+.mbody{flex:1;overflow-y:auto;padding:12px 12px 8px}
+.mbody::-webkit-scrollbar{width:0}
+.mnav{border-top:1px solid #f3f4f6;padding:6px 0 3px;display:flex}
+.mnav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.mnav-label{font-size:8.5px;font-weight:500;color:#9ca3af}
+.mnav-item.active .mnav-label{color:#1e3a5f}
+.mc{background:#fff;border:1px solid #f3f4f6;border-radius:10px;padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mc-accent{border-left:3px solid}
+.mrow{display:flex;justify-content:space-between;align-items:center}
+.mval{font-size:12px;font-weight:700;color:#111}
+.msub{font-size:10.5px;color:#6b7280}
+.msec{font-size:11px;font-weight:700;color:#111;margin-bottom:7px}
+/* CORRECTIONS */
+.correction-badge{display:inline-flex;align-items:center;gap:4px;background:#fee2e2;border:1px solid #fecaca;color:#991b1b;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}
+.old-val{text-decoration:line-through;color:#9ca3af}
+.new-val{color:#16a34a;font-weight:700}
+.pres-footer{background:#0f172a;color:#475569;padding:18px 28px;font-size:11px;display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-badge">💰 Payroll Management System — v2.0</div>
+  <h1>Rockers HR<br><span>Payroll</span> Blueprint</h1>
+  <p class="subtitle">Updated with verified calculations from Sample Payslip (PDF) and Sample Salary Sheet (Excel). All formulas confirmed against real data.</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><span class="cover-meta-label">Version</span><span class="cover-meta-value">v2.0 — Verified from Sample Files</span></div>
+    <div class="cover-meta-item"><span class="cover-meta-label">Company</span><span class="cover-meta-value">ROCKERS TECHNOLOGIES, Vadodara</span></div>
+    <div class="cover-meta-item"><span class="cover-meta-label">PF Cap</span><span class="cover-meta-value">₹15,000 wage ceiling (EPFO)</span></div>
+    <div class="cover-meta-item"><span class="cover-meta-label">OT Formula</span><span class="cover-meta-value">Gross ÷ 30 ÷ 9 × 1.5</span></div>
+  </div>
+  <div class="cover-platforms">
+    <span class="cover-platform">✅ Payslip format matched to PDF sample</span>
+    <span class="cover-platform">✅ All formulas verified from Excel salary sheet</span>
+    <span class="cover-platform">✅ PF cap ₹15,000 confirmed</span>
+    <span class="cover-platform">✅ CTC = Gross + Employer PF + Incentives</span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrap">
+  <div class="tabs">
+    <span class="tab-label">Key</span>
+    <button class="tab active" onclick="show('corrections')">⚠ Corrections</button>
+    <button class="tab" onclick="show('calc-engine')">Calculation Engine</button>
+    <div class="tab-div"></div>
+    <span class="tab-label">Admin</span>
+    <button class="tab" onclick="show('salary-config')">Salary Config</button>
+    <button class="tab" onclick="show('payroll-run')">Run Payroll</button>
+    <button class="tab" onclick="show('payslip')">Payslip</button>
+    <button class="tab" onclick="show('reports')">Reports</button>
+    <div class="tab-div"></div>
+    <span class="tab-label">Employee</span>
+    <button class="tab" onclick="show('emp-portal')">Self-Service</button>
+    <button class="tab" onclick="show('bank')">Bank Details</button>
+    <div class="tab-div"></div>
+    <button class="tab" onclick="show('mobile')">Mobile (Phase 2)</button>
+  </div>
+</div>
+
+<!-- CORRECTIONS -->
+<div id="screen-corrections" class="screen active">
+  <div class="screen-header">
+    <div><h2>⚠ Key Corrections from Sample Payslip &amp; Salary Sheet</h2><p>5 critical calculation rules updated after reviewing PDF payslip and Excel salary sheet provided by HRBhrugisha V</p></div>
+    <span class="sb sb-calc">Verified Formulas</span>
+  </div>
+  <div class="wf-canvas">
+    <div style="max-width:1020px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+
+      <div style="background:#1e3a5f;border-radius:10px;padding:16px 20px;color:#e2e8f0;font-size:13px">
+        <strong style="color:#5eead4">Verified against:</strong> Sample_Pay_Slip.pdf (RT-DEV-153, CTC ₹45,000, March 2026) + Sample_Salary_Sheet.xls (4 employees, April 2026, Rockers Technologies USA)
+      </div>
+
+      <!-- Correction 1: PF Cap -->
+      <div class="card" style="border-left:4px solid #dc2626">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span class="correction-badge">CORRECTION 1 — CLARIFIED</span>
+          <div style="font-size:14px;font-weight:700;color:#111">PF — Conditional Fixed Amount (NOT a percentage on cap)</div>
+        </div>
+        <div class="nb nb-purple" style="margin-bottom:12px;font-size:12px">
+          <span>💡</span>
+          <div><strong>Exact Rule from HRBhrugisha V:</strong><br>
+          IF Basic ≥ ₹15,000 → Employee PF = <strong>₹1,800 fixed</strong> (not 12% of ₹15,000)<br>
+          IF Basic &lt; ₹15,000 → Employee PF = <strong>12% × Actual Basic</strong><br>
+          Same rule applies to Employer PF. NestJS code: <code>basic >= 15000 ? 1800 : Math.round(basic * 0.12)</code>
+          </div>
+        </div>
+        <div class="g2">
+          <div>
+            <div style="font-size:11px;color:#dc2626;font-weight:700;margin-bottom:6px">❌ PREVIOUS (Wrong)</div>
+            <div class="nb nb-red" style="font-size:11px"><span>✗</span><div>PF = 12% of <strong>Actual Basic</strong><br>e.g. Basic ₹33,908 → PF = ₹4,069</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#16a34a;font-weight:700;margin-bottom:6px">✅ CORRECT (from sample data)</div>
+            <div class="nb nb-green" style="font-size:11px"><span>✓</span><div>IF Basic ≥ ₹15,000 → PF = <strong>₹1,800 (fixed amount)</strong><br>IF Basic &lt; ₹15,000 → PF = <strong>12% × Basic</strong><br>e.g. Basic ₹33,908 ≥ ₹15,000 → PF = <strong>₹1,800 fixed</strong></div></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;background:#f8fafc;border-radius:7px;padding:10px;font-size:11px">
+          <strong>Rule:</strong> Per EPFO statutory limit, PF contributions (employee and employer) are capped at a basic wage of ₹15,000/month.<br>
+          If Basic &lt; ₹15,000 → PF = 12% × Basic | If Basic ≥ ₹15,000 → PF = 12% × ₹15,000 = ₹1,800 (fixed maximum)<br>
+          <strong>Verified:</strong> PQR: Basic ₹33,908 ≥ ₹15,000 → <b>₹1,800 fixed ✓</b> | HSBC: Basic ₹12,500 &lt; ₹15,000 → 12%×₹12,500 = <b>₹1,500 ✓</b> | Reliance: Basic ₹12,000 → 12%×₹12,000 = <b>₹1,440 ✓</b>
+        </div>
+      </div>
+
+      <!-- Correction 2: CTC Formula -->
+      <div class="card" style="border-left:4px solid #dc2626">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span class="correction-badge">CORRECTION 2</span>
+          <div style="font-size:14px;font-weight:700;color:#111">CTC Formula — Employer PF included, Employee PF is only deduction</div>
+        </div>
+        <div class="g2">
+          <div>
+            <div style="font-size:11px;color:#dc2626;font-weight:700;margin-bottom:6px">❌ PREVIOUS (Wrong)</div>
+            <div class="nb nb-red" style="font-size:11px"><span>✗</span><div>CTC = Gross + Fixed Variable<br>Both employer AND employee PF deducted from net</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#16a34a;font-weight:700;margin-bottom:6px">✅ CORRECT (from salary sheet)</div>
+            <div class="nb nb-green" style="font-size:11px"><span>✓</span><div><strong>CTC = Gross + Employer PF + Incentives/Fixed Variable</strong><br>Only <strong>Employee PF</strong> shown as payslip deduction<br>Employer PF is part of CTC structure</div></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;background:#f8fafc;border-radius:7px;padding:10px;font-size:11.5px">
+          <div class="formula" style="font-size:11px">
+            CTC = Gross + Employer PF [Basic≥₹15,000 → ₹1,800 fixed | Basic<₹15,000 → 12%×Basic] + Incentives<br>
+            Example PQR: ₹67,815 + ₹1,800 + ₹15,000 = <strong>₹84,615</strong> ✓ (matches sheet)<br>
+            Example RT-DEV-153: ₹38,200 + ₹1,800 + ₹5,000 = <strong>₹45,000</strong> ✓ (matches payslip)
+          </div>
+        </div>
+      </div>
+
+      <!-- Correction 3: OT Formula -->
+      <div class="card" style="border-left:4px solid #dc2626">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span class="correction-badge">CORRECTION 3</span>
+          <div style="font-size:14px;font-weight:700;color:#111">OT Rate Formula — Based on GROSS (not CTC)</div>
+        </div>
+        <div class="g2">
+          <div class="nb nb-red" style="font-size:11px"><span>❌</span><div><strong>Previous:</strong> OT = CTC ÷ 12 ÷ 30 ÷ 9 × 1.5</div></div>
+          <div class="nb nb-green" style="font-size:11px"><span>✅</span><div><strong>Correct:</strong> OT = <strong>Gross ÷ 30 ÷ 9 × 1.5</strong> (confirmed by client)</div></div>
+        </div>
+        <div style="margin-top:10px;background:#f8fafc;border-radius:7px;padding:10px">
+          <div class="formula" style="font-size:11px">
+            Per Day = Gross ÷ 30<br>
+            Per Hour = Per Day ÷ 9<br>
+            OT Rate = Per Hour × 1.5<br>
+            Example RT-DEV-153: ₹38,200 ÷ 30 ÷ 9 × 1.5 = <strong>₹212.22/hr OT rate</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Correction 4: LWP -->
+      <div class="card" style="border-left:4px solid #d97706">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;border:1px solid #fde68a;color:#92400e;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">NEW DETAIL 4</span>
+          <div style="font-size:14px;font-weight:700;color:#111">LWP — "Salary for Calculation" Column — Components Calculated AFTER Deduction</div>
+        </div>
+        <div style="font-size:12px;color:#374151;line-height:1.8">
+          From the salary sheet: there is a <strong>"Salary for Calculation"</strong> column = Gross - LWP Amount Deduction.<br>
+          All 7 percentage components (Basic, HRA, etc.) are calculated on <strong>Salary for Calculation</strong>, not raw Gross.<br>
+          LWP Amount = (Gross ÷ 30) × LWP Days | Salary for Calc = Gross − LWP Amount
+        </div>
+        <div class="formula" style="margin-top:10px;font-size:11px">
+          Example: Gross ₹38,200, LWP 2 days → LWP Deduct = ₹38,200÷30×2 = ₹2,547<br>
+          Salary for Calc = ₹38,200 − ₹2,547 = ₹35,653<br>
+          Basic = 50% of ₹35,653 = ₹17,826 (NOT 50% of ₹38,200)
+        </div>
+      </div>
+
+      <!-- Correction 5: ESIC rates -->
+      <div class="card" style="border-left:4px solid #7c3aed">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="display:inline-flex;align-items:center;gap:4px;background:#ede9fe;border:1px solid #ddd6fe;color:#5b21b6;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700">CONFIRMED 5</span>
+          <div style="font-size:14px;font-weight:700;color:#111">ESIC Rates Confirmed from Salary Sheet</div>
+        </div>
+        <div class="g2">
+          <div class="nb nb-purple" style="font-size:11px"><span>📋</span><div><strong>Employer ESIC = 3.25%</strong> of gross salary<br>Column in sheet: "EMPLOYER ESIC(3.25%)"</div></div>
+          <div class="nb nb-purple" style="font-size:11px"><span>📋</span><div><strong>Employee ESIC = 0.75%</strong> of gross salary<br>Column in sheet: "EMPLOYEE ESIC(0.75%)"</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#6b7280">Both columns present in salary sheet. All values currently 0 (inactive). Threshold: gross ≤ ₹21,000/month. Build module, no calculations yet.</div>
+      </div>
+
+      <!-- Summary table -->
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:12px">📊 Verified Payable Salary Formula — All 4 Employees Confirmed ✓</div>
+        <table class="wt">
+          <thead><tr><th>Employee</th><th>Gross</th><th>Sal for Calc</th><th>Incentives</th><th>Emp PF</th><th>PT</th><th>TDS</th><th>Loan</th><th style="color:#16a34a">Payable ✓</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:600">ABC</td><td>₹50,000</td><td>₹50,000</td><td>₹10,000</td><td style="color:#9ca3af">₹0 (exempt)</td><td>₹200</td><td>₹1,500</td><td>₹0</td><td style="font-weight:700;color:#16a34a">₹58,300 ✓</td></tr>
+            <tr><td style="font-weight:600">PQR</td><td>₹67,815</td><td>₹67,815</td><td>₹15,000</td><td>₹1,800</td><td>₹200</td><td>₹0</td><td>₹3,000</td><td style="font-weight:700;color:#16a34a">₹77,815 ✓</td></tr>
+            <tr><td style="font-weight:600">HSBC</td><td>₹25,000</td><td>₹25,000</td><td>₹3,500</td><td>₹1,500</td><td>₹200</td><td>₹0</td><td>₹0</td><td style="font-weight:700;color:#16a34a">₹26,800 ✓</td></tr>
+            <tr><td style="font-weight:600">Reliance</td><td>₹24,000</td><td>₹24,000</td><td>₹2,685</td><td>₹1,440</td><td>₹200</td><td>₹0</td><td>₹0</td><td style="font-weight:700;color:#16a34a">₹25,045 ✓</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;font-size:11px;color:#6b7280">
+          Formula: <strong>Payable = Sal-For-Calc + Incentives − Employee PF − PT − TDS − Loan − Sal Deduction</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CALCULATION ENGINE -->
+<div id="screen-calc-engine" class="screen">
+  <div class="screen-header">
+    <div><h2>Salary Calculation Engine — Verified Formulas</h2><p>Complete Indian payroll calculation with PF cap ₹15,000 and Gross-based OT confirmed from sample files</p></div>
+    <span class="sb sb-calc">Calculation Rules</span>
+  </div>
+  <div class="wf-canvas">
+    <div style="max-width:1020px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+      <div class="g2">
+        <!-- Left: Full salary structure -->
+        <div class="card">
+          <div style="font-size:14px;font-weight:700;color:#1e3a5f;margin-bottom:14px">Full Salary Structure</div>
+          <div class="sal-section">Step 1: Salary for Calculation</div>
+          <div class="sal-row"><span class="sal-label">Gross Salary <span class="sal-pct">(Admin sets manually)</span></span><span class="sal-val">₹G</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">LWP Deduction <span class="sal-pct">(G ÷ 30 × LWP days — auto from Leave System)</span></span><span class="sal-val sal-deduct">−₹L</span></div>
+          <div style="background:#eff6ff;border-radius:5px;padding:6px 10px;font-size:11px;color:#1e40af;margin:4px 0 8px;font-weight:600">= Salary For Calculation (SFC)</div>
+
+          <div class="sal-section">Step 2: Earnings Components (% of SFC)</div>
+          <div class="sal-row"><span class="sal-label">Basic Salary <span class="sal-pct">50% of SFC</span></span><span class="sal-val">₹B</span></div>
+          <div class="sal-row"><span class="sal-label">HRA <span class="sal-pct">20% of SFC</span></span><span class="sal-val">₹H</span></div>
+          <div class="sal-row"><span class="sal-label">Special Allowances <span class="sal-pct">15% of SFC</span></span><span class="sal-val">₹S</span></div>
+          <div class="sal-row"><span class="sal-label">Conveyance <span class="sal-pct">7% of SFC</span></span><span class="sal-val">₹C</span></div>
+          <div class="sal-row"><span class="sal-label">LTC / Travel <span class="sal-pct">5% of SFC</span></span><span class="sal-val">₹L</span></div>
+          <div class="sal-row"><span class="sal-label">RE. Medical <span class="sal-pct">2% of SFC</span></span><span class="sal-val">₹M</span></div>
+          <div class="sal-row"><span class="sal-label">Education Allowances <span class="sal-pct">1% of SFC</span></span><span class="sal-val">₹E</span></div>
+          <div style="background:#eff6ff;border-radius:5px;padding:5px 8px;font-size:10.5px;color:#1e40af;margin:4px 0">↑ 50+20+15+7+5+2+1 = 100% of SFC. All auto-calculated.</div>
+
+          <div class="sal-section">Step 3: Manual Additions</div>
+          <div class="sal-row"><span class="sal-label">Incentives / Fixed Variable <span class="sal-pct">Admin sets per employee</span></span><span class="sal-val">₹I</span></div>
+          <div class="sal-row"><span class="sal-label">Extra Working Hours (OT) <span class="sal-pct">Gross÷30÷8×1.5 × approved hrs</span></span><span class="sal-val">₹OT</span></div>
+          <div class="sal-row"><span class="sal-label">Security Return <span class="sal-pct">if applicable (from sheet)</span></span><span class="sal-val">₹SR</span></div>
+
+          <div class="sal-section">Step 4: Deductions</div>
+          <div class="sal-row"><span class="sal-label sal-deduct">Employee PF <span class="sal-pct">Basic≥₹15K → ₹1,800 fixed | Basic&lt;₹15K → 12%×Basic</span></span><span class="sal-val sal-deduct">−₹PF</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">Employee ESIC <span class="sal-pct">0.75% of SFC (INACTIVE — module built)</span></span><span class="sal-val" style="color:#9ca3af">−₹0</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">Professional Tax <span class="sal-pct">Fixed ₹200/month</span></span><span class="sal-val sal-deduct">−₹200</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">TDS <span class="sal-pct">Manual — admin enters monthly</span></span><span class="sal-val sal-deduct">−₹T</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">Loan Recovery <span class="sal-pct">Manual EMI — admin sets per employee</span></span><span class="sal-val sal-deduct">−₹LN</span></div>
+          <div class="sal-row"><span class="sal-label sal-deduct">Sal Deduction <span class="sal-pct">Other deductions — admin manual</span></span><span class="sal-val sal-deduct">−₹SD</span></div>
+
+          <div style="margin-top:10px;background:#dcfce7;border-radius:7px;padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;color:#166534;font-size:13px">NET PAYABLE SALARY</span>
+            <span style="font-size:18px;font-weight:800;color:#16a34a">= Total Earnings − Total Deductions</span>
+          </div>
+        </div>
+
+        <!-- Right: CTC structure + worked example -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card">
+            <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:10px">CTC Structure — Verified</div>
+            <div class="formula" style="font-size:11px;line-height:2">
+              <strong>CTC = Gross + Employer PF + Incentives</strong><br>
+              Employer PF = Basic≥₹15,000 → ₹1,800 fixed | Basic<₹15,000 → 12%×Basic<br>
+              <br>
+              CTC As Per IT = Gross + Incentives<br>
+              (excludes employer PF — for income tax calculation)
+            </div>
+          </div>
+          <div class="card">
+            <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:10px">✅ Worked Example — RT-DEV-153 (March 2026)</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:8px">CTC: ₹45,000 | Gross: ₹38,200 | No LWP | Fixed Var: ₹5,000</div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>Salary For Calc (no LWP)</span><strong>₹38,200</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>Basic (50%)</span><strong>₹19,100</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>HRA (20%)</span><strong>₹7,640</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>Special Allow. (15%)</span><strong>₹5,730</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>Conveyance (7%)</span><strong>₹2,674</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>LTC (5%) + Medical (2%) + Education (1%)</span><strong>₹3,056</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#eff6ff;border-radius:5px;font-size:11px;font-weight:700"><span>Total Gross Components</span><strong style="color:#1e40af">₹38,200</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#f8fafc;border-radius:5px;font-size:11px"><span>+ Fixed Variable</span><strong style="color:#16a34a">₹5,000</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#eff6ff;border-radius:5px;font-size:11px;font-weight:700"><span>= Total Earnings (A)</span><strong style="color:#1e40af">₹43,200</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fef2f2;border-radius:5px;font-size:11px"><span>Employee PF: 12% × MIN(₹19,100, ₹15,000)</span><strong style="color:#dc2626">−₹1,800</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fef2f2;border-radius:5px;font-size:11px"><span>Professional Tax (fixed)</span><strong style="color:#dc2626">−₹200</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fef2f2;border-radius:5px;font-size:11px;font-weight:700"><span>= Total Deductions (B)</span><strong style="color:#dc2626">₹2,000</strong></div>
+              <div style="display:flex;justify-content:space-between;padding:10px;background:#dcfce7;border-radius:7px;font-size:13px;font-weight:800;margin-top:4px">
+                <span style="color:#166534">NET (A−B)</span><strong style="color:#16a34a">₹41,200 ✓</strong>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:10px">⏱ OT Rate — Gross-Based (Confirmed)</div>
+            <div class="formula" style="font-size:11px;line-height:2">
+              Per Day = Gross ÷ 30<br>
+              Per Hour = Per Day ÷ 9<br>
+              <strong>OT Rate = Per Hour × 1.5</strong><br>
+              RT-DEV-153: ₹38,200÷30÷9×1.5 = <strong>₹212.22/hr</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SALARY CONFIG -->
+<div id="screen-salary-config" class="screen">
+  <div class="screen-header">
+    <div><h2>Admin — Salary Structure Configuration</h2><p>Set Gross, Incentives per employee. CTC auto-calculated. All % components from master table.</p></div>
+    <span class="sb sb-admin">Admin Panel</span>
+  </div>
+  <div class="wf-canvas">
+    <div class="browser">
+      <div class="browser-bar"><div class="bd"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><div class="url">https://hr.rockers.com/payroll/admin/salary-config</div></div>
+      <div class="app-shell">
+        <div class="sidebar">
+          <div class="sidebar-logo"><div class="lm">R</div><div><span>Payroll</span><sub>Admin</sub></div></div>
+          <div class="nav-section">PAYROLL</div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">▶ Run Payroll</div>
+          <div class="nav-item active">💼 Salary Config</div>
+          <div class="nav-item">📄 Payslips</div>
+          <div class="nav-section">REPORTS</div>
+          <div class="nav-item">📋 Salary Register</div>
+          <div class="nav-item">🏢 Dept Cost</div>
+          <div class="nav-item">📈 Summary</div>
+          <div class="nav-item">✅ Compliance</div>
+          <div class="nav-section">CONFIG</div>
+          <div class="nav-item">⚙️ Component %</div>
+          <div class="nav-item">🏦 Bank Details</div>
+          <div class="nav-item">💳 Loan Records</div>
+        </div>
+        <div class="main">
+          <div class="topbar">
+            <div class="topbar-title">Salary Structure Configuration</div>
+            <div class="topbar-actions">
+              <button class="btn btn-outline btn-sm">Import Excel</button>
+              <button class="btn btn-primary btn-sm">+ Add Salary</button>
+              <div class="avatar">HR</div>
+            </div>
+          </div>
+          <div class="page-body">
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <div style="font-size:13px;font-weight:700">Employee Salary Master</div>
+                <input class="fi" style="width:220px;padding:5px 10px;font-size:11px" placeholder="🔍 Search employee...">
+              </div>
+              <table class="wt">
+                <thead><tr><th>Emp No</th><th>Name</th><th>Dept</th><th>Gross</th><th>Incentives</th><th>PF Applicable</th><th>Employer PF</th><th>CTC (auto)</th><th>Emp PF Deduction</th><th>Loan EMI</th><th>Action</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-DEV-153</td>
+                    <td style="font-weight:600">Reliance</td>
+                    <td>Dev</td>
+                    <td style="font-weight:700;color:#1e3a5f">₹38,200</td>
+                    <td>₹5,000</td>
+                    <td><span class="badge bg">Yes</span></td>
+                    <td style="color:#6b7280">₹1,800 (capped)</td>
+                    <td style="font-weight:700">₹45,000</td>
+                    <td style="color:#dc2626">₹1,800</td>
+                    <td>₹0</td>
+                    <td><button class="btn btn-outline btn-sm">Edit</button></td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-XXX</td>
+                    <td style="font-weight:600">PQR</td>
+                    <td>Finance</td>
+                    <td style="font-weight:700;color:#1e3a5f">₹67,815</td>
+                    <td>₹15,000</td>
+                    <td><span class="badge bg">Yes</span></td>
+                    <td style="color:#6b7280">₹1,800 (capped)</td>
+                    <td style="font-weight:700">₹84,615</td>
+                    <td style="color:#dc2626">₹1,800</td>
+                    <td style="color:#dc2626">₹3,000</td>
+                    <td><button class="btn btn-outline btn-sm">Edit</button></td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-YYY</td>
+                    <td style="font-weight:600">ABC</td>
+                    <td>Mgmt</td>
+                    <td style="font-weight:700;color:#1e3a5f">₹50,000</td>
+                    <td>₹10,000</td>
+                    <td><span class="badge br">No (exempt)</span></td>
+                    <td style="color:#9ca3af">₹0</td>
+                    <td style="font-weight:700">₹60,000</td>
+                    <td style="color:#9ca3af">₹0</td>
+                    <td>₹0</td>
+                    <td><button class="btn btn-outline btn-sm">Edit</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Edit panel -->
+            <div class="g2">
+              <div class="card">
+                <div style="font-size:13px;font-weight:700;margin-bottom:14px">Edit Salary — Reliance (RT-DEV-153)</div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div class="fg"><div><div class="fl">Gross Salary (Monthly) ★ Manual</div><input class="fi filled" type="text" value="₹38,200"></div><div><div class="fl">Incentives / Fixed Variable ★ Manual</div><input class="fi filled" type="text" value="₹5,000"></div></div>
+                  <div class="fg"><div><div class="fl">PF Applicable</div><select class="fi fsel"><option>Yes — PF deducted</option><option>No — PF exempt</option></select></div><div><div class="fl">TDS (Monthly) — Manual</div><input class="fi" type="text" placeholder="₹0"></div></div>
+                  <div class="fg"><div><div class="fl">Loan EMI Recovery</div><input class="fi" type="text" value="₹0"></div><div><div class="fl">Effective From</div><input class="fi" type="text" placeholder="April 2026"></div></div>
+                  <!-- Live preview -->
+                  <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:12px;font-size:11px">
+                    <div style="font-weight:700;color:#166534;margin-bottom:8px">Live Preview — Auto-Calculated</div>
+                    <div class="fg3">
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fff;border-radius:5px"><span style="color:#6b7280">Basic (50%)</span><strong>₹19,100</strong></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fff;border-radius:5px"><span style="color:#6b7280">HRA (20%)</span><strong>₹7,640</strong></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fff;border-radius:5px"><span style="color:#6b7280">Special (15%)</span><strong>₹5,730</strong></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fff;border-radius:5px"><span style="color:#6b7280">Employer PF (12% of MIN(Basic,15K))</span><strong>₹1,800</strong></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#fff;border-radius:5px"><span style="color:#6b7280">Employee PF Deduction</span><strong style="color:#dc2626">−₹1,800</strong></div>
+                      <div style="display:flex;justify-content:space-between;padding:4px 8px;background:#dcfce7;border-radius:5px;font-weight:700"><span>CTC</span><strong>₹45,000</strong></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;gap:7px">
+                    <button class="btn btn-outline">Cancel</button>
+                    <button class="btn btn-primary">Save Salary Structure</button>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div style="font-size:13px;font-weight:700;margin-bottom:12px">Salary Component Master (% of SFC)</div>
+                <table class="wt">
+                  <thead><tr><th>Component</th><th>% of SFC</th><th>Type</th><th></th></tr></thead>
+                  <tbody>
+                    <tr><td>Basic Salary</td><td><strong>50%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>HRA</td><td><strong>20%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>Special Allowances</td><td><strong>15%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>Conveyance</td><td><strong>7%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>LTC / Travel</td><td><strong>5%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>RE. Medical</td><td><strong>2%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>Education Allowances</td><td><strong>1%</strong></td><td><span class="badge bb">Auto</span></td><td><button class="btn btn-outline btn-sm">✎</button></td></tr>
+                    <tr><td>Incentives/Fixed Var</td><td><strong>Manual</strong></td><td><span class="badge ba">Manual</span></td><td>—</td></tr>
+                    <tr><td>Employer PF</td><td><strong>IF Basic≥₹15K → ₹1,800 fixed; ELSE 12%×Basic</strong></td><td><span class="badge bg">Statutory</span></td><td>—</td></tr>
+                    <tr><td>Employee PF</td><td><strong>IF Basic≥₹15K → ₹1,800 fixed; ELSE 12%×Basic</strong></td><td><span class="badge bg">Statutory</span></td><td>—</td></tr>
+                    <tr><td>Professional Tax</td><td><strong>₹200 fixed</strong></td><td><span class="badge bg">Statutory</span></td><td>—</td></tr>
+                    <tr><td>ESIC Employer</td><td><strong>3.25% (INACTIVE)</strong></td><td><span class="badge bgray">Inactive</span></td><td>—</td></tr>
+                    <tr><td>ESIC Employee</td><td><strong>0.75% (INACTIVE)</strong></td><td><span class="badge bgray">Inactive</span></td><td>—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RUN PAYROLL -->
+<div id="screen-payroll-run" class="screen">
+  <div class="screen-header">
+    <div><h2>Admin — Run Payroll</h2><p>5-step payroll flow. LWP auto-imported. All earnings/deductions calculated per verified formulas.</p></div>
+    <span class="sb sb-admin">Admin Panel</span>
+  </div>
+  <div class="wf-canvas">
+    <div class="browser">
+      <div class="browser-bar"><div class="bd"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><div class="url">https://hr.rockers.com/payroll/admin/run-payroll</div></div>
+      <div class="app-shell">
+        <div class="sidebar">
+          <div class="sidebar-logo"><div class="lm">R</div><div><span>Payroll</span><sub>Admin</sub></div></div>
+          <div class="nav-section">PAYROLL</div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item active">▶ Run Payroll</div>
+          <div class="nav-item">💼 Salary Config</div>
+          <div class="nav-item">📄 Payslips</div>
+          <div class="nav-section">REPORTS</div>
+          <div class="nav-item">📋 Salary Register</div>
+          <div class="nav-item">🏢 Dept Cost</div>
+          <div class="nav-item">📈 Summary</div>
+          <div class="nav-item">✅ Compliance</div>
+        </div>
+        <div class="main">
+          <div class="topbar">
+            <div class="topbar-title">Run Payroll — April 2026</div>
+            <div class="topbar-actions"><span class="badge bg" style="font-size:11px">Step 3 of 5 — Calculate</span><div class="avatar">HR</div></div>
+          </div>
+          <div class="page-body">
+            <div class="card" style="padding:16px 20px">
+              <div class="step-row">
+                <div class="step-box"><div class="step-num step-done">✓</div><div class="step-lbl">Select<br>Month</div></div>
+                <div class="step-box"><div class="step-num step-done">✓</div><div class="step-lbl">Import<br>Leaves + OT</div></div>
+                <div class="step-box"><div class="step-num step-active">3</div><div class="step-lbl">Auto<br>Calculate</div></div>
+                <div class="step-box"><div class="step-num step-pend">4</div><div class="step-lbl">Review &amp;<br>Approve</div></div>
+                <div class="step-box"><div class="step-num step-pend">5</div><div class="step-lbl">Lock &amp;<br>Release</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <div>
+                  <div style="font-size:13px;font-weight:700">Calculated Salaries — April 2026 (30 days)</div>
+                  <div style="font-size:10.5px;color:#9ca3af">LWP imported from Leave System. OT from Overtime module. All deductions calculated per verified formulas.</div>
+                </div>
+                <div style="display:flex;gap:7px">
+                  <button class="btn btn-outline btn-sm">Export Preview CSV</button>
+                  <button class="btn btn-teal btn-sm">Proceed to Review →</button>
+                </div>
+              </div>
+              <div style="overflow-x:auto">
+              <table class="wt" style="min-width:1100px">
+                <thead>
+                  <tr>
+                    <th rowspan="2">Emp</th><th rowspan="2">Name</th><th rowspan="2">Gross</th>
+                    <th colspan="2" style="text-align:center;background:#eff6ff;color:#1e40af">LWP</th>
+                    <th rowspan="2" style="background:#f0fdf4;color:#166534">Sal For Calc</th>
+                    <th rowspan="2" style="background:#f0fdf4;color:#166534">Basic</th>
+                    <th rowspan="2">Incentives</th><th rowspan="2">OT</th>
+                    <th rowspan="2" style="color:#1e40af">Empr PF</th>
+                    <th rowspan="2">CTC (auto)</th>
+                    <th colspan="5" style="text-align:center;background:#fef2f2;color:#dc2626">Deductions</th>
+                    <th rowspan="2" style="background:#f0fdf4;color:#16a34a;font-weight:800">Net Payable</th>
+                  </tr>
+                  <tr>
+                    <th style="background:#eff6ff">Days</th><th style="background:#eff6ff">Amt</th>
+                    <th style="background:#fef2f2;color:#dc2626">Emp PF</th>
+                    <th style="background:#fef2f2;color:#dc2626">PT</th>
+                    <th style="background:#fef2f2;color:#dc2626">TDS</th>
+                    <th style="background:#fef2f2;color:#dc2626">Loan</th>
+                    <th style="background:#fef2f2;color:#dc2626">Total Ded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-DEV-153</td>
+                    <td style="font-weight:600">Reliance</td>
+                    <td>₹38,200</td>
+                    <td style="color:#dc2626">0</td><td style="color:#dc2626">₹0</td>
+                    <td style="font-weight:600;color:#166534">₹38,200</td>
+                    <td>₹19,100</td>
+                    <td>₹5,000</td><td style="color:#16a34a">₹0</td>
+                    <td style="color:#1e40af">₹1,800</td>
+                    <td style="font-weight:700">₹45,000</td>
+                    <td style="color:#dc2626">₹1,800</td><td style="color:#dc2626">₹200</td>
+                    <td style="color:#dc2626">₹0</td><td style="color:#dc2626">₹0</td>
+                    <td style="color:#dc2626;font-weight:600">₹2,000</td>
+                    <td style="font-weight:800;color:#16a34a">₹41,200</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-XXX</td>
+                    <td style="font-weight:600">PQR</td>
+                    <td>₹67,815</td>
+                    <td style="color:#dc2626">1</td><td style="color:#dc2626">₹2,261</td>
+                    <td style="font-weight:600;color:#166534">₹65,554</td>
+                    <td>₹32,777</td>
+                    <td>₹15,000</td><td style="color:#16a34a">₹500</td>
+                    <td style="color:#1e40af">₹1,800</td>
+                    <td style="font-weight:700">₹84,615</td>
+                    <td style="color:#dc2626">₹1,800</td><td style="color:#dc2626">₹200</td>
+                    <td style="color:#dc2626">₹0</td><td style="color:#dc2626">₹3,000</td>
+                    <td style="color:#dc2626;font-weight:600">₹5,000</td>
+                    <td style="font-weight:800;color:#16a34a">₹76,054</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:10px;color:#6b7280">RT-YYY</td>
+                    <td style="font-weight:600">ABC</td>
+                    <td>₹50,000</td>
+                    <td>0</td><td>₹0</td>
+                    <td style="font-weight:600;color:#166534">₹50,000</td>
+                    <td>₹25,000</td>
+                    <td>₹10,000</td><td>₹0</td>
+                    <td style="color:#9ca3af">₹0 (exempt)</td>
+                    <td style="font-weight:700">₹60,000</td>
+                    <td style="color:#9ca3af">₹0</td><td style="color:#dc2626">₹200</td>
+                    <td style="color:#dc2626">₹1,500</td><td>₹0</td>
+                    <td style="color:#dc2626;font-weight:600">₹1,700</td>
+                    <td style="font-weight:800;color:#16a34a">₹58,300</td>
+                  </tr>
+                </tbody>
+              </table>
+              </div>
+              <div style="display:flex;gap:14px;padding:10px 0 0;flex-wrap:wrap;font-size:11px">
+                <div style="padding:8px 12px;background:#f0fdf4;border-radius:7px"><div style="color:#6b7280">Total Net Payable</div><div style="font-size:16px;font-weight:800;color:#16a34a">₹1,75,554</div></div>
+                <div style="padding:8px 12px;background:#f8fafc;border-radius:7px"><div style="color:#6b7280">Total Employer PF</div><div style="font-size:16px;font-weight:800">₹3,600</div></div>
+                <div style="padding:8px 12px;background:#f8fafc;border-radius:7px"><div style="color:#6b7280">Total Employee PF</div><div style="font-size:16px;font-weight:800">₹3,600</div></div>
+                <div style="padding:8px 12px;background:#f8fafc;border-radius:7px"><div style="color:#6b7280">Total PT</div><div style="font-size:16px;font-weight:800">₹600</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAYSLIP -->
+<div id="screen-payslip" class="screen">
+  <div class="screen-header">
+    <div><h2>Payslip — Matched to Sample PDF Format</h2><p>Exact layout matched to Sample_Pay_Slip.pdf from Rockers Technologies — DDMM password protection</p></div>
+    <span class="sb sb-admin">Admin Panel</span>
+  </div>
+  <div class="wf-canvas">
+    <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:18px">
+      <!-- Exact payslip replica -->
+      <div class="payslip">
+        <!-- Header -->
+        <div class="ps-hdr">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="ps-company">Rockers Technologies</div>
+              <div class="ps-addr">3rd Floor, Corner Heights, Kalali Road, Vadodara</div>
+            </div>
+            <div style="text-align:right">
+              <div class="ps-month-pill">MARCH 2026</div>
+              <div style="font-size:9.5px;color:#94a3b8;margin-top:4px">Pay Period: 01 Mar – 30 Mar 2026</div>
+            </div>
+          </div>
+        </div>
+        <!-- Employee details -->
+        <div class="ps-emp-row" style="grid-template-columns:repeat(5,1fr)">
+          <div><div class="ps-field-label">EMP Number</div><div class="ps-field-val">RT-DEV-153</div></div>
+          <div><div class="ps-field-label">Employee Name</div><div class="ps-field-val">Reliance [Name]</div></div>
+          <div><div class="ps-field-label">Designation</div><div class="ps-field-val">Full Stack Developer</div></div>
+          <div><div class="ps-field-label">DOJ</div><div class="ps-field-val">02-06-2025</div></div>
+          <div><div class="ps-field-label">CTC (Monthly)</div><div class="ps-field-val">₹45,000</div></div>
+          <div><div class="ps-field-label">Bank Name</div><div class="ps-field-val">Bank of Baroda</div></div>
+          <div><div class="ps-field-label">A/C No</div><div class="ps-field-val">XXXX 0028299</div></div>
+          <div><div class="ps-field-label">Month</div><div class="ps-field-val">March_2026</div></div>
+          <div><div class="ps-field-label">PF UAN</div><div class="ps-field-val">XXXXXXXXXX</div></div>
+          <div><div class="ps-field-label">PAN</div><div class="ps-field-val">XXXXX0000X</div></div>
+        </div>
+        <!-- Main payslip table -->
+        <table class="ps-table" style="margin:0">
+          <thead>
+            <tr>
+              <th colspan="2" class="tl" style="background:#e8edf5;width:25%">Working Details</th>
+              <th class="tl" style="background:#e0f0e8;width:25%">Earning Details (A)</th>
+              <th style="background:#e0f0e8;width:12%">Actual</th>
+              <th style="background:#e0f0e8;width:12%">Payable</th>
+              <th class="tl" style="background:#fde8e8;width:14%">Deduction Details (B)</th>
+              <th style="background:#fde8e8;width:12%">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">WD</td><td class="tl" style="font-weight:700">30</td>
+              <td class="tl">Basic</td><td class="tr earn">19,100.00</td><td class="tr earn">19,100.00</td>
+              <td class="tl ded">PF</td><td class="tr ded">1,800.00</td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">CL</td><td class="tl">—</td>
+              <td class="tl">HRA</td><td class="tr earn">7,640.00</td><td class="tr earn">7,640.00</td>
+              <td class="tl ded">ESIC</td><td class="tr" style="color:#9ca3af">0.00</td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">SL</td><td class="tl">—</td>
+              <td class="tl">SP. Allowances</td><td class="tr earn">5,730.00</td><td class="tr earn">5,730.00</td>
+              <td class="tl ded">P.Tax</td><td class="tr ded">200.00</td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">LWP</td><td class="tl">—</td>
+              <td class="tl">Conveyance</td><td class="tr earn">2,674.00</td><td class="tr earn">2,674.00</td>
+              <td class="tl ded">TDS</td><td class="tr" style="color:#9ca3af">0.00</td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">PL</td><td class="tl">—</td>
+              <td class="tl">LTC</td><td class="tr earn">1,910.00</td><td class="tr earn">1,910.00</td>
+              <td class="tl ded">Security</td><td class="tr" style="color:#9ca3af">0.00</td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">WFH</td><td class="tl">—</td>
+              <td class="tl">RE. Medical</td><td class="tr earn">764.00</td><td class="tr earn">764.00</td>
+              <td></td><td></td>
+            </tr>
+            <tr>
+              <td class="tl" style="color:#6b7280;font-size:10px">Complimentary Off</td><td class="tl">—</td>
+              <td class="tl">Edu. Allowances</td><td class="tr earn">382.00</td><td class="tr earn">382.00</td>
+              <td></td><td></td>
+            </tr>
+            <tr>
+              <td></td><td></td>
+              <td class="tl">Fix Variable</td><td class="tr earn">5,000.00</td><td class="tr earn">5,000.00</td>
+              <td></td><td></td>
+            </tr>
+            <tr>
+              <td></td><td></td>
+              <td class="tl">Extra Working Hrs (OT)</td><td class="tr" style="color:#9ca3af">0.00</td><td class="tr" style="color:#9ca3af">0.00</td>
+              <td></td><td></td>
+            </tr>
+            <tr class="total-row">
+              <td class="tl" style="color:#6b7280;font-size:10px">Present Days</td>
+              <td class="tl" style="font-weight:800">30</td>
+              <td class="tl" style="font-weight:700">TOTAL</td>
+              <td class="tr" style="font-size:12px">43,200.00</td>
+              <td class="tr" style="font-size:12px">43,200.00</td>
+              <td class="tl ded" style="font-weight:700">TOTAL</td>
+              <td class="tr ded" style="font-size:12px">2,000.00</td>
+            </tr>
+            <tr class="net-row">
+              <td colspan="4" class="tl">NET PAYABLE (A−B)</td>
+              <td colspan="3" class="tr" style="font-size:14px">₹41,200.00</td>
+            </tr>
+          </tbody>
+        </table>
+        <!-- Footer -->
+        <div style="background:#1e3a5f;padding:10px 18px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:10px;color:#94a3b8;font-style:italic">This is a system generated pay slip and does not require signature</div>
+          <div style="font-size:10px;color:#64748b;background:rgba(255,255,255,.08);padding:3px 10px;border-radius:5px">🔒 PDF Password: DDMM (Date of Birth) · e.g. born 14 Mar → 1403</div>
+        </div>
+      </div>
+      <!-- Controls -->
+      <div class="g2">
+        <div class="card card-sm">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">Release Controls</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div class="fg"><div><div class="fl">Month</div><select class="fi fsel btn-sm"><option>March 2026</option></select></div><div><div class="fl">Release Date</div><input class="fi btn-sm" type="text" value="31 March 2026"></div></div>
+            <div style="display:flex;justify-content:space-between;padding:7px;background:#f8fafc;border-radius:6px;font-size:11px"><span>Payslips ready</span><strong>4 employees</strong></div>
+            <div style="display:flex;justify-content:space-between;padding:7px;background:#f8fafc;border-radius:6px;font-size:11px"><span>PDF Password</span><strong>DOB in DDMM format</strong></div>
+            <div style="display:flex;justify-content:space-between;padding:7px;background:#f8fafc;border-radius:6px;font-size:11px"><span>Auto-email on release</span><span class="badge bg">Enabled (SMTP)</span></div>
+            <div style="display:flex;gap:7px">
+              <button class="btn btn-outline" style="flex:1">Preview All</button>
+              <button class="btn btn-primary" style="flex:1">🔒 Lock &amp; Release</button>
+            </div>
+          </div>
+        </div>
+        <div class="card card-sm">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">Payslip Working Details — All Fields</div>
+          <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px">
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>WD</span><span style="color:#6b7280">Working Days (always 30)</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>CL</span><span style="color:#6b7280">Casual Leave taken this month</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>SL</span><span style="color:#6b7280">Sick Leave taken this month</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>LWP</span><span style="color:#6b7280">Leave Without Pay (affects salary calc)</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>PL</span><span style="color:#6b7280">Paid Leave taken</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>WFH</span><span style="color:#6b7280">Work From Home days</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#f8fafc;border-radius:5px"><span>Complimentary Off</span><span style="color:#6b7280">Compensatory off taken</span></div>
+            <div style="display:flex;justify-content:space-between;padding:5px 8px;background:#dcfce7;border-radius:5px;font-weight:700"><span>Present Days</span><span style="color:#16a34a;font-weight:700">WD − LWP</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORTS -->
+<div id="screen-reports" class="screen">
+  <div class="screen-header">
+    <div><h2>Reports — Salary Register (matched to Excel format)</h2><p>Report structure matched to Sample_Salary_Sheet.xls columns</p></div>
+    <span class="sb sb-admin">Admin Panel</span>
+  </div>
+  <div class="wf-canvas">
+    <div style="max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+      <div class="nb nb-green" style="font-size:11.5px"><span>✅</span><div>Column structure verified from Sample_Salary_Sheet.xls — April 2026 data. All 4 employees calculated correctly. Totals row matches.</div></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700">ROCKERS TECHNOLOGIES — SALARY REGISTER — APRIL 2026</div>
+          <div style="display:flex;gap:7px">
+            <button class="btn btn-outline btn-sm">⬇ Export CSV</button>
+            <button class="btn btn-primary btn-sm">⬇ Export PDF</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="wt" style="min-width:1200px">
+          <thead>
+            <tr style="background:#1e3a5f;color:#fff">
+              <th style="color:#fff">No</th><th style="color:#fff">Employee Name</th>
+              <th style="color:#fff">Gross</th>
+              <th colspan="2" style="text-align:center;color:#93c5fd">Leaves</th>
+              <th style="color:#5eead4">Sal For Calc</th>
+              <th style="color:#5eead4">Basic 50%</th><th style="color:#5eead4">HRA 20%</th>
+              <th style="color:#5eead4">Spl Allow 15%</th><th style="color:#5eead4">Conv 7%</th>
+              <th style="color:#5eead4">LTC 5%</th><th style="color:#5eead4">Medical 2%</th>
+              <th style="color:#5eead4">Edu 1%</th>
+              <th style="color:#93c5fd">Empr PF 12%</th><th style="color:#93c5fd">Empr ESIC 3.25%</th>
+              <th style="color:#fde68a">Incentives</th><th style="color:#fde68a">Sec Return</th>
+              <th style="color:#fde68a">CTC</th><th style="color:#fde68a">CTC As Per IT</th>
+              <th style="color:#fca5a5">Emp PF 12%</th><th style="color:#fca5a5">Emp ESIC 0.75%</th>
+              <th style="color:#fca5a5">PT</th><th style="color:#fca5a5">TDS</th>
+              <th style="color:#fca5a5">Sal Ded</th><th style="color:#fca5a5">Loan</th>
+              <th style="color:#86efac;font-size:12px">Payable</th><th style="color:#86efac">Cash</th>
+            </tr>
+            <tr style="background:#f0f4f8;font-size:10px;color:#6b7280">
+              <td></td><td></td><td></td>
+              <td style="text-align:center">No of<br>Leaves</td><td style="text-align:center">Amount</td>
+              <td colspan="7" style="text-align:center;color:#166534;font-style:italic">Earning Details →</td>
+              <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+              <td colspan="6" style="text-align:center;color:#dc2626;font-style:italic">← Deduction Details</td>
+              <td></td><td></td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td style="font-weight:600">ABC</td><td>50,000</td>
+              <td style="text-align:center">0</td><td>0</td><td style="color:#166534;font-weight:600">50,000</td>
+              <td>25,000</td><td>10,000</td><td>7,500</td><td>3,500</td>
+              <td>2,500</td><td>1,000</td><td>500</td>
+              <td style="color:#1e40af">0</td><td style="color:#9ca3af">0</td>
+              <td>10,000</td><td>0</td>
+              <td style="font-weight:700">60,000</td><td>60,000</td>
+              <td style="color:#dc2626">0</td><td style="color:#9ca3af">0</td>
+              <td style="color:#dc2626">200</td><td style="color:#dc2626">1,500</td>
+              <td>0</td><td>0</td>
+              <td style="font-weight:700;color:#16a34a">58,300</td><td></td>
+            </tr>
+            <tr style="background:#f9f9f9">
+              <td>2</td><td style="font-weight:600">PQR</td><td>67,815</td>
+              <td style="text-align:center">0</td><td>0</td><td style="color:#166534;font-weight:600">67,815</td>
+              <td>33,908</td><td>13,563</td><td>10,172</td><td>4,747</td>
+              <td>3,391</td><td>1,356</td><td>678</td>
+              <td style="color:#1e40af">1,800</td><td style="color:#9ca3af">0</td>
+              <td>15,000</td><td>0</td>
+              <td style="font-weight:700">84,615</td><td>82,815</td>
+              <td style="color:#dc2626">1,800</td><td style="color:#9ca3af">0</td>
+              <td style="color:#dc2626">200</td><td>0</td>
+              <td>0</td><td style="color:#dc2626">3,000</td>
+              <td style="font-weight:700;color:#16a34a">77,815</td><td></td>
+            </tr>
+            <tr>
+              <td>3</td><td style="font-weight:600">HSBC</td><td>25,000</td>
+              <td style="text-align:center">0</td><td>0</td><td style="color:#166534;font-weight:600">25,000</td>
+              <td>12,500</td><td>5,000</td><td>3,750</td><td>1,750</td>
+              <td>1,250</td><td>500</td><td>250</td>
+              <td style="color:#1e40af">1,500</td><td style="color:#9ca3af">0</td>
+              <td>3,500</td><td>0</td>
+              <td style="font-weight:700">30,000</td><td>28,500</td>
+              <td style="color:#dc2626">1,500</td><td style="color:#9ca3af">0</td>
+              <td style="color:#dc2626">200</td><td>0</td>
+              <td>0</td><td>0</td>
+              <td style="font-weight:700;color:#16a34a">26,800</td><td></td>
+            </tr>
+            <tr style="background:#f9f9f9">
+              <td>4</td><td style="font-weight:600">Reliance</td><td>24,000</td>
+              <td style="text-align:center">0</td><td>0</td><td style="color:#166634;font-weight:600">24,000</td>
+              <td>12,000</td><td>4,800</td><td>3,600</td><td>1,680</td>
+              <td>1,200</td><td>480</td><td>240</td>
+              <td style="color:#1e40af">1,440</td><td style="color:#9ca3af">0</td>
+              <td>2,685</td><td>0</td>
+              <td style="font-weight:700">28,125</td><td>26,685</td>
+              <td style="color:#dc2626">1,440</td><td style="color:#9ca3af">0</td>
+              <td style="color:#dc2626">200</td><td>0</td>
+              <td>0</td><td>0</td>
+              <td style="font-weight:700;color:#16a34a">25,045</td><td></td>
+            </tr>
+            <tr style="background:#1e3a5f;color:#fff;font-weight:700">
+              <td colspan="2">TOTAL</td><td>1,66,815</td>
+              <td style="text-align:center">0</td><td>0</td><td>1,66,815</td>
+              <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+              <td style="color:#93c5fd">4,740</td><td>0</td>
+              <td>31,185</td><td>0</td>
+              <td>2,02,740</td><td>1,98,000</td>
+              <td style="color:#fca5a5">4,740</td><td>0</td>
+              <td style="color:#fca5a5">800</td><td style="color:#fca5a5">1,500</td>
+              <td>0</td><td style="color:#fca5a5">3,000</td>
+              <td style="color:#86efac">1,87,960</td><td></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <!-- Compliance -->
+      <div class="g3">
+        <div class="card" style="background:#f0fdf4;border-color:#bbf7d0">
+          <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:8px">✅ Total PF April 2026</div>
+          <div style="font-size:18px;font-weight:800;color:#16a34a">₹9,480</div>
+          <div style="font-size:10.5px;color:#6b7280;margin-top:3px">Employee ₹4,740 + Employer ₹4,740</div>
+          <div style="font-size:10px;color:#9ca3af">3 employees × ₹1,800 + ₹1,440 = ₹4,740 each</div>
+        </div>
+        <div class="card" style="background:#eff6ff;border-color:#bfdbfe">
+          <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:8px">✅ Total PT April 2026</div>
+          <div style="font-size:18px;font-weight:800;color:#1e40af">₹800</div>
+          <div style="font-size:10.5px;color:#6b7280;margin-top:3px">4 employees × ₹200 fixed</div>
+        </div>
+        <div class="card" style="background:#fff7ed;border-color:#fed7aa">
+          <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:8px">ESIC Status</div>
+          <div style="font-size:14px;font-weight:700;color:#c2410c">Module Built — Inactive</div>
+          <div style="font-size:10.5px;color:#6b7280;margin-top:3px">Employer: 3.25% | Employee: 0.75%</div>
+          <div style="font-size:10px;color:#9ca3af">Threshold: gross ≤ ₹21,000/month</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EMPLOYEE PORTAL -->
+<div id="screen-emp-portal" class="screen">
+  <div class="screen-header">
+    <div><h2>Employee Self-Service Portal</h2><p>View payslip, download PDF, salary breakdown, investment proof upload</p></div>
+    <span class="sb sb-emp">Employee Web</span>
+  </div>
+  <div class="wf-canvas">
+    <div class="browser">
+      <div class="browser-bar"><div class="bd"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div><div class="url">https://hr.rockers.com/payroll/my-payroll</div></div>
+      <div class="app-shell">
+        <div class="sidebar">
+          <div class="sidebar-logo"><div class="lm">R</div><div><span>My Payroll</span><sub>Employee</sub></div></div>
+          <div class="nav-item active">🏠 Dashboard</div>
+          <div class="nav-item">📄 My Payslips</div>
+          <div class="nav-item">💰 Salary Breakdown</div>
+          <div class="nav-item">📑 Investment Proof</div>
+          <div class="nav-item">🏦 Bank Details</div>
+          <div class="nav-item" style="color:#9ca3af">🧮 Tax Calculator <span style="font-size:9px;background:#f3f4f6;padding:1px 5px;border-radius:3px">Phase 2</span></div>
+        </div>
+        <div class="main">
+          <div class="topbar">
+            <div><div class="topbar-title">My Payroll — March 2026</div><div style="font-size:10px;color:#9ca3af">RT-DEV-153 · Full Stack Developer</div></div>
+            <div class="topbar-actions"><button class="btn btn-primary btn-sm">⬇ Download March Payslip</button><div class="avatar">R</div></div>
+          </div>
+          <div class="page-body">
+            <div class="g4">
+              <div class="stat-card" style="border-top:3px solid #1e3a5f"><div class="stat-label">Net In-Hand</div><div class="stat-num" style="color:#1e3a5f;font-size:20px">₹41,200</div><div class="stat-sub">March 2026</div></div>
+              <div class="stat-card" style="border-top:3px solid #16a34a"><div class="stat-label">Total Earnings</div><div class="stat-num" style="color:#16a34a;font-size:20px">₹43,200</div><div class="stat-sub">Gross + Fixed Variable</div></div>
+              <div class="stat-card" style="border-top:3px solid #dc2626"><div class="stat-label">Total Deductions</div><div class="stat-num" style="color:#dc2626;font-size:20px">₹2,000</div><div class="stat-sub">PF ₹1,800 + PT ₹200</div></div>
+              <div class="stat-card" style="border-top:3px solid #d97706"><div class="stat-label">YTD Net (2026)</div><div class="stat-num" style="color:#d97706;font-size:20px">₹1.23L</div><div class="stat-sub">Jan–Mar 2026</div></div>
+            </div>
+            <div class="g2">
+              <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:13px;font-weight:700">My Payslips</div><span style="font-size:10.5px;color:#6b7280">From date of joining</span></div>
+                <table class="wt">
+                  <thead><tr><th>Month</th><th>Working Days</th><th>Net Salary</th><th>Status</th><th>Action</th></tr></thead>
+                  <tbody>
+                    <tr><td>March 2026</td><td>30</td><td style="font-weight:700;color:#16a34a">₹41,200</td><td><span class="badge bg">Released</span></td><td><button class="btn btn-outline btn-sm">⬇ PDF</button></td></tr>
+                    <tr><td>February 2026</td><td>30</td><td style="font-weight:700">₹41,200</td><td><span class="badge bg">Released</span></td><td><button class="btn btn-outline btn-sm">⬇ PDF</button></td></tr>
+                    <tr><td>January 2026</td><td>30</td><td style="font-weight:700">₹41,200</td><td><span class="badge bg">Released</span></td><td><button class="btn btn-outline btn-sm">⬇ PDF</button></td></tr>
+                  </tbody>
+                </table>
+                <div class="nb nb-blue" style="margin-top:10px;font-size:10.5px"><span>🔒</span><div>PDF password = your date of birth in DDMM format. e.g. born 14 March → password: <strong>1403</strong></div></div>
+              </div>
+              <div class="card">
+                <div style="font-size:13px;font-weight:700;margin-bottom:12px">Salary Breakdown — March 2026</div>
+                <div style="font-size:11px;color:#6b7280;font-weight:600;margin-bottom:6px">EARNINGS</div>
+                <div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px">
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>Basic (50% of ₹38,200)</span><span style="font-weight:600">₹19,100</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>HRA (20%)</span><span style="font-weight:600">₹7,640</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>SP. Allowances (15%)</span><span style="font-weight:600">₹5,730</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>Conveyance (7%)</span><span style="font-weight:600">₹2,674</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>LTC + Medical + Education (8%)</span><span style="font-weight:600">₹3,056</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span>Fix Variable</span><span style="font-weight:600">₹5,000</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#f0fdf4;border-radius:5px;font-weight:700"><span>Total Earnings (A)</span><span style="color:#16a34a">₹43,200</span></div>
+                </div>
+                <div style="font-size:11px;color:#dc2626;font-weight:600;margin:10px 0 6px">DEDUCTIONS</div>
+                <div style="display:flex;flex-direction:column;gap:3px;font-size:11.5px">
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span style="color:#dc2626">Employee PF (Basic ₹19,100 ≥ ₹15,000 → fixed ₹1,800)</span><span style="color:#dc2626;font-weight:600">−₹1,800</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f4f6"><span style="color:#dc2626">Professional Tax (fixed)</span><span style="color:#dc2626;font-weight:600">−₹200</span></div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 8px;background:#fef2f2;border-radius:5px;font-weight:700"><span style="color:#dc2626">Total Deductions (B)</span><span style="color:#dc2626">₹2,000</span></div>
+                </div>
+                <div style="margin-top:8px;background:#dcfce7;border-radius:7px;padding:10px;display:flex;justify-content:space-between"><span style="font-weight:700;color:#166534">NET IN-HAND (A−B)</span><span style="font-size:18px;font-weight:800;color:#16a34a">₹41,200</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BANK DETAILS -->
+<div id="screen-bank" class="screen">
+  <div class="screen-header">
+    <div><h2>Bank Details — Employee Request + Admin Approval</h2><p>Employee submits bank change → Admin approves → Applied from next payroll month</p></div>
+    <span class="sb sb-web">Web — Both</span>
+  </div>
+  <div class="wf-canvas">
+    <div style="max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+      <div class="g2">
+        <div class="card">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">Employee — Request Bank Change</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#f0fdf4;border-radius:7px;margin-bottom:12px;font-size:11.5px">
+            <div><div style="font-weight:700">Bank of Baroda</div><div style="color:#6b7280">A/C: XXXX 8299 · IFSC: BARB0XXXXX</div></div>
+            <span class="badge bg">Current Active</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div><div class="fl">New Bank Name</div><input class="fi" type="text" placeholder="Enter new bank name"></div>
+            <div class="fg"><div><div class="fl">Account Number</div><input class="fi" type="text" placeholder="New account number"></div><div><div class="fl">Confirm A/C Number</div><input class="fi" type="text" placeholder="Re-enter"></div></div>
+            <div class="fg"><div><div class="fl">IFSC Code</div><input class="fi" type="text" placeholder="IFSC code"></div><div><div class="fl">Account Type</div><select class="fi fsel"><option>Savings</option><option>Current</option></select></div></div>
+            <div><div class="fl">Cancelled Cheque / Passbook *</div><div style="border:1.5px dashed #d1d5db;border-radius:7px;padding:12px;text-align:center;background:#fafafa"><div style="font-size:16px">📎</div><div style="font-size:11px;color:#6b7280">Upload cancelled cheque or passbook copy (PDF/JPG)</div></div></div>
+            <button class="btn btn-primary" style="margin-top:4px">Submit for Admin Approval →</button>
+          </div>
+          <div class="nb" style="margin-top:10px;font-size:10.5px"><span>⚠️</span><div>Salary goes to existing account until Admin approves. New bank active from next payroll month only.</div></div>
+        </div>
+        <div class="card">
+          <div style="font-size:13px;font-weight:700;margin-bottom:12px">Admin — Pending Bank Approvals <span class="badge ba" style="margin-left:6px">2</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:12px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:12px">RT-DEV-153 — Reliance</div><span class="badge ba">Pending</span></div>
+              <div style="font-size:11px;color:#374151;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px">
+                <div><span style="color:#9ca3af">Current:</span> Bank of Baroda — XXXX8299</div>
+                <div><span style="color:#9ca3af">New:</span> SBI — XXXX4411</div>
+                <div><span style="color:#9ca3af">IFSC:</span> SBIN0001234</div><div><span style="color:#9ca3af">Requested:</span> 2 days ago</div>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:10px">
+                <button class="btn btn-outline btn-sm">📎 View Cheque</button>
+                <button class="btn btn-green btn-sm" style="flex:1">✓ Approve</button>
+                <button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#dc2626">✗ Reject</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE -->
+<div id="screen-mobile" class="screen">
+  <div class="screen-header">
+    <div><h2>Mobile App — Phase 2 (Flutter)</h2><p>Payslip download, net salary view, OT tracker — all on mobile</p></div>
+    <span class="sb sb-emp">Mobile — Phase 2</span>
+  </div>
+  <div class="wf-canvas">
+    <div class="mwrap">
+      <div>
+        <div style="text-align:center;font-size:11px;color:#9ca3af;margin-bottom:10px;font-weight:700;text-transform:uppercase">Payroll Home</div>
+        <div class="mf"><div class="mnotch"><span></span></div>
+          <div class="mscreen">
+            <div class="mstatus"><span class="mstatus-time">9:41</span><span style="font-size:10px">🔋</span></div>
+            <div class="mtopbar"><div><h3>My Payroll</h3><div style="font-size:10px;color:#9ca3af">March 2026</div></div><div class="avatar" style="font-size:9px">R</div></div>
+            <div class="mbody">
+              <div style="background:linear-gradient(135deg,#1e3a5f,#0f4c4c);border-radius:12px;padding:16px;text-align:center;margin-bottom:12px;color:#fff">
+                <div style="font-size:10px;color:#94a3b8;margin-bottom:4px">NET IN-HAND — MARCH 2026</div>
+                <div style="font-size:28px;font-weight:800;color:#5eead4">₹41,200</div>
+                <div style="font-size:10px;color:#64748b;margin-top:4px">Earnings ₹43,200 · Deductions ₹2,000</div>
+                <button style="margin-top:10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#e2e8f0;border-radius:7px;padding:6px 14px;font-size:11px;cursor:pointer">⬇ Download Payslip PDF</button>
+              </div>
+              <div class="msec">Recent Payslips</div>
+              <div class="mc mc-accent" style="border-left-color:#1e3a5f"><div class="mrow"><span class="mval">March 2026 — 30 days</span><span style="font-weight:700;color:#16a34a">₹41,200</span></div><div class="msub">Password: DDMM (your DOB)</div></div>
+              <div class="mc mc-accent" style="border-left-color:#1e3a5f"><div class="mrow"><span class="mval">February 2026 — 30 days</span><span style="font-weight:700;color:#16a34a">₹41,200</span></div><div class="msub">Released</div></div>
+              <div class="mc mc-accent" style="border-left-color:#1e3a5f"><div class="mrow"><span class="mval">January 2026 — 30 days</span><span style="font-weight:700;color:#16a34a">₹41,200</span></div><div class="msub">Released</div></div>
+            </div>
+            <div class="mnav">
+              <div class="mnav-item active"><div style="font-size:16px">🏠</div><div class="mnav-label" style="color:#1e3a5f">Home</div></div>
+              <div class="mnav-item"><div style="font-size:16px">📄</div><div class="mnav-label">Payslips</div></div>
+              <div class="mnav-item"><div style="font-size:16px">📑</div><div class="mnav-label">Docs</div></div>
+              <div class="mnav-item"><div style="font-size:16px">🏦</div><div class="mnav-label">Bank</div></div>
+              <div class="mnav-item"><div style="font-size:16px">👤</div><div class="mnav-label">Profile</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pres-footer">
+  <span>Rockers HR — Payroll Management System v2.0 · Formulas verified from Sample_Pay_Slip.pdf + Sample_Salary_Sheet.xls</span>
+  <span>Prepared by Rakesh Patel · For HRBhrugisha V Review</span>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>

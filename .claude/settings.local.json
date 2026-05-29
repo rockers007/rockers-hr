@@ -15,7 +15,11 @@
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
       "Bash(npx jest:*)",
-      "Bash(where flutter:*)"
+      "Bash(where flutter:*)",
+      "Bash(codex exec *)",
+      "Bash(where codex *)",
+      "Read(//c/Program Files/**)",
+      "Bash(npm ls *)"
     ]
   }
 }
