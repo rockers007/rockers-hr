@@ -1,157 +1,85 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/notifications_controller.dart';
 import '../models/notification_model.dart';
-import '../services/api_service.dart';
-import '../services/leave_service.dart';
+import '../repositories/notifications_repository.dart';
+import '../services/logging_service.dart';
 import '../widgets/empty_state.dart';
 import 'leave_detail_screen.dart';
 
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => NotificationsController(NotificationsRepository()),
+      child: const _NotificationsView(),
+    );
+  }
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  bool _isLoading = true;
-  List<AppNotification> _notifications = [];
+// ── Helpers ────────────────────────────────────────────────────────────────
 
+String _timeAgo(String dateStr) {
+  final dt = DateTime.tryParse(dateStr);
+  if (dt == null) return '';
+  final diff = DateTime.now().difference(dt);
+  if (diff.inDays > 30) return '${(diff.inDays / 30).floor()}mo ago';
+  if (diff.inDays > 0) return '${diff.inDays}d ago';
+  if (diff.inHours > 0) return '${diff.inHours}h ago';
+  if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+  return 'Just now';
+}
+
+// ── View ───────────────────────────────────────────────────────────────────
+
+class _NotificationsView extends StatefulWidget {
+  const _NotificationsView();
+
+  @override
+  State<_NotificationsView> createState() => _NotificationsViewState();
+}
+
+class _NotificationsViewState extends State<_NotificationsView> {
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<NotificationsController>().load(),
+    );
   }
 
-  Future<void> _loadNotifications() async {
-    setState(() => _isLoading = true);
-
+  Future<void> _markAllRead(NotificationsController controller) async {
     try {
-      final data = await LeaveService.getNotifications();
-      if (mounted) {
-        setState(() {
-          _notifications = data
-              .map((e) =>
-                  AppNotification.fromJson(e as Map<String, dynamic>))
-              .toList();
-          _isLoading = false;
-        });
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      await controller.markAllRead();
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load notifications: ${e.toString()}'),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _markAllRead() async {
-    try {
-      await LeaveService.markAllNotificationsRead();
-      if (mounted) {
-        setState(() {
-          _notifications = _notifications.map((n) {
-            if (!n.isRead) {
-              return AppNotification(
-                id: n.id,
-                title: n.title,
-                body: n.body,
-                isRead: true,
-                leaveRequestId: n.leaveRequestId,
-                createdAt: n.createdAt,
-              );
-            }
-            return n;
-          }).toList();
-        });
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _markRead(int index) async {
-    final notif = _notifications[index];
-    if (notif.isRead) return;
-
-    try {
-      await LeaveService.markNotificationRead(notif.id);
-      if (mounted) {
-        setState(() {
-          _notifications[index] = AppNotification(
-            id: notif.id,
-            title: notif.title,
-            body: notif.body,
-            isRead: true,
-            leaveRequestId: notif.leaveRequestId,
-            createdAt: notif.createdAt,
-          );
-        });
-      }
-    } catch (_) {
-      // Best-effort
-    }
-  }
-
-  String _timeAgo(String dateStr) {
-    final dt = DateTime.tryParse(dateStr);
-    if (dt == null) return '';
-
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-
-    if (diff.inDays > 30) {
-      final months = (diff.inDays / 30).floor();
-      return '${months}mo ago';
-    } else if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
-    } else if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes}m ago';
-    } else {
-      return 'Just now';
+      showLog('NotificationsScreen._markAllRead: $e', type: LogType.error);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasUnread = _notifications.any((n) => !n.isRead);
+    final controller = context.watch<NotificationsController>();
 
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          if (hasUnread)
+          if (controller.hasUnread)
             TextButton(
-              onPressed: _markAllRead,
+              onPressed: () => _markAllRead(controller),
               child: const Text(
                 'Mark all read',
                 style: TextStyle(
@@ -163,71 +91,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadNotifications,
-              child: _notifications.isEmpty
-                  ? ListView(
-                      children: const [
-                        SizedBox(height: 80),
-                        EmptyStateWidget(
-                          icon: Icons.notifications_none,
-                          title: 'No notifications',
-                          description:
-                              'You will be notified about your leave requests here.',
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _notifications.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(height: 1, color: AppColors.border),
-                      itemBuilder: (context, index) {
-                        final notif = _notifications[index];
-                        return _NotificationTile(
-                          title: notif.title,
-                          body: notif.body,
-                          timeAgo: _timeAgo(notif.createdAt),
-                          isRead: notif.isRead,
-                          onTap: () {
-                            _markRead(index);
-                            if (notif.leaveRequestId != null) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => LeaveDetailScreen(
-                                    requestId: notif.leaveRequestId!,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        );
-                      },
-                    ),
+      body: switch (controller.status) {
+        NotificationsStatus.idle ||
+        NotificationsStatus.loading =>
+          const Center(child: CircularProgressIndicator()),
+        NotificationsStatus.error => Center(
+            child: Text(
+              controller.error ?? 'Something went wrong',
+              style: const TextStyle(color: AppColors.danger),
             ),
+          ),
+        NotificationsStatus.success => RefreshIndicator(
+            onRefresh: controller.load,
+            child: controller.notifications.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 80),
+                      EmptyStateWidget(
+                        icon: Icons.notifications_none,
+                        title: 'No notifications',
+                        description:
+                            'You will be notified about your leave requests here.',
+                      ),
+                    ],
+                  )
+                : _NotificationList(controller: controller),
+          ),
+      },
+    );
+  }
+}
+
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _NotificationList extends StatelessWidget {
+  const _NotificationList({required this.controller});
+
+  final NotificationsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: controller.notifications.length,
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.border),
+      itemBuilder: (context, index) {
+        final notif = controller.notifications[index];
+        return _NotificationTile(
+          notification: notif,
+          onTap: () {
+            controller.markRead(index);
+            if (notif.leaveRequestId != null) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      LeaveDetailScreen(requestId: notif.leaveRequestId!),
+                ),
+              );
+            }
+          },
+        );
+      },
     );
   }
 }
 
 class _NotificationTile extends StatelessWidget {
-  final String title;
-  final String body;
-  final String timeAgo;
-  final bool isRead;
-  final VoidCallback onTap;
-
   const _NotificationTile({
-    required this.title,
-    required this.body,
-    required this.timeAgo,
-    required this.isRead,
+    required this.notification,
     required this.onTap,
   });
 
+  final AppNotification notification;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
+    final isRead = notification.isRead;
+
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -243,7 +185,6 @@ class _NotificationTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Unread dot
               if (!isRead)
                 Container(
                   width: 8,
@@ -253,16 +194,15 @@ class _NotificationTile extends StatelessWidget {
                     color: AppColors.accent,
                     shape: BoxShape.circle,
                   ),
-                ),
-              if (isRead) const SizedBox(width: 18),
-
-              // Content
+                )
+              else
+                const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      notification.title,
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
@@ -272,21 +212,17 @@ class _NotificationTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      body,
+                      notification.body,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
+                          color: AppColors.textSecondary, fontSize: 13),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      timeAgo,
+                      _timeAgo(notification.createdAt),
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
+                          color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
                 ),

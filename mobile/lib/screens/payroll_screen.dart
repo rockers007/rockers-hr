@@ -1,59 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/payroll_controller.dart';
 import '../models/payroll_models.dart';
-import '../services/payroll_service.dart';
+import '../repositories/payroll_repository.dart';
 import 'bank_change_screen.dart';
 import 'investment_proofs_screen.dart';
 import 'payslips_screen.dart';
 import 'salary_screen.dart';
 
 /// Employee payroll home — mirrors frontend `/payroll` dashboard.
-class PayrollScreen extends StatefulWidget {
+class PayrollScreen extends StatelessWidget {
   const PayrollScreen({super.key});
 
   @override
-  State<PayrollScreen> createState() => _PayrollScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => PayrollController(PayrollRepository()),
+      child: const _PayrollView(),
+    );
+  }
 }
 
-class _PayrollScreenState extends State<PayrollScreen> {
-  final _svc = PayrollService.instance;
-  bool _loading = true;
-  String? _error;
-  SalaryPreview? _preview;
-  List<PayslipRow> _payslips = [];
-  List<YtdRow> _ytd = [];
+class _PayrollView extends StatefulWidget {
+  const _PayrollView();
 
+  @override
+  State<_PayrollView> createState() => _PayrollViewState();
+}
+
+class _PayrollViewState extends State<_PayrollView> {
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final results = await Future.wait([
-        _svc.getSalaryPreview(),
-        _svc.getPayslips(),
-        _svc.getYtd(),
-      ]);
-      _preview = results[0] as SalaryPreview?;
-      _payslips = results[1] as List<PayslipRow>;
-      _ytd = results[2] as List<YtdRow>;
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<PayrollController>().load(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<PayrollController>();
+
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       appBar: AppBar(
@@ -62,65 +52,75 @@ class _PayrollScreenState extends State<PayrollScreen> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_error != null) _ErrorBanner(message: _error!),
-                  _CurrentMonthCard(preview: _preview),
-                  const SizedBox(height: 12),
-                  _LastPayslipCard(
-                    last: _payslips.isNotEmpty ? _payslips.first : null,
-                  ),
-                  const SizedBox(height: 12),
-                  _YtdCard(row: _ytd.isNotEmpty ? _ytd.first : null),
-                  const SizedBox(height: 24),
-                  _QuickLink(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'My Payslips',
-                    subtitle: 'Download password-protected PDFs',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PayslipsScreen(),
-                      ),
-                    ),
-                  ),
-                  _QuickLink(
-                    icon: Icons.pie_chart_outline,
-                    title: 'Salary Breakdown',
-                    subtitle: 'Current structure and 7-component split',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SalaryScreen(),
-                      ),
-                    ),
-                  ),
-                  _QuickLink(
-                    icon: Icons.account_balance_outlined,
-                    title: 'Bank Details',
-                    subtitle: 'View or request a change',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const BankChangeScreen(),
-                      ),
-                    ),
-                  ),
-                  _QuickLink(
-                    icon: Icons.folder_open_outlined,
-                    title: 'Investment Proofs',
-                    subtitle: 'Tax-saving documents for the FY',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const InvestmentProofsScreen(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      body: switch (controller.status) {
+        PayrollStatus.idle ||
+        PayrollStatus.loading =>
+          const Center(child: CircularProgressIndicator()),
+        PayrollStatus.error => RefreshIndicator(
+            onRefresh: controller.load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [_ErrorBanner(message: controller.error!)],
             ),
+          ),
+        PayrollStatus.success => RefreshIndicator(
+            onRefresh: controller.load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _CurrentMonthCard(preview: controller.preview),
+                const SizedBox(height: 12),
+                _LastPayslipCard(
+                  last: controller.payslips.isNotEmpty
+                      ? controller.payslips.first
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                _YtdCard(
+                    row: controller.ytd.isNotEmpty
+                        ? controller.ytd.first
+                        : null),
+                const SizedBox(height: 24),
+                _QuickLink(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'My Payslips',
+                  subtitle: 'Download password-protected PDFs',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const PayslipsScreen()),
+                  ),
+                ),
+                _QuickLink(
+                  icon: Icons.pie_chart_outline,
+                  title: 'Salary Breakdown',
+                  subtitle: 'Current structure and 7-component split',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const SalaryScreen()),
+                  ),
+                ),
+                _QuickLink(
+                  icon: Icons.account_balance_outlined,
+                  title: 'Bank Details',
+                  subtitle: 'View or request a change',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const BankChangeScreen()),
+                  ),
+                ),
+                _QuickLink(
+                  icon: Icons.folder_open_outlined,
+                  title: 'Investment Proofs',
+                  subtitle: 'Tax-saving documents for the FY',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const InvestmentProofsScreen()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      },
     );
   }
 }
@@ -132,10 +132,10 @@ class _CurrentMonthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (preview == null) {
-      return _Card(
+      return const _Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             _CardTitle('Current Month Preview'),
             SizedBox(height: 4),
             Text(
@@ -189,10 +189,10 @@ class _LastPayslipCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (last == null) {
-      return _Card(
+      return const _Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             _CardTitle('Last Payslip'),
             SizedBox(height: 8),
             Text(
@@ -239,10 +239,10 @@ class _YtdCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (row == null) {
-      return _Card(
+      return const _Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             _CardTitle('YTD Summary'),
             SizedBox(height: 8),
             Text(

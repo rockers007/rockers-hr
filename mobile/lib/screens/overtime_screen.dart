@@ -1,260 +1,287 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import '../config/theme.dart';
+import '../controllers/overtime_controller.dart';
+import '../repositories/overtime_repository.dart';
+import '../services/logging_service.dart';
 import '../services/overtime_service.dart';
 
-class OvertimeScreen extends StatefulWidget {
+class OvertimeScreen extends StatelessWidget {
   const OvertimeScreen({super.key});
 
   @override
-  State<OvertimeScreen> createState() => _OvertimeScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => OvertimeController(OvertimeRepository()),
+      child: const _OvertimeView(),
+    );
+  }
 }
 
-class _OvertimeScreenState extends State<OvertimeScreen> {
-  final _otService = OvertimeService();
-  List<OvertimeRequest> _requests = [];
-  OvertimeSummary? _summary;
-  bool _loading = true;
-  bool _showForm = false;
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-  // Form controllers
-  final _dateController = TextEditingController();
-  final _startController = TextEditingController();
-  final _endController = TextEditingController();
-  final _reasonController = TextEditingController();
-  DateTime? _selectedDate;
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
-  bool _submitting = false;
+String _formatTime(TimeOfDay t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+String _formatDate(String dateStr) {
+  try {
+    return DateFormat('EEE, MMM d, yyyy').format(DateTime.parse(dateStr));
+  } catch (e) {
+    showLog('OvertimeScreen._formatDate("$dateStr"): $e', type: LogType.error);
+    return dateStr;
+  }
+}
+
+// ── View ───────────────────────────────────────────────────────────────────
+
+class _OvertimeView extends StatefulWidget {
+  const _OvertimeView();
+
+  @override
+  State<_OvertimeView> createState() => _OvertimeViewState();
+}
+
+class _OvertimeViewState extends State<_OvertimeView> {
+  final _dateCtrl = TextEditingController();
+  final _startCtrl = TextEditingController();
+  final _endCtrl = TextEditingController();
+  final _reasonCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<OvertimeController>().load(),
+    );
   }
 
   @override
   void dispose() {
-    _dateController.dispose();
-    _startController.dispose();
-    _endController.dispose();
-    _reasonController.dispose();
+    _dateCtrl.dispose();
+    _startCtrl.dispose();
+    _endCtrl.dispose();
+    _reasonCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _loading = true);
-    try {
-      final results = await Future.wait([
-        _otService.getMyOvertime(),
-        _otService.getMySummary(),
-      ]);
-      setState(() {
-        _requests = results[0] as List<OvertimeRequest>;
-        _summary = results[1] as OvertimeSummary;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load overtime data: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _pickDate() async {
+  Future<void> _pickDate(OvertimeController controller) async {
+    final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 7)),
+      initialDate: now,
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 7)),
     );
-    if (date != null) {
-      setState(() {
-        _selectedDate = date;
-        _dateController.text = DateFormat('yyyy-MM-dd').format(date);
-      });
-    }
+    if (date == null) return;
+    controller.setDate(date);
+    _dateCtrl.text = DateFormat('yyyy-MM-dd').format(date);
   }
 
-  Future<void> _pickStartTime() async {
+  Future<void> _pickStartTime(OvertimeController controller) async {
     final time = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 18, minute: 0),
     );
-    if (time != null) {
-      setState(() {
-        _startTime = time;
-        _startController.text = _formatTime(time);
-      });
-    }
+    if (time == null) return;
+    controller.setStartTime(time);
+    _startCtrl.text = _formatTime(time);
   }
 
-  Future<void> _pickEndTime() async {
+  Future<void> _pickEndTime(OvertimeController controller) async {
     final time = await showTimePicker(
       context: context,
       initialTime: const TimeOfDay(hour: 21, minute: 0),
     );
-    if (time != null) {
-      setState(() {
-        _endTime = time;
-        _endController.text = _formatTime(time);
-      });
-    }
+    if (time == null) return;
+    controller.setEndTime(time);
+    _endCtrl.text = _formatTime(time);
   }
 
-  String _formatTime(TimeOfDay time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  void _clearFormControllers() {
+    _dateCtrl.clear();
+    _startCtrl.clear();
+    _endCtrl.clear();
+    _reasonCtrl.clear();
   }
 
-  String _calcHours() {
-    if (_startTime == null || _endTime == null) return '';
-    final startMin = _startTime!.hour * 60 + _startTime!.minute;
-    final endMin = _endTime!.hour * 60 + _endTime!.minute;
-    final diff = endMin - startMin;
-    if (diff <= 0) return '0h';
-    return '${(diff / 60).toStringAsFixed(1)}h';
-  }
-
-  Future<void> _submitOvertime() async {
-    if (_selectedDate == null || _startTime == null || _endTime == null || _reasonController.text.trim().isEmpty) {
+  Future<void> _submit(OvertimeController controller) async {
+    if (controller.selectedDate == null ||
+        controller.startTime == null ||
+        controller.endTime == null ||
+        _reasonCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
       );
       return;
     }
-
-    setState(() => _submitting = true);
-    try {
-      await _otService.apply(
-        date: _dateController.text,
-        startTime: _startController.text,
-        endTime: _endController.text,
-        reason: _reasonController.text.trim(),
+    final ok = await controller.submit(
+      date: _dateCtrl.text,
+      startTime: _startCtrl.text,
+      endTime: _endCtrl.text,
+      reason: _reasonCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    if (ok) {
+      _clearFormControllers();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Overtime request submitted')),
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Overtime request submitted')),
-        );
-        setState(() {
-          _showForm = false;
-          _dateController.clear();
-          _startController.clear();
-          _endController.clear();
-          _reasonController.clear();
-          _selectedDate = null;
-          _startTime = null;
-          _endTime = null;
-        });
-        _loadData();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit overtime request')),
+      );
     }
   }
 
-  Future<void> _cancelRequest(String id) async {
+  Future<void> _confirmCancel(
+      OvertimeController controller, String id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel Overtime'),
-        content: const Text('Are you sure you want to cancel this request?'),
+        content:
+            const Text('Are you sure you want to cancel this request?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
         ],
       ),
     );
-    if (confirm != true) return;
-
-    try {
-      await _otService.cancel(id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Overtime request cancelled')),
-        );
-        _loadData();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
-      }
-    }
+    if (confirm != true || !mounted) return;
+    final ok = await controller.cancelRequest(id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? 'Overtime request cancelled'
+            : 'Failed to cancel request'),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<OvertimeController>();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Overtime'),
         actions: [
           IconButton(
-            icon: Icon(_showForm ? Icons.close : Icons.add),
-            onPressed: () => setState(() => _showForm = !_showForm),
+            icon: Icon(controller.showForm ? Icons.close : Icons.add),
+            onPressed: controller.toggleForm,
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Summary cards
-                  if (_summary != null) _buildSummary(),
-                  const SizedBox(height: 16),
-
-                  // Apply form
-                  if (_showForm) ...[
-                    _buildForm(),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Request list
-                  if (_requests.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text(
-                          'No overtime requests yet',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    )
-                  else
-                    ..._requests.map(_buildRequestCard),
-                ],
-              ),
+      body: switch (controller.status) {
+        OvertimeStatus.idle ||
+        OvertimeStatus.loading =>
+          const Center(child: CircularProgressIndicator()),
+        OvertimeStatus.error => Center(
+            child: Text(
+              controller.error ?? 'Something went wrong',
+              style: const TextStyle(color: AppColors.danger),
             ),
+          ),
+        OvertimeStatus.success => RefreshIndicator(
+            onRefresh: controller.load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (controller.summary != null)
+                  _SummaryCards(summary: controller.summary!),
+                const SizedBox(height: 16),
+                if (controller.showForm) ...[
+                  _OvertimeForm(
+                    controller: controller,
+                    dateCtrl: _dateCtrl,
+                    startCtrl: _startCtrl,
+                    endCtrl: _endCtrl,
+                    reasonCtrl: _reasonCtrl,
+                    onPickDate: () => _pickDate(controller),
+                    onPickStart: () => _pickStartTime(controller),
+                    onPickEnd: () => _pickEndTime(controller),
+                    onSubmit: () => _submit(controller),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (controller.requests.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text(
+                        'No overtime requests yet',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  )
+                else
+                  ...controller.requests.map(
+                    (ot) => _OvertimeRequestCard(
+                      request: ot,
+                      onCancel: () => _confirmCancel(controller, ot.id),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      },
     );
   }
+}
 
-  Widget _buildSummary() {
-    final s = _summary!;
-    final unpaid = s.totalApprovedHours - s.totalPaidHours;
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _SummaryCards extends StatelessWidget {
+  const _SummaryCards({required this.summary});
+
+  final OvertimeSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final unpaid = summary.totalApprovedHours - summary.totalPaidHours;
     return Row(
       children: [
-        _summaryTile('Approved', '${s.totalApprovedHours}h', AppColors.accent),
+        _SummaryTile(
+            label: 'Approved',
+            value: '${summary.totalApprovedHours}h',
+            color: AppColors.accent),
         const SizedBox(width: 8),
-        _summaryTile('Paid', '${s.totalPaidHours}h', Colors.green.shade700),
+        _SummaryTile(
+            label: 'Paid',
+            value: '${summary.totalPaidHours}h',
+            color: Colors.green.shade700),
         const SizedBox(width: 8),
-        _summaryTile('Unpaid', '${unpaid.toStringAsFixed(1)}h', Colors.orange.shade700),
+        _SummaryTile(
+            label: 'Unpaid',
+            value: '${unpaid.toStringAsFixed(1)}h',
+            color: Colors.orange.shade700),
       ],
     );
   }
+}
 
-  Widget _summaryTile(String label, String value, Color color) {
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -266,16 +293,47 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: color)),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildForm() {
+class _OvertimeForm extends StatelessWidget {
+  const _OvertimeForm({
+    required this.controller,
+    required this.dateCtrl,
+    required this.startCtrl,
+    required this.endCtrl,
+    required this.reasonCtrl,
+    required this.onPickDate,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onSubmit,
+  });
+
+  final OvertimeController controller;
+  final TextEditingController dateCtrl;
+  final TextEditingController startCtrl;
+  final TextEditingController endCtrl;
+  final TextEditingController reasonCtrl;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -286,13 +344,14 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('New Overtime Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text('New Overtime Request',
+              style:
+                  TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          // Date
           TextField(
-            controller: _dateController,
+            controller: dateCtrl,
             readOnly: true,
-            onTap: _pickDate,
+            onTap: onPickDate,
             decoration: const InputDecoration(
               labelText: 'Date',
               suffixIcon: Icon(Icons.calendar_today),
@@ -300,14 +359,13 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Time row
           Row(
             children: [
               Expanded(
                 child: TextField(
-                  controller: _startController,
+                  controller: startCtrl,
                   readOnly: true,
-                  onTap: _pickStartTime,
+                  onTap: onPickStart,
                   decoration: const InputDecoration(
                     labelText: 'Start Time',
                     suffixIcon: Icon(Icons.access_time),
@@ -318,9 +376,9 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
-                  controller: _endController,
+                  controller: endCtrl,
                   readOnly: true,
-                  onTap: _pickEndTime,
+                  onTap: onPickEnd,
                   decoration: const InputDecoration(
                     labelText: 'End Time',
                     suffixIcon: Icon(Icons.access_time),
@@ -328,16 +386,21 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
                   ),
                 ),
               ),
-              if (_calcHours().isNotEmpty) ...[
+              if (controller.calcHours.isNotEmpty) ...[
                 const SizedBox(width: 8),
-                Text(_calcHours(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.accent)),
+                Text(
+                  controller.calcHours,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.accent),
+                ),
               ],
             ],
           ),
           const SizedBox(height: 12),
-          // Reason
           TextField(
-            controller: _reasonController,
+            controller: reasonCtrl,
             maxLines: 2,
             decoration: const InputDecoration(
               labelText: 'Reason',
@@ -349,15 +412,21 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _submitting ? null : _submitOvertime,
+              onPressed: controller.submitting ? null : onSubmit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: _submitting
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              child: controller.submitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
                   : const Text('Submit Request'),
             ),
           ),
@@ -365,8 +434,19 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
       ),
     );
   }
+}
 
-  Widget _buildRequestCard(OvertimeRequest ot) {
+class _OvertimeRequestCard extends StatelessWidget {
+  const _OvertimeRequestCard({
+    required this.request,
+    required this.onCancel,
+  });
+
+  final OvertimeRequest request;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -382,38 +462,44 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _formatDate(ot.date),
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                _formatDate(request.date),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 14),
               ),
               Row(
                 children: [
-                  _statusChip(ot.status),
+                  _StatusChip(status: request.status),
                   const SizedBox(width: 6),
-                  _paymentChip(ot.paymentStatus),
+                  _PaymentChip(paymentStatus: request.paymentStatus),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            '${ot.startTime.substring(0, 5)} – ${ot.endTime.substring(0, 5)}  ·  ${ot.hours}h',
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            '${request.startTime.substring(0, 5)} – ${request.endTime.substring(0, 5)}  ·  ${request.hours}h',
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 4),
-          Text(ot.reason, style: const TextStyle(fontSize: 13)),
-          if (ot.adminRemarks != null) ...[
+          Text(request.reason, style: const TextStyle(fontSize: 13)),
+          if (request.adminRemarks != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Admin: ${ot.adminRemarks}',
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+              'Admin: ${request.adminRemarks}',
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic),
             ),
           ],
-          if (ot.status == 'pending')
+          if (request.status == 'pending')
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => _cancelRequest(ot.id),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: onCancel,
+                style:
+                    TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Cancel'),
               ),
             ),
@@ -421,48 +507,62 @@ class _OvertimeScreenState extends State<OvertimeScreen> {
       ),
     );
   }
+}
 
-  Widget _statusChip(String status) {
-    final colors = {
-      'pending': (Colors.amber.shade100, Colors.amber.shade800),
-      'approved': (Colors.green.shade100, Colors.green.shade800),
-      'declined': (Colors.red.shade100, Colors.red.shade800),
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (status) {
+      'pending' => (Colors.amber.shade100, Colors.amber.shade800),
+      'approved' => (Colors.green.shade100, Colors.green.shade800),
+      'declined' => (Colors.red.shade100, Colors.red.shade800),
+      _ => (Colors.grey.shade100, Colors.grey.shade800),
     };
-    final c = colors[status] ?? (Colors.grey.shade100, Colors.grey.shade800);
+    return _Chip(label: status, bg: bg, fg: fg);
+  }
+}
+
+class _PaymentChip extends StatelessWidget {
+  const _PaymentChip({required this.paymentStatus});
+
+  final String paymentStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = paymentStatus == 'comp_off' ? 'Comp Off' : paymentStatus;
+    final (bg, fg) = switch (paymentStatus) {
+      'paid' => (Colors.green.shade100, Colors.green.shade800),
+      'comp_off' => (Colors.blue.shade100, Colors.blue.shade800),
+      _ => (Colors.grey.shade100, Colors.grey.shade700),
+    };
+    return _Chip(label: label, bg: bg, fg: fg);
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.bg, required this.fg});
+
+  final String label;
+  final Color bg;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: c.$1,
+        color: bg,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.$2)),
-    );
-  }
-
-  Widget _paymentChip(String ps) {
-    final label = ps == 'comp_off' ? 'Comp Off' : ps;
-    final colors = {
-      'paid': (Colors.green.shade100, Colors.green.shade800),
-      'comp_off': (Colors.blue.shade100, Colors.blue.shade800),
-      'unpaid': (Colors.grey.shade100, Colors.grey.shade700),
-    };
-    final c = colors[ps] ?? (Colors.grey.shade100, Colors.grey.shade700);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: c.$1,
-        borderRadius: BorderRadius.circular(10),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: fg),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.$2)),
     );
-  }
-
-  String _formatDate(String dateStr) {
-    try {
-      final d = DateTime.parse(dateStr);
-      return DateFormat('EEE, MMM d, yyyy').format(d);
-    } catch (_) {
-      return dateStr;
-    }
   }
 }

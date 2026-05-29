@@ -17,6 +17,8 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
+// ── View ───────────────────────────────────────────────────────────────────
+
 class _LoginView extends StatefulWidget {
   const _LoginView();
 
@@ -50,7 +52,8 @@ class _LoginViewState extends State<_LoginView> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Container(
@@ -65,23 +68,30 @@ class _LoginViewState extends State<_LoginView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHeader(),
+                      const _LoginHeader(),
                       const SizedBox(height: 24),
-                      _buildEmailField(ctrl),
+                      _EmailField(ctrl: ctrl, controller: _emailCtrl),
                       const SizedBox(height: 14),
-                      _buildPasswordField(ctrl),
+                      _PasswordField(
+                        ctrl: ctrl,
+                        controller: _passwordCtrl,
+                        onSubmit: () => _submit(ctrl),
+                      ),
                       const SizedBox(height: 6),
-                      _buildFirstLoginHint(),
+                      const _FirstLoginHint(),
                       if (ctrl.errorMessage != null) ...[
                         const SizedBox(height: 12),
-                        _buildErrorBanner(ctrl.errorMessage!),
+                        _ErrorBanner(message: ctrl.errorMessage!),
                       ],
                       const SizedBox(height: 18),
-                      _buildSignInButton(ctrl),
+                      _SignInButton(
+                        ctrl: ctrl,
+                        onSubmit: () => _submit(ctrl),
+                      ),
                       const SizedBox(height: 16),
                       const Divider(height: 1, color: AppColors.border),
                       const SizedBox(height: 12),
-                      _buildGoogleButton(ctrl),
+                      _GoogleButton(ctrl: ctrl),
                     ],
                   ),
                 ),
@@ -92,8 +102,15 @@ class _LoginViewState extends State<_LoginView> {
       ),
     );
   }
+}
 
-  Widget _buildHeader() {
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _LoginHeader extends StatelessWidget {
+  const _LoginHeader();
+
+  @override
+  Widget build(BuildContext context) {
     return const Column(
       children: [
         Text(
@@ -114,30 +131,52 @@ class _LoginViewState extends State<_LoginView> {
       ],
     );
   }
+}
 
-  Widget _buildEmailField(LoginController ctrl) {
+class _EmailField extends StatelessWidget {
+  const _EmailField({required this.ctrl, required this.controller});
+
+  final LoginController ctrl;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
     return TextFormField(
-      controller: _emailCtrl,
+      controller: controller,
       keyboardType: TextInputType.emailAddress,
       autocorrect: false,
       enableSuggestions: false,
       textInputAction: TextInputAction.next,
+      enabled: !ctrl.busy,
       decoration: const InputDecoration(
         labelText: 'Email',
         hintText: 'you@example.com',
         prefixIcon: Icon(Icons.alternate_email, size: 20),
       ),
       validator: ctrl.validateEmail,
-      enabled: !ctrl.busy,
     );
   }
+}
 
-  Widget _buildPasswordField(LoginController ctrl) {
+class _PasswordField extends StatelessWidget {
+  const _PasswordField({
+    required this.ctrl,
+    required this.controller,
+    required this.onSubmit,
+  });
+
+  final LoginController ctrl;
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
     return TextFormField(
-      controller: _passwordCtrl,
+      controller: controller,
       obscureText: !ctrl.showPassword,
       textInputAction: TextInputAction.done,
-      onFieldSubmitted: (_) => ctrl.busy ? null : _submit(ctrl),
+      onFieldSubmitted: (_) => ctrl.busy ? null : onSubmit(),
+      enabled: !ctrl.busy,
       decoration: InputDecoration(
         labelText: 'Password',
         prefixIcon: const Icon(Icons.lock_outline, size: 20),
@@ -152,11 +191,15 @@ class _LoginViewState extends State<_LoginView> {
         ),
       ),
       validator: ctrl.validatePassword,
-      enabled: !ctrl.busy,
     );
   }
+}
 
-  Widget _buildFirstLoginHint() {
+class _FirstLoginHint extends StatelessWidget {
+  const _FirstLoginHint();
+
+  @override
+  Widget build(BuildContext context) {
     return const Text(
       "First-time login? Use the password sent to your "
       "email — you'll be prompted to set a new one "
@@ -164,8 +207,15 @@ class _LoginViewState extends State<_LoginView> {
       style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
     );
   }
+}
 
-  Widget _buildErrorBanner(String message) {
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -178,22 +228,29 @@ class _LoginViewState extends State<_LoginView> {
       ),
     );
   }
+}
 
-  Widget _buildSignInButton(LoginController ctrl) {
+class _SignInButton extends StatelessWidget {
+  const _SignInButton({required this.ctrl, required this.onSubmit});
+
+  final LoginController ctrl;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: ctrl.busy ? null : () => _submit(ctrl),
+      onPressed: ctrl.busy ? null : onSubmit,
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: ctrl.submitting
           ? const SizedBox(
               height: 18,
               width: 18,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
+                  strokeWidth: 2, color: Colors.white),
             )
           : const Text(
               'Sign In',
@@ -201,8 +258,15 @@ class _LoginViewState extends State<_LoginView> {
             ),
     );
   }
+}
 
-  Widget _buildGoogleButton(LoginController ctrl) {
+class _GoogleButton extends StatelessWidget {
+  const _GoogleButton({required this.ctrl});
+
+  final LoginController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: TextButton.icon(
         onPressed: ctrl.busy ? null : ctrl.signInWithGoogle,

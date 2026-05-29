@@ -2,43 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
-import '../services/api_service.dart';
+import '../controllers/reset_password_controller.dart';
 import '../services/auth_service.dart';
 
-/// Set-a-new-password screen for two distinct cases — same
-/// distinction the web /reset-password page already implements:
-///
-///   - Fresh invite: the admin just sent the invite, the employee
-///     used the temporary password from the welcome email, and
-///     `first_login_required=true` was on the JWT.
-///   - Password reset: an admin clicked "Reset Password" on an
-///     already-activated employee, a new temp password was emailed,
-///     and the employee used it to sign in.
-///
-/// Both reach this screen via AuthGate after a successful login that
-/// flipped `AuthService.firstLoginRequired` true. The form only asks
-/// for the new password + confirmation; the (temp) current password
-/// isn't required because possession of a freshly-issued JWT is
-/// already proof.
-///
-/// On success the backend bumps `tokens_valid_from` and returns a
-/// fresh JWT, which `AuthService.finishPasswordReset` swaps into
-/// secure storage so the next /users/me call doesn't 401.
-class ResetPasswordScreen extends StatefulWidget {
+class ResetPasswordScreen extends StatelessWidget {
   const ResetPasswordScreen({super.key});
 
   @override
-  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (ctx) => ResetPasswordController(ctx.read<AuthService>()),
+      child: const _ResetPasswordView(),
+    );
+  }
 }
 
-class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+class _ResetPasswordView extends StatefulWidget {
+  const _ResetPasswordView();
+
+  @override
+  State<_ResetPasswordView> createState() => _ResetPasswordViewState();
+}
+
+class _ResetPasswordViewState extends State<_ResetPasswordView> {
   final _formKey = GlobalKey<FormState>();
   final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  bool _submitting = false;
   bool _showNew = false;
   bool _showConfirm = false;
-  String? _error;
 
   @override
   void dispose() {
@@ -47,54 +38,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
-  String? _validateNewPassword(String? v) {
-    final value = v ?? '';
-    if (value.length < 8) return 'At least 8 characters';
-    if (!RegExp(r'[A-Za-z]').hasMatch(value)) return 'Must include a letter';
-    if (!RegExp(r'\d').hasMatch(value)) return 'Must include a digit';
-    return null;
-  }
-
-  String? _validateConfirm(String? v) {
-    if ((v ?? '').isEmpty) return 'Re-enter the new password';
-    if (v != _newCtrl.text) return 'Passwords do not match';
-    return null;
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-    try {
-      await context.read<AuthService>().finishPasswordReset(
-            newPassword: _newCtrl.text,
-            confirmPassword: _confirmCtrl.text,
-          );
-      // AuthService now has firstLoginRequired=false; AuthGate
-      // re-renders to MainShell automatically.
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = e.message.isNotEmpty
-              ? e.message
-              : 'Could not set new password. Please try again.',
+    await context.read<ResetPasswordController>().submit(
+          newPassword: _newCtrl.text,
+          confirmPassword: _confirmCtrl.text,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _error = 'Could not set new password. Please try again.');
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    final user = auth.currentUser;
+    final user = context.select((AuthService a) => a.currentUser);
+    final controller = context.watch<ResetPasswordController>();
 
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
@@ -154,6 +109,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         controller: _newCtrl,
                         obscureText: !_showNew,
                         textInputAction: TextInputAction.next,
+                        enabled: !controller.isSubmitting,
                         decoration: InputDecoration(
                           labelText: 'New password',
                           prefixIcon: const Icon(Icons.lock_outline, size: 20),
@@ -164,27 +120,26 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   : Icons.visibility_outlined,
                               size: 20,
                             ),
-                            onPressed: () =>
-                                setState(() => _showNew = !_showNew),
+                            onPressed: () => setState(() => _showNew = !_showNew),
                           ),
                           helperText:
                               'Minimum 8 chars, at least one letter and one digit.',
                           helperMaxLines: 2,
                         ),
-                        validator: _validateNewPassword,
-                        enabled: !_submitting,
+                        validator:
+                            context.read<ResetPasswordController>().validateNewPassword,
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _confirmCtrl,
                         obscureText: !_showConfirm,
                         textInputAction: TextInputAction.done,
+                        enabled: !controller.isSubmitting,
                         onFieldSubmitted: (_) =>
-                            _submitting ? null : _submit(),
+                            controller.isSubmitting ? null : _submit(),
                         decoration: InputDecoration(
                           labelText: 'Confirm new password',
-                          prefixIcon:
-                              const Icon(Icons.lock_outline, size: 20),
+                          prefixIcon: const Icon(Icons.lock_outline, size: 20),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _showConfirm
@@ -196,36 +151,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 setState(() => _showConfirm = !_showConfirm),
                           ),
                         ),
-                        validator: _validateConfirm,
-                        enabled: !_submitting,
+                        validator: (v) => context
+                            .read<ResetPasswordController>()
+                            .validateConfirm(v, _newCtrl.text),
                       ),
-                      if (_error != null) ...[
+                      if (controller.error != null) ...[
                         const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.declinedBg,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: const TextStyle(
-                              color: AppColors.declinedText,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
+                        _ErrorBanner(message: controller.error!),
                       ],
                       const SizedBox(height: 18),
                       FilledButton(
-                        onPressed: _submitting ? null : _submit,
+                        onPressed: controller.isSubmitting ? null : _submit,
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: _submitting
+                        child: controller.isSubmitting
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
@@ -245,7 +188,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       const SizedBox(height: 12),
                       Center(
                         child: TextButton(
-                          onPressed: _submitting
+                          onPressed: controller.isSubmitting
                               ? null
                               : () => context.read<AuthService>().logout(),
                           style: TextButton.styleFrom(
@@ -264,6 +207,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.declinedBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(color: AppColors.declinedText, fontSize: 13),
       ),
     );
   }

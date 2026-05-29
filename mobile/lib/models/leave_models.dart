@@ -239,6 +239,58 @@ class LeaveRequest {
   }
 }
 
+class PendingApproval {
+  final String id;
+  final String employeeName;
+  final String employeeEmail;
+  final String leaveTypeLabel;
+  final String leaveTypeColor;
+  final String startDate;
+  final String endDate;
+  final double workingDays;
+  final String reason;
+  final bool sandwichFlag;
+  final DateTime slaDeadline;
+
+  PendingApproval({
+    required this.id,
+    required this.employeeName,
+    required this.employeeEmail,
+    required this.leaveTypeLabel,
+    required this.leaveTypeColor,
+    required this.startDate,
+    required this.endDate,
+    required this.workingDays,
+    required this.reason,
+    required this.sandwichFlag,
+    required this.slaDeadline,
+  });
+
+  factory PendingApproval.fromJson(Map<String, dynamic> json) {
+    final employee = json['employee'] as Map<String, dynamic>? ?? {};
+    final leaveType = json['leave_type'] as Map<String, dynamic>? ?? {};
+    final slaStr = json['sla_deadline'] as String?;
+    return PendingApproval(
+      id: json['id'] as String,
+      employeeName: employee['name'] as String? ?? 'Unknown',
+      employeeEmail: employee['email'] as String? ??
+          employee['gmail'] as String? ??
+          '',
+      leaveTypeLabel: leaveType['label'] as String? ?? '',
+      leaveTypeColor: leaveType['color'] as String? ?? '#3b82f6',
+      startDate: json['start_date'] as String? ?? '',
+      endDate: json['end_date'] as String? ?? '',
+      workingDays: (json['working_days'] as num?)?.toDouble() ?? 0,
+      reason: json['reason'] as String? ?? '',
+      sandwichFlag: json['sandwich_flag'] as bool? ?? false,
+      slaDeadline: slaStr != null
+          ? DateTime.tryParse(slaStr) ??
+              DateTime.now().add(const Duration(hours: 5))
+          : DateTime.now().add(const Duration(hours: 5)),
+    );
+  }
+}
+
 class CalculateResult {
   final double workingDays;
   final double balanceBefore;

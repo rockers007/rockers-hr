@@ -60,6 +60,49 @@ class Gender {
   }
 }
 
+class ProfileDetail {
+  final String? phone;
+  final String? dob;
+  final String? emergencyPhone;
+  final String? currentAddress;
+  final String? permanentAddress;
+  final String? pfUanNo;
+  final String? esicNo;
+  final String? genderId;
+  final String? qualificationId;
+  final String? maritalStatusId;
+
+  ProfileDetail({
+    this.phone,
+    this.dob,
+    this.emergencyPhone,
+    this.currentAddress,
+    this.permanentAddress,
+    this.pfUanNo,
+    this.esicNo,
+    this.genderId,
+    this.qualificationId,
+    this.maritalStatusId,
+  });
+
+  factory ProfileDetail.fromJson(Map<String, dynamic> json) {
+    return ProfileDetail(
+      phone: json['phone'] as String?,
+      dob: json['dob'] as String?,
+      emergencyPhone: json['emergency_phone'] as String?,
+      currentAddress: json['current_address'] as String?,
+      permanentAddress: json['permanent_address'] as String?,
+      pfUanNo: json['pf_uan_no'] as String?,
+      esicNo: json['esic_no'] as String?,
+      genderId:
+          (json['gender'] as Map<String, dynamic>?)?['id'] as String?,
+      qualificationId:
+          (json['qualification'] as Map<String, dynamic>?)?['id'] as String?,
+      maritalStatusId: json['marital_status_id'] as String?,
+    );
+  }
+}
+
 class User {
   final String id;
   final String name;

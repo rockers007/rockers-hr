@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/logging_service.dart';
 
 class LoginController extends ChangeNotifier {
   LoginController(this._auth);
@@ -44,8 +45,10 @@ class LoginController extends ChangeNotifier {
       await _auth.signInWithEmail(email: email, password: password);
     } on ApiException catch (e) {
       _errorMessage = _mapError(e);
-    } catch (_) {
+      showLog('LoginController.submit: ${e.message}', type: LogType.error);
+    } catch (e) {
       _errorMessage = 'Sign-in failed. Please try again.';
+      showLog('LoginController.submit: $e', type: LogType.error);
     } finally {
       _submitting = false;
       notifyListeners();
@@ -60,8 +63,10 @@ class LoginController extends ChangeNotifier {
       await _auth.signInWithGoogle();
     } on ApiException catch (e) {
       _errorMessage = e.message;
+      showLog('LoginController.signInWithGoogle: ${e.message}', type: LogType.error);
     } catch (e) {
       _errorMessage = 'Sign-in failed: $e';
+      showLog('LoginController.signInWithGoogle: $e', type: LogType.error);
     } finally {
       _googleBusy = false;
       notifyListeners();

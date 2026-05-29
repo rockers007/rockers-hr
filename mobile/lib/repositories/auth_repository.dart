@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/user_model.dart';
 import '../services/api_service.dart';
+import '../services/logging_service.dart';
 
 /// Result returned by email and Google sign-in so AuthService
 /// doesn't have to parse raw HTTP bodies or touch the JWT itself.
@@ -171,10 +172,14 @@ class AuthRepository {
   Future<void> logout() async {
     try {
       await _api.post('/auth/logout');
-    } catch (_) {}
+    } catch (e) {
+      showLog('AuthRepository.logout (api): $e', type: LogType.error);
+    }
     try {
       await _googleSignIn.signOut();
-    } catch (_) {}
+    } catch (e) {
+      showLog('AuthRepository.logout (google): $e', type: LogType.error);
+    }
     await deleteToken();
   }
 
@@ -223,7 +228,8 @@ class AuthRepository {
       }
       return jsonDecode(utf8.decode(base64.decode(payload)))
           as Map<String, dynamic>;
-    } catch (_) {
+    } catch (e) {
+      showLog('AuthRepository.claims: $e', type: LogType.error);
       return null;
     }
   }

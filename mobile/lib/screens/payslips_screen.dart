@@ -1,47 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/payslips_controller.dart';
 import '../models/payroll_models.dart';
-import '../services/payroll_service.dart';
+import '../repositories/payroll_repository.dart';
 
-class PayslipsScreen extends StatefulWidget {
+class PayslipsScreen extends StatelessWidget {
   const PayslipsScreen({super.key});
 
   @override
-  State<PayslipsScreen> createState() => _PayslipsScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => PayslipsController(PayrollRepository()),
+      child: const _PayslipsView(),
+    );
+  }
 }
 
-class _PayslipsScreenState extends State<PayslipsScreen> {
-  final _svc = PayrollService.instance;
-  bool _loading = true;
-  String? _error;
-  List<PayslipRow> _rows = [];
+// ── View ───────────────────────────────────────────────────────────────────
 
+class _PayslipsView extends StatefulWidget {
+  const _PayslipsView();
+
+  @override
+  State<_PayslipsView> createState() => _PayslipsViewState();
+}
+
+class _PayslipsViewState extends State<_PayslipsView> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<PayslipsController>().load(),
+    );
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      _rows = await _svc.getPayslips();
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _download(PayslipRow row) async {
-    final data = await _svc.getPayslipDownload(row.year, row.month);
+  Future<void> _download(
+      PayslipsController controller, PayslipRow row) async {
+    final data = await controller.getDownload(row.year, row.month);
     if (!mounted) return;
+
     if (data == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -52,6 +53,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
       );
       return;
     }
+
     final url = data['signed_url']?.toString();
     if (url == null || url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -59,8 +61,10 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
       );
       return;
     }
+
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
+
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -81,6 +85,8 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<PayslipsController>();
+
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       appBar: AppBar(
@@ -90,25 +96,63 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? _errorView()
-                : _rows.isEmpty
-                    ? _emptyView()
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _rows.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) => _payslipCard(_rows[i]),
-                      ),
+        onRefresh: controller.load,
+        child: switch (controller.status) {
+          PayslipsStatus.idle ||
+          PayslipsStatus.loading =>
+            const Center(child: CircularProgressIndicator()),
+          PayslipsStatus.error => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  controller.error ?? '',
+                  style: const TextStyle(color: AppColors.declinedText),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          PayslipsStatus.success when controller.rows.isEmpty =>
+            ListView(
+              children: const [
+                SizedBox(height: 120),
+                Icon(Icons.inbox_outlined,
+                    size: 48, color: AppColors.textSecondary),
+                SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'No payslips released yet.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          PayslipsStatus.success => ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: controller.rows.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) => _PayslipCard(
+                row: controller.rows[i],
+                onDownload: () => _download(controller, controller.rows[i]),
+              ),
+            ),
+        },
       ),
     );
   }
+}
 
-  Widget _payslipCard(PayslipRow r) {
-    final m = DateFormat('MMMM').format(DateTime(0, r.month));
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _PayslipCard extends StatelessWidget {
+  const _PayslipCard({required this.row, required this.onDownload});
+
+  final PayslipRow row;
+  final VoidCallback onDownload;
+
+  @override
+  Widget build(BuildContext context) {
+    final month = DateFormat('MMMM').format(DateTime(0, row.month));
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -123,18 +167,14 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$m ${r.year}',
+                '$month ${row.year}',
                 style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
+                    fontWeight: FontWeight.w600, fontSize: 15),
               ),
               Text(
-                formatInr(r.netPayable),
+                formatInr(row.netPayable),
                 style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
+                    fontWeight: FontWeight.w700, fontSize: 15),
               ),
             ],
           ),
@@ -143,24 +183,20 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Earnings ${formatInr(r.totalEarnings)}',
+                'Earnings ${formatInr(row.totalEarnings)}',
                 style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
+                    fontSize: 12, color: AppColors.textSecondary),
               ),
               Text(
-                'Deductions ${formatInr(r.totalDeductions)}',
+                'Deductions ${formatInr(row.totalDeductions)}',
                 style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
+                    fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () => _download(r),
+            onPressed: onDownload,
             icon: const Icon(Icons.download_outlined, size: 18),
             label: const Text('Download'),
           ),
@@ -168,33 +204,4 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
       ),
     );
   }
-
-  Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            _error ?? '',
-            style: const TextStyle(color: AppColors.declinedText),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-
-  Widget _emptyView() => ListView(
-        children: const [
-          SizedBox(height: 120),
-          Icon(
-            Icons.inbox_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-          SizedBox(height: 8),
-          Center(
-            child: Text(
-              'No payslips released yet.',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-        ],
-      );
 }

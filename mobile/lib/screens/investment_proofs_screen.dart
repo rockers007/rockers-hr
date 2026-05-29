@@ -1,36 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/investment_proofs_controller.dart';
 import '../models/payroll_models.dart';
-import '../services/payroll_service.dart';
+import '../repositories/investment_proofs_repository.dart';
+import '../services/logging_service.dart';
 
-/// Investment proofs — list + delete. Uploading files requires a file picker
-/// which is out of scope for the Flutter parity pass (the web portal remains
-/// the primary upload surface). Past proofs uploaded via web are visible and
-/// deletable from mobile.
-class InvestmentProofsScreen extends StatefulWidget {
+class InvestmentProofsScreen extends StatelessWidget {
   const InvestmentProofsScreen({super.key});
 
   @override
-  State<InvestmentProofsScreen> createState() =>
-      _InvestmentProofsScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => InvestmentProofsController(InvestmentProofsRepository()),
+      child: const _InvestmentProofsView(),
+    );
+  }
 }
 
-class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
-  final _svc = PayrollService.instance;
-  bool _loading = true;
-  String? _error;
-  late String _fy;
+// ── View ───────────────────────────────────────────────────────────────────
+
+class _InvestmentProofsView extends StatefulWidget {
+  const _InvestmentProofsView();
+
+  @override
+  State<_InvestmentProofsView> createState() => _InvestmentProofsViewState();
+}
+
+class _InvestmentProofsViewState extends State<_InvestmentProofsView> {
   late TextEditingController _fyCtrl;
-  List<InvestmentProof> _rows = [];
 
   @override
   void initState() {
     super.initState();
-    _fy = _currentFy();
-    _fyCtrl = TextEditingController(text: _fy);
-    _load();
+    final controller = context.read<InvestmentProofsController>();
+    _fyCtrl = TextEditingController(text: controller.fy);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => controller.load(),
+    );
   }
 
   @override
@@ -39,32 +48,18 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
     super.dispose();
   }
 
-  String _currentFy() {
-    final now = DateTime.now();
-    final y = now.month >= 4 ? now.year : now.year - 1;
-    return '$y-${y + 1}';
+  void _applyFy(InvestmentProofsController controller) {
+    controller.setFy(_fyCtrl.text.trim());
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      _rows = await _svc.getInvestmentProofs(_fy);
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _delete(InvestmentProof p) async {
+  Future<void> _confirmDelete(
+      InvestmentProofsController controller, InvestmentProof proof) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove proof?'),
-        content: Text('Remove "${p.category}" (${p.financialYear})?'),
+        content:
+            Text('Remove "${proof.category}" (${proof.financialYear})?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -77,20 +72,21 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
         ],
       ),
     );
-    if (ok != true) return;
-    try {
-      await _svc.deleteInvestmentProof(p.id);
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
+    if (ok != true || !mounted) return;
+
+    final success = await controller.delete(proof);
+    if (!mounted) return;
+    if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
+        const SnackBar(content: Text('Failed to delete proof.')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<InvestmentProofsController>();
+
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       appBar: AppBar(
@@ -101,81 +97,23 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _fyCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Financial Year',
-                      hintText: 'e.g. 2025-2026',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (v) {
-                      setState(() => _fy = v.trim());
-                      _load();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () {
-                    setState(() => _fy = _fyCtrl.text.trim());
-                    _load();
-                  },
-                  child: const Text('Load'),
-                ),
-              ],
-            ),
+          _FySelector(
+            fyCtrl: _fyCtrl,
+            onApply: () => _applyFy(controller),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               'Uploads are done from the web portal. Past proofs can be viewed and removed here.',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              style: TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary),
             ),
           ),
           const SizedBox(height: 8),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _load,
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              _error!,
-                              textAlign: TextAlign.center,
-                              style:
-                                  const TextStyle(color: AppColors.declinedText),
-                            ),
-                          ),
-                        )
-                      : _rows.isEmpty
-                          ? ListView(
-                              children: [
-                                const SizedBox(height: 80),
-                                Center(
-                                  child: Text(
-                                    'No proofs uploaded for $_fy.',
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _rows.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (ctx, i) => _row(_rows[i]),
-                            ),
+              onRefresh: controller.load,
+              child: _buildBody(controller),
             ),
           ),
         ],
@@ -183,12 +121,100 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
     );
   }
 
-  Widget _row(InvestmentProof p) {
+  Widget _buildBody(InvestmentProofsController controller) {
+    return switch (controller.status) {
+      InvestmentProofsStatus.idle ||
+      InvestmentProofsStatus.loading =>
+        const Center(child: CircularProgressIndicator()),
+      InvestmentProofsStatus.error => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              controller.error ?? 'Failed to load',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.declinedText),
+            ),
+          ),
+        ),
+      InvestmentProofsStatus.success => controller.rows.isEmpty
+          ? ListView(
+              children: [
+                const SizedBox(height: 80),
+                Center(
+                  child: Text(
+                    'No proofs uploaded for ${controller.fy}.',
+                    style:
+                        const TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: controller.rows.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) => _ProofRow(
+                proof: controller.rows[i],
+                onDelete: () =>
+                    _confirmDelete(controller, controller.rows[i]),
+              ),
+            ),
+    };
+  }
+}
+
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _FySelector extends StatelessWidget {
+  const _FySelector({required this.fyCtrl, required this.onApply});
+
+  final TextEditingController fyCtrl;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: fyCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Financial Year',
+                hintText: 'e.g. 2025-2026',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => onApply(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: onApply,
+            child: const Text('Load'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProofRow extends StatelessWidget {
+  const _ProofRow({required this.proof, required this.onDelete});
+
+  final InvestmentProof proof;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
     String uploaded = '—';
     try {
       uploaded =
-          DateFormat('dd MMM yyyy').format(DateTime.parse(p.uploadedAt));
-    } catch (_) {}
+          DateFormat('dd MMM yyyy').format(DateTime.parse(proof.uploadedAt));
+    } catch (e) {
+      showLog('InvestmentProofsScreen._ProofRow date parse: $e', type: LogType.error);
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -205,30 +231,28 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
                 Row(
                   children: [
                     Text(
-                      p.category,
+                      proof.category,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+                          fontWeight: FontWeight.w600, fontSize: 14),
                     ),
-                    if (p.amount != null && p.amount!.isNotEmpty) ...[
+                    if (proof.amount != null &&
+                        proof.amount!.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       Text(
-                        formatInr(p.amount),
+                        formatInr(proof.amount),
                         style: const TextStyle(fontSize: 13),
                       ),
                     ],
                   ],
                 ),
-                if (p.description != null && p.description!.isNotEmpty)
+                if (proof.description != null &&
+                    proof.description!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      p.description!,
+                      proof.description!,
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ),
                 Padding(
@@ -236,9 +260,7 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
                   child: Text(
                     'Uploaded $uploaded',
                     style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
+                        fontSize: 11, color: AppColors.textSecondary),
                   ),
                 ),
               ],
@@ -246,7 +268,7 @@ class _InvestmentProofsScreenState extends State<InvestmentProofsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-            onPressed: () => _delete(p),
+            onPressed: onDelete,
           ),
         ],
       ),
