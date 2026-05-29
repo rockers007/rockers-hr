@@ -5,6 +5,7 @@ import 'services/auth_service.dart';
 import 'services/master_data_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_shell.dart';
+import 'screens/reset_password_screen.dart';
 import 'widgets/global_progress_bar.dart';
 
 void main() {
@@ -63,6 +64,12 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
+  /// Tracks whether MasterDataService.loadAll has been kicked off
+  /// for this signed-in session. The gate runs through three states
+  /// (loading → reset → main) and we want exactly one master-data
+  /// prefetch when the user reaches the post-reset main app.
+  bool _masterDataKicked = false;
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +79,13 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _init() async {
     final auth = context.read<AuthService>();
     await auth.tryRestoreSession();
-    if (auth.isAuthenticated && mounted) {
+    // Skip master-data prefetch on the first-login path. The reset
+    // screen doesn't use master lists, and some /master endpoints
+    // may behave differently on a first-login JWT depending on RBAC.
+    // build() picks up the prefetch the moment AuthGate transitions
+    // into the MainShell branch.
+    if (auth.isAuthenticated && !auth.firstLoginRequired && mounted) {
+      _masterDataKicked = true;
       await context.read<MasterDataService>().loadAll();
     }
   }
@@ -88,7 +101,34 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     if (!auth.isAuthenticated) {
+      // Reset the guard so the next sign-in re-prefetches master
+      // data instead of relying on whatever the previous session
+      // happened to load.
+      _masterDataKicked = false;
       return const LoginScreen();
+    }
+
+    // Mirror the web /reset-password gate: when the JWT we hold is
+    // marked first_login_required (fresh invite OR an admin-triggered
+    // password reset), force the user through the reset screen
+    // before the rest of the app is reachable. AuthService flips
+    // this flag back to false once finishPasswordReset succeeds, and
+    // this AuthGate rebuilds into MainShell.
+    if (auth.firstLoginRequired) {
+      return const ResetPasswordScreen();
+    }
+
+    // Reached MainShell — make sure MasterDataService has been
+    // populated for the dropdowns and lists the inner screens need.
+    // Guarded by _masterDataKicked so the multiple rebuilds that
+    // happen during sign-in only trigger one network burst. Post-
+    // frame callback because we can't read another provider during
+    // build().
+    if (!_masterDataKicked) {
+      _masterDataKicked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<MasterDataService>().loadAll();
+      });
     }
 
     return const MainShell();
