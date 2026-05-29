@@ -1,0 +1,22 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - img "Rockers Technologies" [ref=e4]
+    - heading "HR Management System" [level=1] [ref=e5]
+    - paragraph [ref=e6]: Sign in with your email and password
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: Email
+        - textbox "Email" [ref=e10]:
+          - /placeholder: you@example.com
+          - text: patel.rakesh7@gmail.com
+      - generic [ref=e11]:
+        - generic [ref=e12]: Password
+        - textbox "Password" [ref=e13]:
+          - /placeholder: ••••••••
+          - text: Riyan@1308
+        - paragraph [ref=e14]: First-time login? Use the password sent to your email — you'll be prompted to set a new one after logging in.
+      - generic [ref=e26]: Invalid email or password.
+      - button "Sign In" [ref=e15]
+  - button "Open Next.js Dev Tools" [ref=e21] [cursor=pointer]:
+    - img [ref=e22]
+  - alert [ref=e25]

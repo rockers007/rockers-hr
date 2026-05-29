@@ -1,0 +1,91 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e21] [cursor=pointer]:
+    - img [ref=e22]
+  - alert [ref=e25]
+  - complementary [ref=e26]:
+    - img "Rockers Technologies" [ref=e28]
+    - navigation [ref=e29]:
+      - list [ref=e30]:
+        - listitem [ref=e31]:
+          - link "Dashboard" [ref=e32] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e33]
+            - text: Dashboard
+        - listitem [ref=e35]:
+          - link "Apply Leave" [ref=e36] [cursor=pointer]:
+            - /url: /apply
+            - img [ref=e37]
+            - text: Apply Leave
+        - listitem [ref=e39]:
+          - link "My Leaves" [ref=e40] [cursor=pointer]:
+            - /url: /my-leaves
+            - img [ref=e41]
+            - text: My Leaves
+        - listitem [ref=e43]:
+          - link "Balance" [ref=e44] [cursor=pointer]:
+            - /url: /balance
+            - img [ref=e45]
+            - text: Balance
+        - listitem [ref=e47]:
+          - link "Overtime" [ref=e48] [cursor=pointer]:
+            - /url: /overtime
+            - img [ref=e49]
+            - text: Overtime
+        - listitem [ref=e51]:
+          - link "Payroll" [ref=e52] [cursor=pointer]:
+            - /url: /payroll
+            - img [ref=e53]
+            - text: Payroll
+        - listitem [ref=e55]:
+          - link "Calendar" [ref=e56] [cursor=pointer]:
+            - /url: /calendar
+            - img [ref=e57]
+            - text: Calendar
+        - listitem [ref=e59]:
+          - link "Profile" [ref=e60] [cursor=pointer]:
+            - /url: /profile
+            - img [ref=e61]
+            - text: Profile
+  - banner [ref=e63]:
+    - generic [ref=e65]: Hi, rakesh patel
+    - generic [ref=e66]:
+      - link [ref=e67] [cursor=pointer]:
+        - /url: /notifications
+        - img [ref=e68]
+      - link "R" [ref=e70] [cursor=pointer]:
+        - /url: /profile
+      - button "Logout" [ref=e71]:
+        - img [ref=e72]
+        - text: Logout
+  - main [ref=e74]:
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - heading "Hi, rakesh" [level=1] [ref=e77]
+        - link "+ Apply for Leave" [ref=e78] [cursor=pointer]:
+          - /url: /apply
+          - button "+ Apply for Leave" [ref=e79]
+      - generic [ref=e80]:
+        - img [ref=e81]
+        - generic [ref=e83]:
+          - paragraph [ref=e84]: You are currently in the probation period
+          - paragraph [ref=e85]: Only Leave Without Pay (LWP) is available during probation.
+      - generic [ref=e86]:
+        - heading "Leave Balance" [level=2] [ref=e87]
+        - generic [ref=e89]:
+          - img [ref=e91]
+          - heading "No leave balances" [level=3] [ref=e93]
+          - paragraph [ref=e94]: Balances will appear after account activation.
+      - generic [ref=e95]:
+        - heading "Active Requests" [level=2] [ref=e96]
+        - generic [ref=e98]:
+          - img [ref=e100]
+          - heading "No active requests" [level=3] [ref=e102]
+          - paragraph [ref=e103]: Your pending leave requests will appear here.
+          - link "Apply for Leave" [ref=e105] [cursor=pointer]:
+            - /url: /apply
+            - button "Apply for Leave" [ref=e106]
+      - generic [ref=e107]:
+        - heading "Team on Leave Today" [level=2] [ref=e108]
+        - generic [ref=e110]:
+          - img [ref=e112]
+          - heading "Everyone is in today!" [level=3] [ref=e114]

@@ -19,7 +19,22 @@
       "Bash(codex exec *)",
       "Bash(where codex *)",
       "Read(//c/Program Files/**)",
-      "Bash(npm ls *)"
+      "Bash(npm ls *)",
+      "Bash(xargs -I {} basename {})",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_fill_form",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "Bash(npx ts-node -e ' *)",
+      "Bash(psql postgresql://localhost:5432/rockers_hr -c \"SELECT email, role, is_active FROM users LIMIT 10;\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:5432/rockers_hr -c \"SELECT email, role, is_active FROM users LIMIT 10;\")",
+      "Bash(PGPASSWORD='Riyan@130813' psql *)",
+      "Bash(node *)",
+      "Bash(curl *)",
+      "Bash(lsof -ti:3000)",
+      "mcp__plugin_playwright_playwright__browser_network_requests",
+      "mcp__plugin_playwright_playwright__browser_console_messages"
     ]
   }
 }
