@@ -28,7 +28,12 @@ export default function ApplyLeavePage() {
   const { toast } = useToast();
   const user = useAuthStore((s) => s.user);
 
-  // Block leave application if last working day has passed or employment is not active
+  // Block leave application if last working day has passed or employment
+  // is not active. Calculated here but the early-return that consumes
+  // it lives below all hook calls (just past the masterLoading guard)
+  // — placing a `return` between hook calls would violate the rules
+  // of hooks because the hooks below would be skipped on the
+  // employment-ended render path.
   const isEmploymentEnded = (() => {
     if (user?.employment_status && user.employment_status !== 'active') return true;
     if (user?.last_working_day) {
@@ -40,21 +45,6 @@ export default function ApplyLeavePage() {
     }
     return false;
   })();
-
-  if (isEmploymentEnded) {
-    return (
-      <Card className="mt-8">
-        <EmptyState
-          title="Leave Application Disabled"
-          description={
-            user?.last_working_day
-              ? `Your last working day was ${formatDate(user.last_working_day)}. You can no longer apply for leave.`
-              : `Your employment status is "${user?.employment_status}". You cannot apply for leave.`
-          }
-        />
-      </Card>
-    );
-  }
 
   const [step, setStep] = useState(1);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
@@ -148,6 +138,21 @@ export default function ApplyLeavePage() {
   }, [leaveTypeId, durationTypeId, startDate, endDate, earlyLeaveDate, earlyLeaveStartTime, earlyLeaveEndTime, eligibleTypes]);
 
   if (masterLoading) return <PageLoader />;
+
+  if (isEmploymentEnded) {
+    return (
+      <Card className="mt-8">
+        <EmptyState
+          title="Leave Application Disabled"
+          description={
+            user?.last_working_day
+              ? `Your last working day was ${formatDate(user.last_working_day)}. You can no longer apply for leave.`
+              : `Your employment status is "${user?.employment_status}". You cannot apply for leave.`
+          }
+        />
+      </Card>
+    );
+  }
 
   const todayStr = new Date().toISOString().split('T')[0];
   const selectedType = eligibleTypes.find((t) => t.id === leaveTypeId);

@@ -35,8 +35,48 @@ async function bootstrap() {
   );
 
   // CORS
+  // FRONTEND_URL is a comma-separated list of allowed origins so a
+  // single deploy can serve a production frontend, a staging frontend,
+  // and (during development) one-off ngrok tunnels at the same time
+  // without rebuilding the server. Trailing slashes and stray spaces
+  // are trimmed because that's a common mistake when pasting URLs
+  // into Render / Railway / Vercel env-var UIs.
+  //
+  // ngrok-specific note: free ngrok URLs change every restart. Either
+  // list the current URL here (and restart Render) or use the wildcard
+  // `*.ngrok-free.app` shape with the regex form Express's `cors`
+  // middleware accepts — implemented below.
+  const frontendUrls = (
+    configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
+  )
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
   app.enableCors({
-    origin: configService.get<string>('FRONTEND_URL', 'http://localhost:3000'),
+    origin: (origin, callback) => {
+      // Server-to-server / curl / mobile-app requests have no Origin
+      // header — let those through unchanged.
+      if (!origin) return callback(null, true);
+      const trimmed = origin.replace(/\/+$/, '');
+      const allowed = frontendUrls.some((entry) => {
+        // Plain string match.
+        if (entry === trimmed) return true;
+        // Wildcard form, e.g. "https://*.ngrok-free.app".
+        if (entry.includes('*')) {
+          const pattern = new RegExp(
+            '^' +
+              entry
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\*/g, '[^/]+') +
+              '$',
+          );
+          return pattern.test(trimmed);
+        }
+        return false;
+      });
+      if (allowed) return callback(null, true);
+      return callback(new Error(`CORS: origin ${origin} not allowed`), false);
+    },
     credentials: true,
   });
 

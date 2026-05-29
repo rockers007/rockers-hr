@@ -42,6 +42,15 @@ export class NotificationsService {
       port: portNum,
       secure: portNum === 465, // true for 465 (implicit SSL), false for 587 (STARTTLS)
       auth: { user, pass },
+      // Explicit timeouts. nodemailer's defaults wait minutes before
+      // giving up — fine on a developer's laptop, bad on a hosting
+      // network (Render free tier, some serverless platforms) that
+      // silently drops outbound SMTP. With these, a misconfigured or
+      // blocked SMTP fails inside ~10s and the background task error
+      // shows up in the logs instead of piling up.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
   }
 
