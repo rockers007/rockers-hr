@@ -52,6 +52,20 @@ class AuthService extends ChangeNotifier {
   /// route into the password-reset screen before the rest of the app.
   bool get firstLoginRequired => _firstLoginRequired;
 
+  /// Three-way routing helper that mirrors the web's first-login
+  /// branch (see frontend/src/app/login/page.tsx). When the JWT is
+  /// flagged first_login_required AND the user is NOT yet active,
+  /// the employee is on a fresh invite and needs to fill the full
+  /// activation form (phone, DOB, gender, qualification, password)
+  /// — which goes to CompleteProfileScreen. When first_login_required
+  /// AND already active, an admin reset their password and the
+  /// employee just needs to choose a new one — which goes to
+  /// ResetPasswordScreen.
+  bool get needsActivation =>
+      _firstLoginRequired && _isActiveClaim == false;
+
+  bool? _isActiveClaim;
+
   // ---------------------------------------------------------------------------
   // Email + password (primary, v2.0)
   // ---------------------------------------------------------------------------
@@ -83,6 +97,9 @@ class AuthService extends ChangeNotifier {
       // payload as a fallback. Mirrors the web login page's behavior.
       final flag = data['first_login_required'] as bool?;
       _firstLoginRequired = flag ?? _firstLoginFromJwt(jwt);
+      _isActiveClaim = (data['user'] is Map<String, dynamic>)
+          ? (data['user']['is_active'] as bool?)
+          : _claims(jwt)?['is_active'] as bool?;
 
       // Only hit /users/me when we're past the first-login gate. The
       // ResetPasswordScreen doesn't need the full profile and saves
@@ -101,10 +118,10 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Finishes the admin-triggered password reset (or fresh-invite
-  /// first-login). The backend bumps tokens_valid_from, returns a
-  /// fresh JWT, and we swap it in immediately so the next /users/me
-  /// call doesn't 401.
+  /// Finishes the admin-triggered password reset (active user, just
+  /// needs a new password). The backend bumps tokens_valid_from,
+  /// returns a fresh JWT, and we swap it in immediately so the next
+  /// /users/me call doesn't 401.
   Future<void> finishPasswordReset({
     required String newPassword,
     required String confirmPassword,
@@ -120,7 +137,78 @@ class AuthService extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: newToken);
 
     _firstLoginRequired = false;
+    _isActiveClaim = true;
     await fetchUser();
+    notifyListeners();
+  }
+
+  /// Fresh-invite activation. Backend route is the same one the web
+  /// /complete-profile page hits — POST /auth/activate-account with
+  /// phone / dob / gender / qualification / new password. Returns a
+  /// fresh JWT + activated user record; we swap both in immediately.
+  ///
+  /// department_id and join_date are intentionally NOT sent: the
+  /// admin set them at invite time and employees cannot change them.
+  /// The form just renders them read-only above the editable fields.
+  Future<void> activateAccount({
+    required String phone,
+    required String dob,
+    required String genderId,
+    required String qualificationId,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final data = await _api.post('/auth/activate-account', body: {
+      'phone': phone.trim(),
+      'dob': dob,
+      'gender_id': genderId,
+      'qualification_id': qualificationId,
+      'new_password': newPassword,
+      'confirm_password': confirmPassword,
+    }) as Map<String, dynamic>;
+
+    final newToken = data['token'] as String;
+    _token = newToken;
+    _api.setToken(newToken);
+    await _storage.write(key: _tokenKey, value: newToken);
+
+    _firstLoginRequired = false;
+    _isActiveClaim = true;
+    await fetchUser();
+    notifyListeners();
+  }
+
+  /// Employee self-service password change from the profile screen.
+  /// Backend bumps tokens_valid_from and returns a fresh JWT so the
+  /// caller can keep operating without a re-login. Pattern is
+  /// identical to the web profile's ChangePasswordSection.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final data = await _api.post('/auth/change-password', body: {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+      'confirm_password': confirmPassword,
+    }) as Map<String, dynamic>;
+
+    final newToken = data['token'] as String?;
+    if (newToken != null && newToken.isNotEmpty) {
+      _token = newToken;
+      _api.setToken(newToken);
+      await _storage.write(key: _tokenKey, value: newToken);
+    }
+    notifyListeners();
+  }
+
+  /// Patches /users/me with the editable employee fields shown on
+  /// the profile screen. Mirrors the web profile's PersonalSection
+  /// PATCH and the new first-time bank entry path.
+  Future<void> updateProfile(Map<String, dynamic> patch) async {
+    final data = await _api.patch('/users/me', body: patch)
+        as Map<String, dynamic>;
+    _currentUser = User.fromJson(data);
     notifyListeners();
   }
 
@@ -183,10 +271,13 @@ class AuthService extends ChangeNotifier {
 
       _token = storedToken;
       _api.setToken(storedToken);
-      // Pre-set the gate from the stored JWT so the AuthGate can route
-      // on first frame; fetchUser below may overwrite if the user has
-      // since completed the reset.
-      _firstLoginRequired = _firstLoginFromJwt(storedToken);
+      // Pre-set the gates from the stored JWT so the AuthGate can
+      // route on first frame; fetchUser below may overwrite if the
+      // user has since completed activation or reset on the web.
+      final restoredClaims = _claims(storedToken);
+      _firstLoginRequired =
+          restoredClaims?['first_login_required'] == true;
+      _isActiveClaim = restoredClaims?['is_active'] as bool?;
 
       if (_firstLoginRequired) {
         // Mirror signInWithEmail: skip /users/me on the reset path —
@@ -241,6 +332,7 @@ class AuthService extends ChangeNotifier {
     _token = null;
     _currentUser = null;
     _firstLoginRequired = false;
+    _isActiveClaim = null;
     _api.clearToken();
     await _storage.delete(key: _tokenKey);
   }

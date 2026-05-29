@@ -9,6 +9,8 @@ import '../services/auth_service.dart';
 import '../services/leave_service.dart';
 import '../widgets/avatar_circle.dart';
 import '../widgets/leave_balance_card.dart';
+import 'change_password_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -331,6 +333,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }),
             const SizedBox(height: 24),
+
+            // Account actions — mirrors the action set on the web
+            // /profile page (Edit Profile, Change Password, Logout).
+            // Family / Documents / Bank sections are intentionally
+            // not on mobile yet — those screens use S3 presigned PUT
+            // uploads and are best done from the web for now.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  );
+                  // Refresh user on return so the read-only info
+                  // tiles at the top reflect the new values.
+                  if (mounted) {
+                    try {
+                      await context.read<AuthService>().fetchUser();
+                    } catch (_) {}
+                  }
+                },
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                label: const Text('Edit Profile'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.accent),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ChangePasswordScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.lock_outline, size: 20),
+                label: const Text('Change Password'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
 
             // Logout button
             SizedBox(
