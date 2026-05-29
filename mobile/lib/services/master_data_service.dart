@@ -23,12 +23,17 @@ class MasterDataService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Backend allowlist (MasterService.ALLOWED_TABLES) uses short
+      // names (no `master_` prefix) — e.g. /master/leave_types, NOT
+      // /master/master_leave_types. The latter returns 400 with
+      // "Invalid master table", which is why these dropdowns
+      // appeared empty before this fix.
       final results = await Future.wait([
-        _fetchTable('master_leave_types'),
-        _fetchTable('master_genders'),
-        _fetchTable('master_qualifications'),
-        _fetchTable('master_departments'),
-        _fetchTable('master_leave_durations'),
+        _fetchTable('leave_types'),
+        _fetchTable('genders'),
+        _fetchTable('qualifications'),
+        _fetchTable('departments'),
+        _fetchTable('leave_durations'),
       ]);
 
       _leaveTypes = results[0];
@@ -43,9 +48,14 @@ class MasterDataService extends ChangeNotifier {
   }
 
   Future<List<Map<String, dynamic>>> _fetchTable(String table) async {
-    final data = await _api.get('/master/$table');
-    if (data is List) {
-      return data.cast<Map<String, dynamic>>();
+    try {
+      final data = await _api.get('/master/$table');
+      if (data is List) {
+        return data.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {
+      // Swallow per-table errors so a missing one (e.g. on an older
+      // backend) doesn't black out every dropdown in the app.
     }
     return [];
   }
