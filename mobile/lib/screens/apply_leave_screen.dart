@@ -82,7 +82,8 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
     }
   }
 
-  Future<void> _pickDate(ApplyLeaveController ctrl, {required bool isStart}) async {
+  Future<void> _pickDate(ApplyLeaveController ctrl,
+      {required bool isStart}) async {
     final now = DateTime.now();
     final initial = isStart
         ? (ctrl.startDate ?? now.add(const Duration(days: 1)))
@@ -195,13 +196,12 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
             scrollDirection: Axis.horizontal,
             itemCount: ctrl.leaveTypes.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, index) =>
-                _LeaveTypePill(
-                  type: ctrl.leaveTypes[index],
-                  isSelected: ctrl.selectedType?.id == ctrl.leaveTypes[index].id,
-                  balance: ctrl.getBalance(ctrl.leaveTypes[index].id),
-                  onTap: () => ctrl.selectType(ctrl.leaveTypes[index]),
-                ),
+            itemBuilder: (_, index) => _LeaveTypePill(
+              type: ctrl.leaveTypes[index],
+              isSelected: ctrl.selectedType?.id == ctrl.leaveTypes[index].id,
+              balance: ctrl.getBalance(ctrl.leaveTypes[index].id),
+              onTap: () => ctrl.selectType(ctrl.leaveTypes[index]),
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -249,7 +249,8 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
             ),
           )
         else if (ctrl.calcResult != null)
-          _CalcResultCard(result: ctrl.calcResult!, formatDays: ctrl.formatDays),
+          _CalcResultCard(
+              result: ctrl.calcResult!, formatDays: ctrl.formatDays),
       ],
     );
   }
@@ -284,8 +285,7 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
           ),
           onChanged: (_) => setState(() {}),
         ),
-        if (_reasonCtrl.text.isNotEmpty &&
-            _reasonCtrl.text.trim().length < 10)
+        if (_reasonCtrl.text.isNotEmpty && _reasonCtrl.text.trim().length < 10)
           const Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
@@ -345,9 +345,12 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
           ),
           child: Column(
             children: [
-              _InfoRow(label: 'Leave Type', value: ctrl.selectedType?.label ?? ''),
+              _InfoRow(
+                  label: 'Leave Type', value: ctrl.selectedType?.label ?? ''),
               const SizedBox(height: 10),
-              _InfoRow(label: 'Duration Type', value: ctrl.selectedDuration?.label ?? ''),
+              _InfoRow(
+                  label: 'Duration Type',
+                  value: ctrl.selectedDuration?.label ?? ''),
               const SizedBox(height: 10),
               _InfoRow(
                 label: 'Start Date',
@@ -391,7 +394,8 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
 // ── Extracted private widgets ──
 
 class _EmploymentEndedView extends StatelessWidget {
-  const _EmploymentEndedView({required this.user, required this.showBackButton});
+  const _EmploymentEndedView(
+      {required this.user, required this.showBackButton});
 
   final dynamic user;
   final bool showBackButton;
@@ -432,7 +436,8 @@ class _EmploymentEndedView extends StatelessWidget {
                     ? 'Your last working day was ${DateFormat('dd MMM yyyy').format(DateTime.parse(user!.lastWorkingDay!))}. You can no longer apply for leave.'
                     : 'Your employment status is "${user?.employmentStatus ?? 'inactive'}". You cannot apply for leave.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                style: const TextStyle(
+                    fontSize: 14, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -594,6 +599,7 @@ class _LeaveTypePill extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
+                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -616,39 +622,46 @@ class _DurationSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: durations.map((dur) {
-          final isSelected = selected?.id == dur.id;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onSelect(dur),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Center(
-                  child: Text(
-                    dur.label,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+    return SizedBox(
+      height: 48,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: durations.map((dur) {
+            final isSelected = selected?.id == dur.id;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onSelect(dur),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Center(
+                    child: Text(
+                      dur.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color:
+                            isSelected ? Colors.white : AppColors.textSecondary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -672,9 +685,11 @@ class _CalcResultCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _InfoRow(label: 'Working Days', value: formatDays(result.workingDays)),
+          _InfoRow(
+              label: 'Working Days', value: formatDays(result.workingDays)),
           const SizedBox(height: 8),
-          _InfoRow(label: 'Balance Before', value: formatDays(result.balanceBefore)),
+          _InfoRow(
+              label: 'Balance Before', value: formatDays(result.balanceBefore)),
           const SizedBox(height: 8),
           _InfoRow(
             label: 'Balance After',
@@ -714,7 +729,8 @@ class _SandwichWarning extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, size: 20, color: AppColors.warning),
+              Icon(Icons.warning_amber_rounded,
+                  size: 20, color: AppColors.warning),
               SizedBox(width: 8),
               Text(
                 'Sandwich Leave Detected',
@@ -752,7 +768,8 @@ class _SandwichWarning extends StatelessWidget {
               const Expanded(
                 child: Text(
                   'I acknowledge the sandwich leave policy',
-                  style: TextStyle(color: AppColors.pendingL1Text, fontSize: 13),
+                  style:
+                      TextStyle(color: AppColors.pendingL1Text, fontSize: 13),
                 ),
               ),
             ],
@@ -1057,7 +1074,8 @@ class _InfoRow extends StatelessWidget {
           flex: 2,
           child: Text(
             label,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ),
         Expanded(
