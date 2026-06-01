@@ -41,6 +41,7 @@ class _ApplyLeaveView extends StatefulWidget {
 
 class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
   late final TextEditingController _reasonCtrl;
+  ApplyLeaveController? _ctrl;
 
   @override
   void initState() {
@@ -48,26 +49,26 @@ class _ApplyLeaveViewState extends State<_ApplyLeaveView> {
     _reasonCtrl = TextEditingController();
     _reasonCtrl.addListener(_syncReason);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctrl = context.read<ApplyLeaveController>();
-      ctrl.addListener(_onControllerChange);
-      ctrl.loadInitialData();
+      _ctrl = context.read<ApplyLeaveController>();
+      _ctrl!.addListener(_onControllerChange);
+      _ctrl!.loadInitialData();
     });
   }
 
   @override
   void dispose() {
-    context.read<ApplyLeaveController>().removeListener(_onControllerChange);
+    _ctrl?.removeListener(_onControllerChange);
     _reasonCtrl
       ..removeListener(_syncReason)
       ..dispose();
     super.dispose();
   }
 
-  void _syncReason() =>
-      context.read<ApplyLeaveController>().setReason(_reasonCtrl.text);
+  void _syncReason() => _ctrl?.setReason(_reasonCtrl.text);
 
   void _onControllerChange() {
-    final ctrl = context.read<ApplyLeaveController>();
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
     final err = ctrl.actionError;
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
