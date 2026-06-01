@@ -63,10 +63,16 @@ class OvertimeSummary {
   });
 
   factory OvertimeSummary.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic v) {
+      if (v == null) return 0.0;
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? 0.0;
+      return 0.0;
+    }
     return OvertimeSummary(
       year: json['year'] ?? DateTime.now().year,
-      totalApprovedHours: (json['total_approved_hours'] as num?)?.toDouble() ?? 0,
-      totalPaidHours: (json['total_paid_hours'] as num?)?.toDouble() ?? 0,
+      totalApprovedHours: parseDouble(json['total_approved_hours']),
+      totalPaidHours: parseDouble(json['total_paid_hours']),
     );
   }
 }

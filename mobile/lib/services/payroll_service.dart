@@ -1,5 +1,6 @@
 import '../models/payroll_models.dart';
 import 'api_service.dart';
+import 'logging_service.dart';
 
 class PayrollService {
   PayrollService._();
@@ -18,7 +19,8 @@ class PayrollService {
     try {
       final data = await _api.get('/payroll/me/salary-preview');
       return SalaryPreview.fromJson(data as Map<String, dynamic>);
-    } on ApiException {
+    } on ApiException catch (e) {
+      showLog('PayrollService.getSalaryPreview: ${e.message}', type: LogType.error);
       return null;
     }
   }
@@ -52,7 +54,8 @@ class PayrollService {
     try {
       final data = await _api.get('/payroll/me/payslips/$year/$month/download');
       return data as Map<String, dynamic>?;
-    } on ApiException {
+    } on ApiException catch (e) {
+      showLog('PayrollService.getPayslipDownload: ${e.message}', type: LogType.error);
       return null;
     }
   }

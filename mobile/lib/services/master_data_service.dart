@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'api_service.dart';
+import 'logging_service.dart';
 
 class MasterDataService extends ChangeNotifier {
   final ApiService _api = ApiService.instance;
@@ -53,9 +54,8 @@ class MasterDataService extends ChangeNotifier {
       if (data is List) {
         return data.cast<Map<String, dynamic>>();
       }
-    } catch (_) {
-      // Swallow per-table errors so a missing one (e.g. on an older
-      // backend) doesn't black out every dropdown in the app.
+    } catch (e) {
+      showLog('MasterDataService._fetchTable($table): $e', type: LogType.error);
     }
     return [];
   }

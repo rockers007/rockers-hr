@@ -1,3 +1,10 @@
+double _parseDouble(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0.0;
+  return 0.0;
+}
+
 class LeaveType {
   final String id;
   final String label;
@@ -39,7 +46,7 @@ class LeaveType {
 class LeaveDuration {
   final String id;
   final String label;
-  final double dayValue;
+  final num dayValue;
 
   LeaveDuration({
     required this.id,
@@ -51,7 +58,7 @@ class LeaveDuration {
     return LeaveDuration(
       id: json['id'] as String,
       label: json['label'] as String,
-      dayValue: (json['day_value'] as num).toDouble(),
+      dayValue: _parseDouble(json['day_value']),
     );
   }
 }
@@ -98,10 +105,10 @@ class LeaveBalance {
       leaveType:
           LeaveTypeRef.fromJson(json['leave_type'] as Map<String, dynamic>),
       year: json['year'] as int,
-      totalDays: (json['total_days'] as num).toDouble(),
-      usedDays: (json['used_days'] as num).toDouble(),
-      pendingDays: (json['pending_days'] as num).toDouble(),
-      availableDays: (json['available_days'] as num).toDouble(),
+      totalDays: _parseDouble(json['total_days']),
+      usedDays: _parseDouble(json['used_days']),
+      pendingDays: _parseDouble(json['pending_days']),
+      availableDays: _parseDouble(json['available_days']),
     );
   }
 }
@@ -118,7 +125,7 @@ class LeaveDurationRef {
   factory LeaveDurationRef.fromJson(Map<String, dynamic> json) {
     return LeaveDurationRef(
       label: json['label'] as String,
-      dayValue: (json['day_value'] as num).toDouble(),
+      dayValue: _parseDouble(json['day_value']),
     );
   }
 }
@@ -220,7 +227,7 @@ class LeaveRequest {
           json['duration_type'] as Map<String, dynamic>),
       startDate: json['start_date'] as String,
       endDate: json['end_date'] as String,
-      workingDays: (json['working_days'] as num).toDouble(),
+      workingDays: _parseDouble(json['working_days']),
       status: json['status'] as String,
       reason: json['reason'] as String,
       sandwichFlag: json['sandwich_flag'] as bool? ?? false,
@@ -230,11 +237,61 @@ class LeaveRequest {
           : null,
       canCancel: json['can_cancel'] as bool? ?? false,
       approvals: (json['approvals'] as List<dynamic>?)
-              ?.map((e) =>
-                  LeaveApproval.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => LeaveApproval.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       createdAt: json['created_at'] as String,
+    );
+  }
+}
+
+class PendingApproval {
+  final String id;
+  final String employeeName;
+  final String employeeEmail;
+  final String leaveTypeLabel;
+  final String leaveTypeColor;
+  final String startDate;
+  final String endDate;
+  final double workingDays;
+  final String reason;
+  final bool sandwichFlag;
+  final DateTime slaDeadline;
+
+  PendingApproval({
+    required this.id,
+    required this.employeeName,
+    required this.employeeEmail,
+    required this.leaveTypeLabel,
+    required this.leaveTypeColor,
+    required this.startDate,
+    required this.endDate,
+    required this.workingDays,
+    required this.reason,
+    required this.sandwichFlag,
+    required this.slaDeadline,
+  });
+
+  factory PendingApproval.fromJson(Map<String, dynamic> json) {
+    final employee = json['employee'] as Map<String, dynamic>? ?? {};
+    final leaveType = json['leave_type'] as Map<String, dynamic>? ?? {};
+    final slaStr = json['sla_deadline'] as String?;
+    return PendingApproval(
+      id: json['id'] as String,
+      employeeName: employee['name'] as String? ?? 'Unknown',
+      employeeEmail:
+          employee['email'] as String? ?? employee['gmail'] as String? ?? '',
+      leaveTypeLabel: leaveType['label'] as String? ?? '',
+      leaveTypeColor: leaveType['color'] as String? ?? '#3b82f6',
+      startDate: json['start_date'] as String? ?? '',
+      endDate: json['end_date'] as String? ?? '',
+      workingDays: _parseDouble(json['working_days']),
+      reason: json['reason'] as String? ?? '',
+      sandwichFlag: json['sandwich_flag'] as bool? ?? false,
+      slaDeadline: slaStr != null
+          ? DateTime.tryParse(slaStr) ??
+              DateTime.now().add(const Duration(hours: 5))
+          : DateTime.now().add(const Duration(hours: 5)),
     );
   }
 }
@@ -258,9 +315,9 @@ class CalculateResult {
 
   factory CalculateResult.fromJson(Map<String, dynamic> json) {
     return CalculateResult(
-      workingDays: (json['working_days'] as num).toDouble(),
-      balanceBefore: (json['balance_before'] as num).toDouble(),
-      balanceAfter: (json['balance_after'] as num).toDouble(),
+      workingDays: _parseDouble(json['working_days']),
+      balanceBefore: _parseDouble(json['balance_before']),
+      balanceAfter: _parseDouble(json['balance_after']),
       sandwichDetected: json['sandwich_detected'] as bool? ?? false,
       sandwichDetail: json['sandwich_detail'] as String?,
       docRequired: json['doc_required'] as bool? ?? false,

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "services_logging_service_showlog", "label": "showLog", "file_type": "code", "source_file": "lib/services/logging_service.dart", "source_location": "7", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

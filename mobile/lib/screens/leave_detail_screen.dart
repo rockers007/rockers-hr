@@ -1,70 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/leave_detail_controller.dart';
 import '../models/leave_models.dart';
-import '../services/api_service.dart';
-import '../services/leave_service.dart';
+import '../repositories/leave_detail_repository.dart';
 import '../widgets/leave_balance_card.dart' show hexToColor;
 import '../widgets/status_badge.dart';
 
-class LeaveDetailScreen extends StatefulWidget {
-  final String requestId;
-
+class LeaveDetailScreen extends StatelessWidget {
   const LeaveDetailScreen({super.key, required this.requestId});
 
+  final String requestId;
+
   @override
-  State<LeaveDetailScreen> createState() => _LeaveDetailScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => LeaveDetailController(LeaveDetailRepository(), requestId),
+      child: const _LeaveDetailView(),
+    );
+  }
 }
 
-class _LeaveDetailScreenState extends State<LeaveDetailScreen> {
-  bool _isLoading = true;
-  LeaveRequest? _request;
-  bool _isCancelling = false;
+// ── Helpers ────────────────────────────────────────────────────────────────
 
+String _formatDateTime(String? dateStr) {
+  if (dateStr == null) return '';
+  final dt = DateTime.tryParse(dateStr);
+  if (dt == null) return dateStr;
+  return DateFormat('dd MMM yyyy, HH:mm').format(dt);
+}
+
+String _formatDays(double days) =>
+    days == days.roundToDouble() ? '${days.toInt()}' : days.toStringAsFixed(1);
+
+(IconData, Color, Color) _approvalStepVisuals(LeaveApproval approval) =>
+    switch (approval.action) {
+      'APPROVED' => (Icons.check, AppColors.approvedText, AppColors.approvedBg),
+      'DECLINED' => (Icons.close, AppColors.declinedText, AppColors.declinedBg),
+      'ESCALATED' => (
+          Icons.arrow_upward,
+          AppColors.escalatedText,
+          AppColors.escalatedBg
+        ),
+      _ => (Icons.schedule, AppColors.pendingL1Text, AppColors.pendingL1Bg),
+    };
+
+String _approvalStatusText(LeaveApproval approval) =>
+    switch (approval.action) {
+      'APPROVED' => 'Approved',
+      'DECLINED' => 'Declined',
+      'ESCALATED' => 'Escalated',
+      _ => 'Pending',
+    };
+
+// ── View ───────────────────────────────────────────────────────────────────
+
+class _LeaveDetailView extends StatefulWidget {
+  const _LeaveDetailView();
+
+  @override
+  State<_LeaveDetailView> createState() => _LeaveDetailViewState();
+}
+
+class _LeaveDetailViewState extends State<_LeaveDetailView> {
   @override
   void initState() {
     super.initState();
-    _loadDetail();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<LeaveDetailController>().load(),
+    );
   }
 
-  Future<void> _loadDetail() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final data = await LeaveService.getRequestById(widget.requestId);
-      if (mounted) {
-        setState(() {
-          _request = LeaveRequest.fromJson(data);
-          _isLoading = false;
-        });
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load details: ${e.toString()}'),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleCancel() async {
+  Future<void> _handleCancel(LeaveDetailController controller) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -89,257 +98,210 @@ class _LeaveDetailScreenState extends State<LeaveDetailScreen> {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    setState(() => _isCancelling = true);
-
-    try {
-      await LeaveService.cancelRequest(widget.requestId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Leave request cancelled successfully'),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        Navigator.of(context).pop();
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(() => _isCancelling = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isCancelling = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cancellation failed: ${e.toString()}'),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    final ok = await controller.cancel();
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Leave request cancelled successfully'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.error ?? 'Cancellation failed'),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-  }
-
-  String _formatDateTime(String? dateStr) {
-    if (dateStr == null) return '';
-    final dt = DateTime.tryParse(dateStr);
-    if (dt == null) return dateStr;
-    return DateFormat('dd MMM yyyy, HH:mm').format(dt);
-  }
-
-  String _formatDays(double days) {
-    return days == days.roundToDouble()
-        ? '${days.toInt()}'
-        : days.toStringAsFixed(1);
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<LeaveDetailController>();
+
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
-      appBar: AppBar(
-        title: const Text('Leave Details'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _request == null
-              ? const Center(
-                  child: Text(
-                    'Request not found',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                )
-              : _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
-    final req = _request!;
-    final accentColor = hexToColor(req.leaveType.color);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Color bar + type + status
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+      appBar: AppBar(title: const Text('Leave Details')),
+      body: switch (controller.status) {
+        LeaveDetailStatus.idle ||
+        LeaveDetailStatus.loading =>
+          const Center(child: CircularProgressIndicator()),
+        LeaveDetailStatus.error => Center(
+            child: Text(
+              controller.error ?? 'Failed to load',
+              style: const TextStyle(color: AppColors.danger),
             ),
-            clipBehavior: Clip.antiAlias,
+          ),
+        LeaveDetailStatus.success when controller.request == null =>
+          const Center(
+            child: Text(
+              'Request not found',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        LeaveDetailStatus.success => SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Color bar at top
-                Container(
-                  height: 6,
-                  color: accentColor,
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Leave type and status
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              req.leaveType.label,
-                              style: TextStyle(
-                                color: accentColor,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          StatusBadge(status: req.status),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Details grid
-                      _DetailRow(
-                        icon: Icons.calendar_today_outlined,
-                        label: 'Dates',
-                        value: req.startDate == req.endDate
-                            ? req.startDate
-                            : '${req.startDate} - ${req.endDate}',
-                      ),
-                      const SizedBox(height: 10),
-                      _DetailRow(
-                        icon: Icons.schedule_outlined,
-                        label: 'Duration',
-                        value:
-                            '${req.durationType.label} - ${_formatDays(req.workingDays)} working day${req.workingDays != 1 ? 's' : ''}',
-                      ),
-                      const SizedBox(height: 10),
-                      _DetailRow(
-                        icon: Icons.notes_outlined,
-                        label: 'Reason',
-                        value: req.reason,
-                      ),
-                      if (req.submittedByAdmin != null) ...[
-                        const SizedBox(height: 10),
-                        _DetailRow(
-                          icon: Icons.admin_panel_settings_outlined,
-                          label: 'Submitted by',
-                          value: req.submittedByAdmin!.name,
-                        ),
-                      ],
-                    ],
+                _LeaveDetailCard(request: controller.request!),
+                const SizedBox(height: 20),
+                if (controller.request!.sandwichFlag) ...[
+                  const _SandwichBanner(),
+                  const SizedBox(height: 20),
+                ],
+                const Text(
+                  'Approval Timeline',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+                const SizedBox(height: 12),
+                _ApprovalTimeline(
+                    approvals: controller.request!.approvals),
+                const SizedBox(height: 24),
+                if (controller.request!.canCancel)
+                  _CancelButton(
+                    cancelling: controller.cancelling,
+                    onCancel: () => _handleCancel(controller),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+      },
+    );
+  }
+}
 
-          // Sandwich leave banner
-          if (req.sandwichFlag) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.pendingL1Bg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: 20, color: AppColors.warning),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'This is a sandwich leave. Weekend / holiday days between leave dates are counted as leave days.',
-                      style: TextStyle(
-                        color: AppColors.pendingL1Text,
-                        fontSize: 13,
+// ── Private widgets ────────────────────────────────────────────────────────
+
+class _LeaveDetailCard extends StatelessWidget {
+  const _LeaveDetailCard({required this.request});
+
+  final LeaveRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = hexToColor(request.leaveType.color);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(height: 6, color: accentColor),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        request.leaveType.label,
+                        style: TextStyle(
+                          color: accentColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
+                    StatusBadge(status: request.status),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _DetailRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Dates',
+                  value: request.startDate == request.endDate
+                      ? request.startDate
+                      : '${request.startDate} - ${request.endDate}',
+                ),
+                const SizedBox(height: 10),
+                _DetailRow(
+                  icon: Icons.schedule_outlined,
+                  label: 'Duration',
+                  value:
+                      '${request.durationType.label} - ${_formatDays(request.workingDays)} '
+                      'working day${request.workingDays != 1 ? 's' : ''}',
+                ),
+                const SizedBox(height: 10),
+                _DetailRow(
+                  icon: Icons.notes_outlined,
+                  label: 'Reason',
+                  value: request.reason,
+                ),
+                if (request.submittedByAdmin != null) ...[
+                  const SizedBox(height: 10),
+                  _DetailRow(
+                    icon: Icons.admin_panel_settings_outlined,
+                    label: 'Submitted by',
+                    value: request.submittedByAdmin!.name,
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // Approval timeline
-          const Text(
-            'Approval Timeline',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          _buildApprovalTimeline(req.approvals),
-          const SizedBox(height: 24),
-
-          // Cancel button
-          if (req.canCancel) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isCancelling ? null : _handleCancel,
-                icon: _isCancelling
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.cancel_outlined, size: 20),
-                label: Text(_isCancelling
-                    ? 'Cancelling...'
-                    : 'Cancel This Request'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                  side: const BorderSide(color: AppColors.danger),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
+}
 
-  Widget _buildApprovalTimeline(List<LeaveApproval> approvals) {
-    if (approvals.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Text(
-          'No approval steps recorded yet.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-        ),
-      );
-    }
+class _SandwichBanner extends StatelessWidget {
+  const _SandwichBanner();
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.pendingL1Bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: AppColors.warning.withValues(alpha: 0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              size: 20, color: AppColors.warning),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This is a sandwich leave. Weekend / holiday days between leave dates are counted as leave days.',
+              style: TextStyle(
+                  color: AppColors.pendingL1Text, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApprovalTimeline extends StatelessWidget {
+  const _ApprovalTimeline({required this.approvals});
+
+  final List<LeaveApproval> approvals;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -348,136 +310,147 @@ class _LeaveDetailScreenState extends State<LeaveDetailScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        children: List.generate(approvals.length, (index) {
-          final approval = approvals[index];
-          final isLast = index == approvals.length - 1;
+      child: approvals.isEmpty
+          ? const Text(
+              'No approval steps recorded yet.',
+              style:
+                  TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            )
+          : Column(
+              children: List.generate(approvals.length, (index) {
+                final approval = approvals[index];
+                final isLast = index == approvals.length - 1;
+                final (icon, iconColor, bgColor) =
+                    _approvalStepVisuals(approval);
 
-          final (icon, iconColor, bgColor) = _approvalStepVisuals(approval);
-
-          return IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Timeline indicator
-                Column(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        shape: BoxShape.circle,
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: bgColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, size: 16, color: iconColor),
+                          ),
+                          if (!isLast)
+                            Expanded(
+                              child: Container(
+                                  width: 2, color: AppColors.border),
+                            ),
+                        ],
                       ),
-                      child: Icon(icon, size: 16, color: iconColor),
-                    ),
-                    if (!isLast)
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Container(
-                          width: 2,
-                          color: AppColors.border,
+                        child: Padding(
+                          padding:
+                              EdgeInsets.only(bottom: isLast ? 0 : 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Level ${approval.level} - ${approval.approver.name}',
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _approvalStatusText(approval),
+                                style: TextStyle(
+                                  color: iconColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (approval.actionedAt != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatDateTime(approval.actionedAt),
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                              if (approval.reason != null &&
+                                  approval.reason!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  '"${approval.reason}"',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-
-                // Content
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Level ${approval.level} - ${approval.approver.name}',
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _approvalStatusText(approval),
-                          style: TextStyle(
-                            color: iconColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (approval.actionedAt != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            _formatDateTime(approval.actionedAt),
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        if (approval.reason != null &&
-                            approval.reason!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            '"${approval.reason}"',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                    ],
                   ),
-                ),
-              ],
+                );
+              }),
             ),
-          );
-        }),
-      ),
     );
   }
+}
 
-  (IconData, Color, Color) _approvalStepVisuals(LeaveApproval approval) {
-    switch (approval.action) {
-      case 'APPROVED':
-        return (Icons.check, AppColors.approvedText, AppColors.approvedBg);
-      case 'DECLINED':
-        return (Icons.close, AppColors.declinedText, AppColors.declinedBg);
-      case 'ESCALATED':
-        return (Icons.arrow_upward, AppColors.escalatedText, AppColors.escalatedBg);
-      default:
-        // Pending
-        return (Icons.schedule, AppColors.pendingL1Text, AppColors.pendingL1Bg);
-    }
-  }
+class _CancelButton extends StatelessWidget {
+  const _CancelButton({
+    required this.cancelling,
+    required this.onCancel,
+  });
 
-  String _approvalStatusText(LeaveApproval approval) {
-    switch (approval.action) {
-      case 'APPROVED':
-        return 'Approved';
-      case 'DECLINED':
-        return 'Declined';
-      case 'ESCALATED':
-        return 'Escalated';
-      default:
-        return 'Pending';
-    }
+  final bool cancelling;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: cancelling ? null : onCancel,
+        icon: cancelling
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.cancel_outlined, size: 20),
+        label: Text(cancelling ? 'Cancelling...' : 'Cancel This Request'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.danger,
+          side: const BorderSide(color: AppColors.danger),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
   }
 }
 
 class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
   });
+
+  final IconData icon;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -493,9 +466,7 @@ class _DetailRow extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
+                    color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 2),
               Text(

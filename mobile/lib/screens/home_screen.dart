@@ -1,318 +1,308 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../config/theme.dart';
+import '../controllers/home_controller.dart';
 import '../models/leave_models.dart';
-import '../services/api_service.dart';
+import '../repositories/home_repository.dart';
 import '../services/auth_service.dart';
-import '../services/leave_service.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/leave_balance_card.dart';
 import '../widgets/leave_request_card.dart';
-import '../widgets/empty_state.dart';
-import 'notifications_screen.dart';
+import 'apply_leave_screen.dart';
 import 'leave_detail_screen.dart';
+import 'notifications_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => HomeController(HomeRepository()),
+      child: const _HomeView(),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  bool _isLoading = true;
-  List<LeaveBalance> _balances = [];
-  List<LeaveRequest> _activeRequests = [];
-  int _unreadCount = 0;
+// ── View ───────────────────────────────────────────────────────────────────
 
+class _HomeView extends StatefulWidget {
+  const _HomeView();
+
+  @override
+  State<_HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<_HomeView> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final results = await Future.wait([
-        LeaveService.getBalances(),
-        LeaveService.getRequests(status: 'PENDING_L1,PENDING_L2'),
-        LeaveService.getUnreadCount(),
-      ]);
-
-      if (mounted) {
-        setState(() {
-          _balances = (results[0] as List<dynamic>)
-              .map((e) => LeaveBalance.fromJson(e as Map<String, dynamic>))
-              .toList();
-          _activeRequests = (results[1] as List<dynamic>)
-              .map((e) => LeaveRequest.fromJson(e as Map<String, dynamic>))
-              .toList();
-          _unreadCount = results[2] as int;
-          _isLoading = false;
-        });
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load data: ${e.toString()}'),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  String _firstName(String fullName) {
-    final parts = fullName.trim().split(RegExp(r'\s+'));
-    return parts.isNotEmpty ? parts.first : fullName;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<HomeController>().load(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    final user = auth.currentUser;
+    final controller = context.watch<HomeController>();
 
     return Scaffold(
       backgroundColor: AppColors.neutralBg,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    // Header
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Hi, ${_firstName(user?.name ?? '')}',
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    DateFormat('EEEE, MMM d').format(DateTime.now()),
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Notification bell
-                            IconButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const NotificationsScreen(),
-                                  ),
-                                ).then((_) => _loadData());
-                              },
-                              icon: Badge(
-                                isLabelVisible: _unreadCount > 0,
-                                label: Text(
-                                  _unreadCount > 99 ? '99+' : '$_unreadCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_outlined,
-                                  size: 28,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+          onRefresh: controller.load,
+          child: switch (controller.status) {
+            HomeStatus.idle ||
+            HomeStatus.loading =>
+              const Center(child: CircularProgressIndicator()),
+            HomeStatus.error => ListView(
+                children: [
+                  const SizedBox(height: 80),
+                  Center(
+                    child: Text(
+                      controller.error ?? 'Something went wrong',
+                      style: const TextStyle(color: AppColors.danger),
                     ),
-
-                    // Leave Balances section
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-                        child: Text(
-                          'Leave Balance',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Horizontal scrollable balance cards
-                    SliverToBoxAdapter(
-                      child: _balances.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 20),
-                              child: Text(
-                                'No leave balances available',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            )
-                          : SizedBox(
-                              height: 130,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                itemCount: _balances.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(width: 12),
-                                itemBuilder: (context, index) {
-                                  final b = _balances[index];
-                                  return SizedBox(
-                                    width: 200,
-                                    child: LeaveBalanceCard(
-                                      label: b.leaveType.label,
-                                      color: b.leaveType.color,
-                                      available: b.availableDays,
-                                      total: b.totalDays,
-                                      pending: b.pendingDays,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                    ),
-
-                    // Apply for Leave button
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              // Navigate to Apply tab (index 1) via MainShell
-                              // We use DefaultTabController or simply find the MainShell state
-                              // For simplicity, navigate to ApplyLeaveScreen as a push
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const _ApplyLeaveWrapper(),
-                                ),
-                              ).then((_) => _loadData());
-                            },
-                            icon: const Icon(Icons.add, size: 20),
-                            label: const Text('Apply for Leave'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Active Requests section
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(20, 28, 20, 12),
-                        child: Text(
-                          'Active Requests',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Active requests list
-                    if (_activeRequests.isEmpty)
-                      const SliverToBoxAdapter(
-                        child: EmptyStateWidget(
-                          icon: Icons.inbox_outlined,
-                          title: 'No active requests',
-                          description:
-                              'Your pending leave requests will appear here.',
-                        ),
-                      )
-                    else
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final req = _activeRequests[index];
-                            return LeaveRequestCard(
-                              leaveTypeLabel: req.leaveType.label,
-                              leaveTypeColor: req.leaveType.color,
-                              startDate: req.startDate,
-                              endDate: req.endDate,
-                              workingDays: req.workingDays,
-                              status: req.status,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => LeaveDetailScreen(
-                                      requestId: req.id,
-                                    ),
-                                  ),
-                                ).then((_) => _loadData());
-                              },
-                            );
-                          },
-                          childCount: _activeRequests.length,
-                        ),
-                      ),
-
-                    // Bottom padding
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 24),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            HomeStatus.success => CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _HomeHeader(controller: controller)),
+                  const SliverToBoxAdapter(child: _SectionTitle('Leave Balance')),
+                  SliverToBoxAdapter(child: _BalanceCards(controller: controller)),
+                  SliverToBoxAdapter(child: _ApplyButton(controller: controller)),
+                  const SliverToBoxAdapter(child: _SectionTitle('Active Requests', topPadding: 28)),
+                  _ActiveRequestsList(controller: controller),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                ],
+              ),
+          },
         ),
       ),
     );
   }
 }
 
-/// Wrapper to push ApplyLeaveScreen as a full-screen route with its own Scaffold
-class _ApplyLeaveWrapper extends StatelessWidget {
-  const _ApplyLeaveWrapper();
+// ── Private widgets ────────────────────────────────────────────────────────
+
+String _firstName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+'));
+  return parts.isNotEmpty ? parts.first : fullName;
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.controller});
+
+  final HomeController controller;
 
   @override
   Widget build(BuildContext context) {
-    return const ApplyLeaveScreen(showBackButton: true);
+    final user = context.select((AuthService a) => a.currentUser);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hi, ${_firstName(user?.name ?? '')}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('EEEE, MMM d').format(DateTime.now()),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen(),
+                ))
+                .then((_) => controller.load()),
+            icon: Badge(
+              isLabelVisible: controller.unreadCount > 0,
+              label: Text(
+                controller.unreadCount > 99
+                    ? '99+'
+                    : '${controller.unreadCount}',
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+              ),
+              child: const Icon(
+                Icons.notifications_outlined,
+                size: 28,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title, {this.topPadding = 24});
+
+  final String title;
+  final double topPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topPadding, 20, 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _BalanceCards extends StatelessWidget {
+  const _BalanceCards({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller.balances.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: Text(
+          'No leave balances available',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 130,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: controller.balances.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final b = controller.balances[index];
+          return SizedBox(
+            width: 200,
+            child: LeaveBalanceCard(
+              label: b.leaveType.label,
+              color: b.leaveType.color,
+              available: b.availableDays,
+              total: b.totalDays,
+              pending: b.pendingDays,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ApplyButton extends StatelessWidget {
+  const _ApplyButton({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute(
+                builder: (_) =>
+                    const ApplyLeaveScreen(showBackButton: true),
+              ))
+              .then((_) => controller.load()),
+          icon: const Icon(Icons.add, size: 20),
+          label: const Text('Apply for Leave'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveRequestsList extends StatelessWidget {
+  const _ActiveRequestsList({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller.activeRequests.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: EmptyStateWidget(
+          icon: Icons.inbox_outlined,
+          title: 'No active requests',
+          description: 'Your pending leave requests will appear here.',
+        ),
+      );
+    }
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _ActiveRequestItem(
+          request: controller.activeRequests[index],
+          onRefresh: controller.load,
+        ),
+        childCount: controller.activeRequests.length,
+      ),
+    );
+  }
+}
+
+class _ActiveRequestItem extends StatelessWidget {
+  const _ActiveRequestItem({
+    required this.request,
+    required this.onRefresh,
+  });
+
+  final LeaveRequest request;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return LeaveRequestCard(
+      leaveTypeLabel: request.leaveType.label,
+      leaveTypeColor: request.leaveType.color,
+      startDate: request.startDate,
+      endDate: request.endDate,
+      workingDays: request.workingDays,
+      status: request.status,
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(
+            builder: (_) => LeaveDetailScreen(requestId: request.id),
+          ))
+          .then((_) => onRefresh()),
+    );
   }
 }
